@@ -1,3 +1,64 @@
+class MedicineSupplyReturn {
+  final String? id;
+  final int qtyReturned;
+  final DateTime? returnedAt;
+  final DateTime? expiryDate;
+  final dynamic stockEntryId;
+  final String? staffNote;
+
+  const MedicineSupplyReturn({
+    this.id,
+    required this.qtyReturned,
+    this.returnedAt,
+    this.expiryDate,
+    this.stockEntryId,
+    this.staffNote,
+  });
+
+  factory MedicineSupplyReturn.fromJson(Map<String, dynamic> json) {
+    final stockEntry = json['stockEntryId'];
+    return MedicineSupplyReturn(
+      id: json['_id']?.toString() ?? json['id']?.toString(),
+      qtyReturned: (json['qtyReturned'] is num)
+          ? (json['qtyReturned'] as num).toInt()
+          : int.tryParse(json['qtyReturned']?.toString() ?? '0') ?? 0,
+      returnedAt: json['returnedAt'] != null
+          ? DateTime.tryParse(json['returnedAt'].toString())
+          : null,
+      expiryDate:
+          DateTime.tryParse(json['expiryDate']?.toString() ?? '') ??
+          (stockEntry is Map
+              ? DateTime.tryParse(stockEntry['expiryDate']?.toString() ?? '')
+              : null),
+      stockEntryId: stockEntry,
+      staffNote: json['staffNote']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'qtyReturned': qtyReturned,
+      if (returnedAt != null) 'returnedAt': returnedAt!.toIso8601String(),
+      if (expiryDate != null) 'expiryDate': expiryDate!.toIso8601String(),
+      if (MedicineSupply._getId(stockEntryId) != null)
+        'stockEntryId': MedicineSupply._getId(stockEntryId),
+      if (staffNote?.trim().isNotEmpty == true) 'staffNote': staffNote!.trim(),
+    };
+  }
+
+  String get batchNumber {
+    if (stockEntryId is Map) {
+      return stockEntryId['batchNumber']?.toString() ?? '';
+    }
+    return '';
+  }
+
+  String get qtyUnit {
+    if (stockEntryId is Map) return stockEntryId['qtyUnit']?.toString() ?? '';
+    return '';
+  }
+}
+
 class MedicineSupplyItem {
   final String? id;
   final String? supplyId;
@@ -5,6 +66,7 @@ class MedicineSupplyItem {
   final dynamic stockEntryId;
   final int qtyGiven;
   final DateTime? givenAt;
+  final List<MedicineSupplyReturn> returns;
   final String status;
   final int? qtyReturned;
   final DateTime? returnedAt;
@@ -18,6 +80,7 @@ class MedicineSupplyItem {
     this.stockEntryId,
     required this.qtyGiven,
     this.givenAt,
+    this.returns = const [],
     this.status = 'given',
     this.qtyReturned,
     this.returnedAt,
@@ -37,6 +100,18 @@ class MedicineSupplyItem {
       givenAt: json['givenAt'] != null
           ? DateTime.tryParse(json['givenAt'].toString())
           : null,
+      returns:
+          ((json['returns'] ?? json['returnEntries'] ?? json['returnHistory'])
+                      as List<dynamic>? ??
+                  const [])
+              .whereType<Map>()
+              .map(
+                (item) => MedicineSupplyReturn.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .where((item) => item.qtyReturned > 0)
+              .toList(),
       status: json['status']?.toString() ?? 'given',
       qtyReturned: (json['qtyReturned'] is num)
           ? (json['qtyReturned'] as num).toInt()
@@ -61,6 +136,8 @@ class MedicineSupplyItem {
       'status': status,
       if (qtyReturned != null) 'qtyReturned': qtyReturned,
       if (returnedAt != null) 'returnedAt': returnedAt!.toIso8601String(),
+      if (returns.isNotEmpty)
+        'returns': returns.map((item) => item.toJson()).toList(),
       if (cancelledAt != null) 'cancelledAt': cancelledAt!.toIso8601String(),
       if (staffNote != null) 'staffNote': staffNote,
     };
@@ -73,6 +150,7 @@ class MedicineSupplyItem {
     dynamic stockEntryId,
     int? qtyGiven,
     DateTime? givenAt,
+    List<MedicineSupplyReturn>? returns,
     String? status,
     int? qtyReturned,
     DateTime? returnedAt,
@@ -86,6 +164,7 @@ class MedicineSupplyItem {
       stockEntryId: stockEntryId ?? this.stockEntryId,
       qtyGiven: qtyGiven ?? this.qtyGiven,
       givenAt: givenAt ?? this.givenAt,
+      returns: returns ?? this.returns,
       status: status ?? this.status,
       qtyReturned: qtyReturned ?? this.qtyReturned,
       returnedAt: returnedAt ?? this.returnedAt,
@@ -159,7 +238,11 @@ class MedicineSupplyItem {
 
   bool get canCancel => status == 'given' && (qtyReturned ?? 0) <= 0;
 
-  int get returnedQty => qtyReturned ?? 0;
+  int get returnedQty {
+    final explicit = qtyReturned;
+    if (explicit != null) return explicit;
+    return returns.fold<int>(0, (sum, item) => sum + item.qtyReturned);
+  }
 
   int get remainingQty => (qtyGiven - returnedQty).clamp(0, qtyGiven).toInt();
 }

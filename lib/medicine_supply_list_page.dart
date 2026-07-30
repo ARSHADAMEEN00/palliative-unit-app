@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/medicine_supply_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
+import 'package:oruma_app/models/medicine_supply_activity.dart';
 import 'package:oruma_app/models/medicine_supply.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
@@ -606,6 +607,20 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     return 'partially_given';
   }
 
+  List<MedicineSupplyActivity> _returnActivities(MedicineSupply supply) {
+    return MedicineSupplyActivity.fromSupplies([supply])
+        .where(
+          (activity) => activity.type == MedicineSupplyActivityType.returned,
+        )
+        .toList();
+  }
+
+  int _returnedQuantityForSupply(MedicineSupply supply) {
+    return _returnActivities(
+      supply,
+    ).fold<int>(0, (sum, activity) => sum + activity.quantity);
+  }
+
   String? _supplyPatientIdentityKey(MedicineSupply supply) {
     final register = supply.patientRegisterId?.trim().toLowerCase();
     if (register != null && register.isNotEmpty) return 'reg:$register';
@@ -645,6 +660,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
+          final returnActivities = _returnActivities(currentSupply);
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
@@ -726,6 +742,12 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                             setModalState(() => currentSupply = updated),
                       ),
                     ),
+                  if (returnActivities.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _buildReturnListHeader(returnActivities.length),
+                    const SizedBox(height: 10),
+                    ...returnActivities.map(_buildReturnActivityRow),
+                  ],
                   if (currentSupply.supplyDays != null ||
                       currentSupply.prescribedBy?.trim().isNotEmpty == true ||
                       currentSupply.staffNote?.trim().isNotEmpty == true) ...[
@@ -846,6 +868,156 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     );
   }
 
+  Widget _buildReturnListHeader(int count) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Return List',
+          style: TextStyle(
+            color: _primaryText,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '$count ${count == 1 ? 'Return' : 'Returns'}',
+          style: const TextStyle(
+            color: _secondaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReturnActivityRow(MedicineSupplyActivity activity) {
+    final returnBatch = activity.returnEntry?.batchNumber.trim() ?? '';
+    final medicineCode = activity.medicineCode.trim();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.028),
+            blurRadius: 9,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: _warningAmber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.assignment_return_outlined,
+                  color: _warningAmber,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.medicineName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _primaryText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Row(
+                      children: [
+                        if (medicineCode.isNotEmpty) ...[
+                          Flexible(
+                            child: Text(
+                              medicineCode,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _secondaryText,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        _activityStatusPill('RETURNED', _warningAmber),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                activity.quantityLabel,
+                style: const TextStyle(
+                  color: _warningAmber,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _returnInfoGrid(activity, returnBatch),
+          if (activity.note?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            _infoCell(
+              icon: Icons.notes_outlined,
+              label: 'Note',
+              value: activity.note!,
+              valueColor: _warningAmber,
+              emphasize: true,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _activityStatusPill(String label, Color color) {
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
   Widget _itemStatusPill(MedicineSupplyItem item) {
     final color = _itemStatusColor(item);
     return Container(
@@ -892,6 +1064,51 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
           value: _itemQuantity(item, quantity: item.returnedQty),
           valueColor: _warningAmber,
           emphasize: true,
+        ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cellWidth = (constraints.maxWidth - 6) / 2;
+        return Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final cell in cells)
+              SizedBox(
+                width: cellWidth.clamp(120, 420).toDouble(),
+                child: cell,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _returnInfoGrid(MedicineSupplyActivity activity, String returnBatch) {
+    final displayBatch = returnBatch.isNotEmpty
+        ? returnBatch
+        : activity.batchNumber;
+    final cells = <Widget>[
+      _infoCell(
+        icon: Icons.event_available_outlined,
+        label: 'Return',
+        value: _formatDateShort(activity.date),
+        valueColor: _warningAmber,
+        emphasize: true,
+        background: _warningAmber.withValues(alpha: 0.08),
+      ),
+      _expiryInfoCell(activity.expiryDate),
+      _infoCell(
+        icon: Icons.confirmation_number_outlined,
+        label: returnBatch.isNotEmpty ? 'Return batch' : 'Batch',
+        value: displayBatch,
+      ),
+      if (returnBatch.isNotEmpty && activity.batchNumber.trim().isNotEmpty)
+        _infoCell(
+          icon: Icons.inventory_2_outlined,
+          label: 'Original batch',
+          value: activity.batchNumber,
         ),
     ];
 
@@ -1065,17 +1282,27 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    if (item.medicineCode.trim().isNotEmpty) ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        item.medicineCode,
-                        style: const TextStyle(
-                          color: _secondaryText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                    const SizedBox(height: 1),
+                    Row(
+                      children: [
+                        if (item.medicineCode.trim().isNotEmpty) ...[
+                          Flexible(
+                            child: Text(
+                              item.medicineCode,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _secondaryText,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        _itemStatusPill(item),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1094,13 +1321,13 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  _itemStatusPill(item),
                   if (auth.canEdit && item.canReturn)
                     Tooltip(
                       message: 'Return',
                       child: SizedBox.square(
                         dimension: 30,
-                        child: IconButton.filled(
+                        child: IconButton(
+                          tooltip: 'Return',
                           onPressed: () async {
                             final updated = await _returnSupplyItem(
                               supply,
@@ -1109,8 +1336,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                             if (updated != null) onUpdated(updated);
                           },
                           style: IconButton.styleFrom(
-                            backgroundColor: _medicineGreen,
-                            foregroundColor: Colors.white,
+                            foregroundColor: _medicineGreen,
                             minimumSize: const Size.square(30),
                             fixedSize: const Size.square(30),
                             padding: EdgeInsets.zero,
@@ -1119,7 +1345,8 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                           ),
                           icon: const Icon(
                             Icons.assignment_return_outlined,
-                            size: 16,
+                            size: 19,
+                            semanticLabel: 'Return',
                           ),
                         ),
                       ),
@@ -1268,6 +1495,8 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
   }
 
   Widget _buildSupplyCard(MedicineSupply supply) {
+    final returnedQty = _returnedQuantityForSupply(supply);
+
     Widget cardContent = Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1368,6 +1597,23 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
+                            if (returnedQty > 0) ...[
+                              const SizedBox(width: 10),
+                              Icon(
+                                Icons.assignment_return_outlined,
+                                size: 14,
+                                color: _warningAmber,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Returned: $returnedQty',
+                                style: const TextStyle(
+                                  color: _warningAmber,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                             const Spacer(),
                             if (supply.supplyDays != null) ...[
                               Icon(

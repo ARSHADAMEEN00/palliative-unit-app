@@ -5,6 +5,7 @@ enum MedicineSupplyActivityType { supplied, returned, cancelled }
 class MedicineSupplyActivity {
   final MedicineSupply supply;
   final MedicineSupplyItem item;
+  final MedicineSupplyReturn? returnEntry;
   final MedicineSupplyActivityType type;
   final DateTime date;
   final int quantity;
@@ -12,6 +13,7 @@ class MedicineSupplyActivity {
   const MedicineSupplyActivity({
     required this.supply,
     required this.item,
+    this.returnEntry,
     required this.type,
     required this.date,
     required this.quantity,
@@ -37,23 +39,7 @@ class MedicineSupplyActivity {
           ),
         );
 
-        final returnedQty = _returnedQuantity(supply, item);
-        final hasReturn =
-            returnedQty > 0 ||
-            item.returnedAt != null ||
-            item.status == 'returned' ||
-            item.status == 'partially_given';
-        if (hasReturn) {
-          activities.add(
-            MedicineSupplyActivity(
-              supply: supply,
-              item: item,
-              type: MedicineSupplyActivityType.returned,
-              date: item.returnedAt ?? supply.returnedAt ?? supply.givenAt,
-              quantity: returnedQty > 0 ? returnedQty : item.qtyGiven,
-            ),
-          );
-        }
+        activities.addAll(_returnActivitiesForItem(supply, item));
 
         if (item.status == 'cancelled' || item.cancelledAt != null) {
           final cancelledQty = item.remainingQty > 0
@@ -119,6 +105,62 @@ class MedicineSupplyActivity {
     return 0;
   }
 
+  static List<MedicineSupplyActivity> _returnActivitiesForItem(
+    MedicineSupply supply,
+    MedicineSupplyItem item,
+  ) {
+    if (item.returns.isNotEmpty) {
+      final activities = item.returns
+          .where((entry) => entry.qtyReturned > 0)
+          .map(
+            (entry) => MedicineSupplyActivity(
+              supply: supply,
+              item: item,
+              returnEntry: entry,
+              type: MedicineSupplyActivityType.returned,
+              date: entry.returnedAt ?? item.returnedAt ?? supply.givenAt,
+              quantity: entry.qtyReturned,
+            ),
+          )
+          .toList();
+      final historyTotal = item.returns.fold<int>(
+        0,
+        (sum, entry) => sum + entry.qtyReturned,
+      );
+      final missingLegacyQty = item.returnedQty - historyTotal;
+      if (missingLegacyQty > 0) {
+        activities.add(
+          MedicineSupplyActivity(
+            supply: supply,
+            item: item,
+            type: MedicineSupplyActivityType.returned,
+            date: item.returnedAt ?? supply.returnedAt ?? supply.givenAt,
+            quantity: missingLegacyQty,
+          ),
+        );
+      }
+      return activities;
+    }
+
+    final returnedQty = _returnedQuantity(supply, item);
+    final hasReturn =
+        returnedQty > 0 ||
+        item.returnedAt != null ||
+        item.status == 'returned' ||
+        item.status == 'partially_given';
+    if (!hasReturn) return const [];
+
+    return [
+      MedicineSupplyActivity(
+        supply: supply,
+        item: item,
+        type: MedicineSupplyActivityType.returned,
+        date: item.returnedAt ?? supply.returnedAt ?? supply.givenAt,
+        quantity: returnedQty > 0 ? returnedQty : item.qtyGiven,
+      ),
+    ];
+  }
+
   static int _typeSortWeight(MedicineSupplyActivityType type) {
     return switch (type) {
       MedicineSupplyActivityType.returned => 0,
@@ -129,7 +171,7 @@ class MedicineSupplyActivity {
 
   DateTime get supplyDate => item.givenAt ?? supply.givenAt;
 
-  DateTime? get expiryDate => item.expiryDate;
+  DateTime? get expiryDate => returnEntry?.expiryDate ?? item.expiryDate;
 
   String get medicineName {
     final itemName = item.medicineName.trim();
@@ -175,6 +217,8 @@ class MedicineSupplyActivity {
   }
 
   String? get note {
+    final returnNote = returnEntry?.staffNote?.trim();
+    if (returnNote?.isNotEmpty == true) return returnNote;
     final itemNote = item.staffNote?.trim();
     if (itemNote?.isNotEmpty == true) return itemNote;
     final supplyNote = supply.staffNote?.trim();
