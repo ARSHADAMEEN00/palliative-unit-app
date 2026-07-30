@@ -5,13 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:oruma_app/medicine_supply_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/models/medicine_supply.dart';
-import 'package:oruma_app/models/patient.dart';
-import 'package:oruma_app/models/medicine.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/medicine_supply_service.dart';
-import 'package:oruma_app/services/patient_service.dart';
-import 'package:oruma_app/services/medicine_service.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/app_bottom_nav_router.dart';
@@ -38,8 +34,6 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _searchDebounce;
-  String _selectedTab = 'All';
-  final List<String> _tabs = ['All', 'Given', 'Returned', 'Cancelled'];
 
   @override
   void initState() {
@@ -99,8 +93,14 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     if (_searchQuery.isEmpty) return true;
     final q = _searchQuery.toLowerCase();
     return supply.patientName.toLowerCase().contains(q) ||
+        (supply.patientRegisterId?.toLowerCase().contains(q) ?? false) ||
         supply.medicineName.toLowerCase().contains(q) ||
-        supply.medicineSummary.toLowerCase().contains(q);
+        supply.medicineSummary.toLowerCase().contains(q) ||
+        supply.items.any(
+          (item) =>
+              item.batchNumber.toLowerCase().contains(q) ||
+              item.medicineCode.toLowerCase().contains(q),
+        );
   }
 
   void _handleBottomNavigation(BuildContext context, AppBottomSection section) {
@@ -168,8 +168,8 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       contentMaxWidth: 820,
       body: Column(
         children: [
-          _buildSearchBarAndTabs(),
-          Expanded(child: _buildList(auth)),
+          _buildSearchBar(),
+          Expanded(child: _buildList()),
         ],
       ),
     );
@@ -217,60 +217,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     );
   }
 
-  Widget _buildSearchBarAndTabs() {
-    return Column(
-      children: [
-        _buildSearchBar(),
-        Container(
-          height: 48,
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _tabs.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final tab = _tabs[index];
-              final isSelected = _selectedTab == tab;
-              return Center(
-                child: InkWell(
-                  onTap: () => setState(() => _selectedTab = tab),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected ? _medicineGreen : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? _medicineGreen
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Text(
-                      tab,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.grey.shade700,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildList(AuthService auth) {
+  Widget _buildList() {
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: _medicineGreen),
@@ -291,12 +238,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       );
     }
 
-    var filteredList = _supplies.where(_matchesSearch).toList();
-    if (_selectedTab != 'All') {
-      filteredList = filteredList
-          .where((s) => s.status?.toLowerCase() == _selectedTab.toLowerCase())
-          .toList();
-    }
+    final filteredList = _supplies.where(_matchesSearch).toList();
 
     if (filteredList.isEmpty) {
       return Center(
@@ -331,17 +273,20 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final supply = filteredList[index];
-          return _buildSupplyCard(supply, auth);
+          return _buildSupplyCard(supply);
         },
       ),
     );
   }
 
-  Future<void> _returnSupply(MedicineSupply supply) async {
-    if (supply.id == null || supply.status != 'given') return;
+  Future<MedicineSupply?> _returnSupplyItem(
+    MedicineSupply supply,
+    MedicineSupplyItem item,
+  ) async {
+    if (supply.id == null || item.id == null || !item.canReturn) return null;
 
     final qtyController = TextEditingController(
-      text: supply.qtyGiven.toString(),
+      text: item.remainingQty.toString(),
     );
     final noteController = TextEditingController();
     var returnDate = DateTime.now();
@@ -382,7 +327,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                   horizontal: 18,
                   vertical: 24,
                 ),
-                title: const Text('Return Medicine'),
+                title: Text('Return ${item.medicineName}'),
                 content: SizedBox(
                   width: 520,
                   child: SingleChildScrollView(
@@ -394,7 +339,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             labelText: 'Returned Quantity',
-                            helperText: 'Max: ${supply.qtyGiven}',
+                            helperText: 'Max: ${item.remainingQty}',
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -430,7 +375,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                   ElevatedButton(
                     onPressed: () {
                       final qty = int.tryParse(qtyController.text.trim());
-                      if (qty == null || qty <= 0 || qty > supply.qtyGiven) {
+                      if (qty == null || qty <= 0 || qty > item.remainingQty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Please enter a valid quantity'),
@@ -449,25 +394,27 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         },
       );
 
-      if (confirm != true) return;
+      if (confirm != true) return null;
 
-      await MedicineSupplyService.returnMedicineSupply(
+      final updated = await MedicineSupplyService.returnMedicineSupplyItem(
         supply.id!,
+        item.id!,
         qtyReturned: int.parse(qtyController.text.trim()),
         returnedAt: returnDate,
         expiryDate: expiryDate,
         staffNote: noteController.text,
       );
-      if (!mounted) return;
+      if (!mounted) return null;
+      _replaceSupply(updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Medicine returned and batch created'),
           backgroundColor: Colors.green,
         ),
       );
-      _loadData(showLoading: false);
+      return updated;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error returning medicine: $e'),
@@ -478,17 +425,21 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       qtyController.dispose();
       noteController.dispose();
     }
+    return null;
   }
 
-  Future<void> _cancelSupply(MedicineSupply supply) async {
-    if (supply.id == null || supply.status != 'given') return;
+  Future<MedicineSupply?> _cancelSupplyItem(
+    MedicineSupply supply,
+    MedicineSupplyItem item,
+  ) async {
+    if (supply.id == null || item.id == null || !item.canCancel) return null;
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Supply'),
-        content: const Text(
-          'Cancel this supply and restore the medicines to their original batches?',
+        title: Text('Cancel ${item.medicineName}?'),
+        content: Text(
+          'Cancel this medicine batch and restore ${_itemQuantity(item)} to its original stock?',
         ),
         actions: [
           TextButton(
@@ -498,26 +449,30 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Cancel Supply'),
+            child: const Text('Cancel Medicine'),
           ),
         ],
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true) return null;
 
     try {
-      await MedicineSupplyService.cancelMedicineSupply(supply.id!);
-      if (!mounted) return;
+      final updated = await MedicineSupplyService.cancelMedicineSupplyItem(
+        supply.id!,
+        item.id!,
+      );
+      if (!mounted) return null;
+      _replaceSupply(updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Supply cancelled'),
+          content: Text('Medicine batch cancelled'),
           backgroundColor: Colors.green,
         ),
       );
-      _loadData(showLoading: false);
+      return updated;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error cancelling supply: $e'),
@@ -525,13 +480,21 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         ),
       );
     }
+    return null;
+  }
+
+  void _replaceSupply(MedicineSupply updated) {
+    if (!mounted) return;
+    setState(() {
+      _supplies = _supplies
+          .map((supply) => supply.id == updated.id ? updated : supply)
+          .toList();
+    });
   }
 
   void _showSupplyDetails(MedicineSupply supply) {
-    Patient? patient;
-    Medicine? medicine;
-    bool loading = true;
-    String? error;
+    var currentSupply = supply;
+    final auth = context.read<AuthService>();
 
     showModalBottomSheet(
       context: context,
@@ -539,46 +502,6 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
-          if (loading && patient == null && error == null) {
-            Future.wait([
-                  supply.patientId is String
-                      ? PatientService.getPatientById(
-                          supply.patientId as String,
-                        )
-                      : Future.value(
-                          Patient.fromJson(
-                            supply.patientId as Map<String, dynamic>,
-                          ),
-                        ),
-                  supply.medicineId is String
-                      ? MedicineService.getMedicineById(
-                          supply.medicineId as String,
-                        )
-                      : Future.value(
-                          Medicine.fromJson(
-                            supply.medicineId as Map<String, dynamic>,
-                          ),
-                        ),
-                ])
-                .then((results) {
-                  if (mounted) {
-                    setModalState(() {
-                      patient = results[0] as Patient;
-                      medicine = results[1] as Medicine;
-                      loading = false;
-                    });
-                  }
-                })
-                .catchError((e) {
-                  if (mounted) {
-                    setModalState(() {
-                      error = e.toString();
-                      loading = false;
-                    });
-                  }
-                });
-          }
-
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
@@ -602,6 +525,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                     ),
                   ),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -610,7 +534,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
-                          Icons.medication,
+                          Icons.person_outline,
                           color: _medicineGreen,
                         ),
                       ),
@@ -620,125 +544,69 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              supply.medicineName,
+                              currentSupply.patientName,
                               style: const TextStyle(
                                 fontSize: 18,
                                 color: Colors.black,
                               ),
                             ),
-                            Text(
-                              supply.patientName,
-                              style: const TextStyle(color: _medicineGreen),
-                            ),
+                            if (currentSupply.patientRegisterId
+                                    ?.trim()
+                                    .isNotEmpty ==
+                                true)
+                              Text(
+                                'Reg No: ${currentSupply.patientRegisterId}',
+                                style: const TextStyle(color: _medicineGreen),
+                              ),
                           ],
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  if (loading)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: CircularProgressIndicator(color: _medicineGreen),
-                      ),
+                  _buildPatientDetails(currentSupply),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Medicine List',
+                    style: TextStyle(fontSize: 16, color: _medicineGreen),
+                  ),
+                  const SizedBox(height: 12),
+                  if (currentSupply.items.isEmpty)
+                    Text(
+                      currentSupply.medicineSummary,
+                      style: TextStyle(color: Colors.grey.shade700),
                     )
-                  else if (error != null)
-                    Center(
-                      child: Text(
-                        'Error loading details: $error',
-                        style: const TextStyle(color: Colors.red),
+                  else
+                    ...currentSupply.items.map(
+                      (item) => _buildSupplyItemRow(
+                        currentSupply,
+                        item,
+                        auth,
+                        (updated) =>
+                            setModalState(() => currentSupply = updated),
                       ),
-                    )
-                  else ...[
-                    const Text(
-                      'Supply Information',
-                      style: TextStyle(fontSize: 16, color: _medicineGreen),
+                    ),
+                  if (currentSupply.supplyDays != null ||
+                      currentSupply.prescribedBy?.trim().isNotEmpty == true ||
+                      currentSupply.staffNote?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 12),
+                    Divider(
+                      height: 1,
+                      color: Colors.grey.withValues(alpha: 0.2),
                     ),
                     const SizedBox(height: 12),
-                    _buildDetailRow(
-                      'Status',
-                      supply.status?.toUpperCase() ?? 'GIVEN',
-                    ),
-                    _buildDetailRow('Quantity', '${supply.qtyGiven}'),
-                    if (supply.items.isNotEmpty)
-                      _buildDetailRow('Medicines', supply.medicineSummary),
-                    _buildDetailRow(
-                      'Date',
-                      '${supply.givenAt.day}/${supply.givenAt.month}/${supply.givenAt.year}',
-                    ),
-                    if (supply.supplyDays != null)
+                    if (currentSupply.supplyDays != null)
                       _buildDetailRow(
                         'Supply Days',
-                        '${supply.supplyDays} Days',
+                        '${currentSupply.supplyDays} Days',
                       ),
-                    if (supply.prescribedBy != null)
-                      _buildDetailRow('Prescribed By', supply.prescribedBy!),
-                    if (supply.staffNote != null)
-                      _buildDetailRow('Staff Note', supply.staffNote!),
-                    if (supply.items.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Batch Details',
-                        style: TextStyle(fontSize: 16, color: _medicineGreen),
+                    if (currentSupply.prescribedBy?.trim().isNotEmpty == true)
+                      _buildDetailRow(
+                        'Prescribed By',
+                        currentSupply.prescribedBy!,
                       ),
-                      const SizedBox(height: 12),
-                      ...supply.items.map(_buildSupplyItemRow),
-                    ],
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Divider(
-                        height: 1,
-                        color: Colors.grey.withValues(alpha: 0.2),
-                      ),
-                    ),
-
-                    const Text(
-                      'Medicine Details',
-                      style: TextStyle(fontSize: 16, color: _medicineGreen),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      'Category',
-                      medicine!.category
-                          .split('_')
-                          .map((e) => e[0].toUpperCase() + e.substring(1))
-                          .join(' '),
-                    ),
-                    _buildDetailRow('Code', medicine!.code),
-                    if (medicine!.formulation != null)
-                      _buildDetailRow('Formulation', medicine!.formulation!),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Divider(
-                        height: 1,
-                        color: Colors.grey.withValues(alpha: 0.2),
-                      ),
-                    ),
-
-                    const Text(
-                      'Patient Details',
-                      style: TextStyle(fontSize: 16, color: _medicineGreen),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailRow('Phone', patient!.phone),
-                    _buildDetailRow(
-                      'Age/Gender',
-                      [
-                        if (patient!.age > 0) '${patient!.age} yrs',
-                        if (patient!.gender.isNotEmpty) patient!.gender,
-                      ].join(' / '),
-                    ),
-                    _buildDetailRow(
-                      'Address',
-                      [
-                        patient!.address,
-                        patient!.place,
-                      ].where((e) => e.trim().isNotEmpty).join(', '),
-                    ),
-                    _buildDetailRow('Diagnosis', patient!.disease.join(', ')),
+                    if (currentSupply.staffNote?.trim().isNotEmpty == true)
+                      _buildDetailRow('Staff Note', currentSupply.staffNote!),
                   ],
                   const SizedBox(height: 32),
                   SizedBox(
@@ -756,6 +624,104 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPatientDetails(MedicineSupply supply) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Patient Details',
+            style: TextStyle(
+              color: _medicineGreen,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildDetailRow('Name', supply.patientName),
+          if (supply.patientRegisterId?.trim().isNotEmpty == true)
+            _buildDetailRow('Register No', supply.patientRegisterId!),
+          _buildDetailRow('Phone', supply.patientPhone),
+          _buildDetailRow(
+            'Age/Gender',
+            [
+              if (supply.patientAge > 0) '${supply.patientAge} yrs',
+              if (supply.patientGender.trim().isNotEmpty) supply.patientGender,
+            ].join(' / '),
+          ),
+          _buildDetailRow(
+            'Address',
+            [
+              supply.patientAddress,
+              supply.patientPlace,
+            ].where((value) => value.trim().isNotEmpty).join(', '),
+          ),
+          _buildDetailRow('Diagnosis', supply.patientDiseases.join(', ')),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemStatusPill(MedicineSupplyItem item) {
+    final color = _itemStatusColor(item);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        _itemStatusLabel(item),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label) {
+    if (label.trim().isEmpty || label == 'null') return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: _medicineGreen),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _medicineGreen,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -780,85 +746,159 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     );
   }
 
-  Widget _buildSupplyItemRow(MedicineSupplyItem item) {
+  Widget _buildSupplyItemRow(
+    MedicineSupply supply,
+    MedicineSupplyItem item,
+    AuthService auth,
+    ValueChanged<MedicineSupply> onUpdated,
+  ) {
     final expiry = item.expiryDate;
-    final unit = item.qtyUnit.trim();
-    final qty = unit.isEmpty ? '${item.qtyGiven}' : '${item.qtyGiven} $unit';
+    final statusColor = _itemStatusColor(item);
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _cardBg.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _iconBg.withValues(alpha: 0.7)),
+        color: statusColor.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.22)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.inventory_2_outlined,
-            color: _medicineGreen,
-            size: 18,
+          Row(
+            children: [
+              Icon(Icons.inventory_2_outlined, color: statusColor, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.medicineName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (item.medicineCode.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        item.medicineCode,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              _itemStatusPill(item),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _infoChip(Icons.confirmation_number_outlined, item.batchNumber),
+              _infoChip(
+                Icons.event_available_outlined,
+                'Supply ${_formatDate(supply.givenAt)}',
+              ),
+              _infoChip(Icons.label_outline, _itemSourceText(item)),
+              _infoChip(
+                Icons.event_outlined,
+                'Exp ${expiry == null ? 'Not recorded' : _formatDate(expiry)}',
+              ),
+              _infoChip(
+                Icons.inventory_2_outlined,
+                'Supplied ${_itemQuantity(item)}',
+              ),
+              if (item.returnedQty > 0)
+                _infoChip(
+                  Icons.assignment_return_outlined,
+                  'Returned ${_itemQuantity(item, quantity: item.returnedQty)}',
+                ),
+            ],
+          ),
+          if (auth.canEdit && (item.canReturn || item.canCancel)) ...[
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text(
-                  item.medicineName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _medicineGreen,
-                    fontWeight: FontWeight.w800,
+                if (item.canReturn)
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final updated = await _returnSupplyItem(supply, item);
+                      if (updated != null) onUpdated(updated);
+                    },
+                    icon: const Icon(
+                      Icons.assignment_return_outlined,
+                      size: 17,
+                    ),
+                    label: const Text('Return'),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${item.batchNumber} • Exp ${expiry == null ? 'Not recorded' : '${expiry.day}/${expiry.month}/${expiry.year}'}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _itemSourceText(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                if (item.canReturn && item.canCancel) const SizedBox(width: 8),
+                if (item.canCancel)
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final updated = await _cancelSupplyItem(supply, item);
+                      if (updated != null) onUpdated(updated);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red.shade700,
+                    ),
+                    icon: const Icon(Icons.cancel_outlined, size: 17),
+                    label: const Text('Cancel'),
                   ),
-                ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            qty,
-            style: const TextStyle(
-              color: _medicineGreen,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  String _quantityStatusText(MedicineSupply supply) {
-    if (supply.status != 'returned') return 'Qty: ${supply.qtyGiven}';
+  String _itemQuantity(MedicineSupplyItem item, {int? quantity}) {
+    final unit = item.qtyUnit.trim();
+    final value = quantity ?? item.qtyGiven;
+    return unit.isEmpty ? '$value' : '$value $unit';
+  }
 
-    final returnedText =
-        'Given: ${supply.qtyGiven} • Ret: ${supply.qtyReturned ?? supply.qtyGiven}';
-    final returnedAt = supply.returnedAt;
-    if (returnedAt == null) return returnedText;
+  String _formatDate(DateTime value) {
+    return '${value.day}/${value.month}/${value.year}';
+  }
 
-    return '$returnedText (${returnedAt.day}/${returnedAt.month}/${returnedAt.year})';
+  String _statusLabel(String status) {
+    return switch (status.toLowerCase()) {
+      'returned' => 'Returned',
+      'cancelled' => 'Cancelled',
+      'partially_given' => 'Partially Given',
+      _ => 'Given',
+    };
+  }
+
+  Color _statusColor(String status) {
+    return switch (status.toLowerCase()) {
+      'returned' => Colors.orange.shade800,
+      'cancelled' => Colors.red.shade700,
+      'partially_given' => Colors.blueGrey.shade700,
+      _ => _medicineGreen,
+    };
+  }
+
+  String _itemStatusLabel(MedicineSupplyItem item) {
+    if (item.status == 'partially_given') return 'Partial';
+    return _statusLabel(item.status);
+  }
+
+  Color _itemStatusColor(MedicineSupplyItem item) {
+    return _statusColor(item.status);
   }
 
   String _itemSourceText(MedicineSupplyItem item) {
@@ -894,21 +934,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     );
   }
 
-  String _statusText(MedicineSupply supply) {
-    final status = supply.status ?? 'given';
-    return switch (status) {
-      'returned' => 'Returned',
-      'cancelled' => 'Cancelled',
-      'partially_given' => 'Partially Given',
-      _ => 'Given',
-    };
-  }
-
-  Widget _buildSupplyCard(MedicineSupply supply, AuthService auth) {
-    Color statusColor = _medicineGreen;
-    if (supply.status == 'cancelled') statusColor = Colors.red;
-    if (supply.status == 'returned') statusColor = Colors.orange;
-
+  Widget _buildSupplyCard(MedicineSupply supply) {
     Widget cardContent = Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -931,7 +957,6 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(width: 6, color: statusColor),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -941,76 +966,18 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: statusColor.withValues(alpha: 0.18),
-                                ),
-                              ),
-                              child: Text(
-                                _statusText(supply).toUpperCase(),
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                            const Icon(
+                              Icons.person_outline,
+                              color: _medicineGreen,
+                              size: 18,
                             ),
-                            Row(
-                              children: [
-                                Text(
-                                  '${supply.givenAt.day}/${supply.givenAt.month}/${supply.givenAt.year}',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade400,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                if (auth.canEdit &&
-                                    supply.status == 'given') ...[
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    tooltip: 'Return medicine',
-                                    onPressed: () => _returnSupply(supply),
-                                    icon: const Icon(
-                                      Icons.assignment_return_outlined,
-                                      size: 18,
-                                    ),
-                                    style: IconButton.styleFrom(
-                                      foregroundColor: _medicineGreen,
-                                      backgroundColor: _medicineGreen
-                                          .withValues(alpha: 0.08),
-                                      minimumSize: const Size(32, 32),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    tooltip: 'Cancel supply',
-                                    onPressed: () => _cancelSupply(supply),
-                                    icon: const Icon(
-                                      Icons.cancel_outlined,
-                                      size: 18,
-                                    ),
-                                    style: IconButton.styleFrom(
-                                      foregroundColor: Colors.red.shade600,
-                                      backgroundColor: Colors.red.shade50,
-                                      minimumSize: const Size(32, 32),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                  ),
-                                ],
-                              ],
+                            Text(
+                              _formatDate(supply.givenAt),
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
@@ -1026,6 +993,20 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (supply.patientRegisterId?.trim().isNotEmpty ==
+                            true) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'Reg No: ${supply.patientRegisterId}',
+                            style: const TextStyle(
+                              color: _medicineGreen,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           supply.medicineSummary,
@@ -1047,15 +1028,11 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              _quantityStatusText(supply),
+                              'Supplied: ${supply.qtyGiven}',
                               style: TextStyle(
-                                color: supply.status == 'returned'
-                                    ? Colors.orange.shade800
-                                    : Colors.grey.shade500,
+                                color: Colors.grey.shade500,
                                 fontSize: 12,
-                                fontWeight: supply.status == 'returned'
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                             const Spacer(),

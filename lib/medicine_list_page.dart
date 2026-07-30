@@ -177,6 +177,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
   }
 
   void _showDetails(Medicine medicine) {
+    final availableBatches = _availableBatches(medicine);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -299,7 +300,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                     ),
                   ),
                   Text(
-                    '${medicine.batches.length}',
+                    '${availableBatches.length}',
                     style: const TextStyle(
                       color: _medicineDarkGreen,
                       fontWeight: FontWeight.w800,
@@ -308,10 +309,10 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              if (medicine.batches.isEmpty)
+              if (availableBatches.isEmpty)
                 _emptyBatchesCard()
               else
-                ...medicine.batches.map(_batchCard),
+                ...availableBatches.map(_batchCard),
               if (medicine.photos.isNotEmpty) ...[
                 const SizedBox(height: 18),
                 const Text(
@@ -1049,6 +1050,12 @@ class _MedicineListPageState extends State<MedicineListPage> {
     return medicine.batches.any(
       (batch) => batch.quantity > 0 && batch.expiresWithin60Days,
     );
+  }
+
+  List<MedicineBatch> _availableBatches(Medicine medicine) {
+    return medicine.batches
+        .where((batch) => !batch.isEmpty)
+        .toList(growable: false);
   }
 
   String _formatDate(DateTime? value) {

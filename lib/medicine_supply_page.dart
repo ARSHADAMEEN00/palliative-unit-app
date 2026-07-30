@@ -197,11 +197,13 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
         final medicineId = medicine!.id!;
         var addedFromRow = false;
 
-        if (medicine.batches.isEmpty) {
+        final availableBatches = _availableBatches(medicine);
+
+        if (availableBatches.isEmpty) {
           row.error = 'No stock batches available';
         }
 
-        for (final batch in medicine.batches) {
+        for (final batch in availableBatches) {
           final rawQuantity = row.batchQtyController(batch).text.trim();
           if (rawQuantity.isEmpty) continue;
 
@@ -879,6 +881,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
 
   Widget _selectedMedicineSummary(_SupplyItemRow row) {
     final medicine = row.selectedMedicine!;
+    final batchCount = _availableBatches(medicine).length;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -901,7 +904,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Stock ${_stockText(medicine)} • ${medicine.batches.length} batches',
+                  'Stock ${_stockText(medicine)} • $batchCount batches',
                   style: TextStyle(
                     color: _medicineDarkGreen.withValues(alpha: 0.8),
                     fontSize: 12,
@@ -927,7 +930,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
   }
 
   Widget _batchPicker(_SupplyItemRow row) {
-    final batches = row.selectedMedicine!.batches;
+    final batches = _availableBatches(row.selectedMedicine!);
     if (batches.isEmpty) {
       return Container(
         width: double.infinity,
@@ -1133,12 +1136,21 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
   }
 
   int _batchTotalQuantity(_SupplyItemRow row) {
-    final batches = row.selectedMedicine?.batches ?? const <MedicineBatch>[];
+    final medicine = row.selectedMedicine;
+    final batches = medicine == null
+        ? const <MedicineBatch>[]
+        : _availableBatches(medicine);
     return batches.fold<int>(
       0,
       (sum, batch) =>
           sum + (int.tryParse(row.batchQtyController(batch).text.trim()) ?? 0),
     );
+  }
+
+  List<MedicineBatch> _availableBatches(Medicine medicine) {
+    return medicine.batches
+        .where((batch) => !batch.isEmpty)
+        .toList(growable: false);
   }
 
   String _patientOptionLabel(Patient patient) {

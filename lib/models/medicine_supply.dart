@@ -1,21 +1,45 @@
 class MedicineSupplyItem {
+  final String? id;
   final dynamic medicineId;
   final dynamic stockEntryId;
   final int qtyGiven;
+  final String status;
+  final int? qtyReturned;
+  final DateTime? returnedAt;
+  final DateTime? cancelledAt;
+  final String? staffNote;
 
   const MedicineSupplyItem({
+    this.id,
     required this.medicineId,
     this.stockEntryId,
     required this.qtyGiven,
+    this.status = 'given',
+    this.qtyReturned,
+    this.returnedAt,
+    this.cancelledAt,
+    this.staffNote,
   });
 
   factory MedicineSupplyItem.fromJson(Map<String, dynamic> json) {
     return MedicineSupplyItem(
+      id: json['_id']?.toString() ?? json['id']?.toString(),
       medicineId: json['medicineId'],
       stockEntryId: json['stockEntryId'],
       qtyGiven: (json['qtyGiven'] is num)
           ? (json['qtyGiven'] as num).toInt()
           : int.tryParse(json['qtyGiven']?.toString() ?? '0') ?? 0,
+      status: json['status']?.toString() ?? 'given',
+      qtyReturned: (json['qtyReturned'] is num)
+          ? (json['qtyReturned'] as num).toInt()
+          : int.tryParse(json['qtyReturned']?.toString() ?? ''),
+      returnedAt: json['returnedAt'] != null
+          ? DateTime.tryParse(json['returnedAt'].toString())
+          : null,
+      cancelledAt: json['cancelledAt'] != null
+          ? DateTime.tryParse(json['cancelledAt'].toString())
+          : null,
+      staffNote: json['staffNote']?.toString(),
     );
   }
 
@@ -25,6 +49,11 @@ class MedicineSupplyItem {
       if (MedicineSupply._getId(stockEntryId) != null)
         'stockEntryId': MedicineSupply._getId(stockEntryId),
       'qtyGiven': qtyGiven,
+      'status': status,
+      if (qtyReturned != null) 'qtyReturned': qtyReturned,
+      if (returnedAt != null) 'returnedAt': returnedAt!.toIso8601String(),
+      if (cancelledAt != null) 'cancelledAt': cancelledAt!.toIso8601String(),
+      if (staffNote != null) 'staffNote': staffNote,
     };
   }
 
@@ -33,6 +62,13 @@ class MedicineSupplyItem {
       return medicineId['name']?.toString() ?? 'Unknown';
     }
     return 'Unknown';
+  }
+
+  String get medicineCode {
+    if (medicineId is Map) {
+      return medicineId['code']?.toString() ?? '';
+    }
+    return '';
   }
 
   String get batchNumber {
@@ -45,6 +81,13 @@ class MedicineSupplyItem {
   String get qtyUnit {
     if (stockEntryId is Map) return stockEntryId['qtyUnit']?.toString() ?? '';
     return '';
+  }
+
+  DateTime? get entryDate {
+    if (stockEntryId is Map && stockEntryId['entryDate'] != null) {
+      return DateTime.tryParse(stockEntryId['entryDate'].toString());
+    }
+    return null;
   }
 
   String get sourceLabel {
@@ -74,6 +117,14 @@ class MedicineSupplyItem {
     }
     return null;
   }
+
+  bool get canReturn => status != 'cancelled' && remainingQty > 0;
+
+  bool get canCancel => status == 'given' && (qtyReturned ?? 0) <= 0;
+
+  int get returnedQty => qtyReturned ?? 0;
+
+  int get remainingQty => (qtyGiven - returnedQty).clamp(0, qtyGiven).toInt();
 }
 
 /// MedicineSupply model that matches the v2 backend schema.
@@ -211,6 +262,56 @@ class MedicineSupply {
   String get patientName {
     if (patientId is Map) return patientId['name']?.toString() ?? 'Unknown';
     return 'Unknown';
+  }
+
+  String? get patientRegisterId {
+    if (patientId is Map) {
+      return (patientId['registerId'] ??
+              patientId['register_id'] ??
+              patientId['registerNo'] ??
+              patientId['regNo'])
+          ?.toString();
+    }
+    return null;
+  }
+
+  String get patientPhone {
+    if (patientId is Map) return patientId['phone']?.toString() ?? '';
+    return '';
+  }
+
+  String get patientAddress {
+    if (patientId is Map) return patientId['address']?.toString() ?? '';
+    return '';
+  }
+
+  String get patientPlace {
+    if (patientId is Map) return patientId['place']?.toString() ?? '';
+    return '';
+  }
+
+  String get patientGender {
+    if (patientId is Map) return patientId['gender']?.toString() ?? '';
+    return '';
+  }
+
+  int get patientAge {
+    if (patientId is Map) {
+      return (patientId['age'] is num)
+          ? (patientId['age'] as num).toInt()
+          : int.tryParse(patientId['age']?.toString() ?? '0') ?? 0;
+    }
+    return 0;
+  }
+
+  List<String> get patientDiseases {
+    if (patientId is Map && patientId['disease'] is List) {
+      return List<String>.from(patientId['disease'] as List);
+    }
+    if (patientId is Map && patientId['disease'] != null) {
+      return [patientId['disease'].toString()];
+    }
+    return const [];
   }
 
   String get medicineName {
