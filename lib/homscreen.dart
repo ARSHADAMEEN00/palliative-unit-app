@@ -1064,7 +1064,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     debugPrint('User Role: ${context.read<AuthService>().role}');
     final auth = context.watch<AuthService>();
-    final maintenanceNotification = _visibleMaintenanceDueNotification();
+    final maintenanceNotification = auth.isTrialUnit
+        ? null
+        : _visibleMaintenanceDueNotification();
     return AdaptiveAppScaffold(
       scaffoldKey: _scaffoldKey,
       drawer: _buildProfessionalDrawer(context),

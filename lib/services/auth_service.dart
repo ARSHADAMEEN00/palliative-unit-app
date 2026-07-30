@@ -160,6 +160,13 @@ class AuthService with ChangeNotifier {
   String? get unitLogo => _cleanString(unit?['logo']);
   String? get unitAppIcon => _cleanString(unit?['appIcon']);
   String? get unitSupportQr => _cleanString(unit?['supportQr']);
+  String? get unitStatus =>
+      _cleanString(unit?['status'] ?? _user?['status'])?.toLowerCase();
+  String? get unitSubscriptionStatus => _cleanString(
+    unit?['subscriptionStatus'] ?? _user?['subscriptionStatus'],
+  )?.toLowerCase();
+  bool get isTrialUnit =>
+      unitStatus == 'trial' || unitSubscriptionStatus == 'trial';
 
   String? get unitSupportName =>
       _cleanString(_supportValue('name')) ?? unitName;
