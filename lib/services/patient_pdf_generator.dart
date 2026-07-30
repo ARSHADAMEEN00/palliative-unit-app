@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/patient_details.dart';
+import 'package:oruma_app/models/medicine_supply_activity.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -186,42 +187,52 @@ class PatientPdfGenerator {
       'No equipment distributed',
     );
 
-    // ── Section G – Medicine Supply ───────────────────────────────────────
+    // ── Section G – Medicine Supply Activity ──────────────────────────────
+    final medicineActivities = MedicineSupplyActivity.fromSupplies(
+      details.medicineSupplies,
+    );
     const medCols = <String>[
       '#',
+      'Date',
+      'Activity',
       'Medicine',
       'Qty',
-      'Date Given',
-      'Staff',
-      'Days',
-      'Prescribed By',
-      'Status',
+      'Batch',
+      'Supply',
+      'Expiry',
+      'Stock',
     ];
-    final medWidths = _scaleWidths([40, 230, 65, 130, 185, 65, 210, 120]);
+    final medWidths = _scaleWidths([40, 125, 105, 210, 80, 140, 125, 125, 178]);
     await _renderTableSection(
       writer,
       'G',
-      'Medicine Supply List (${details.medicineSupplies.length})',
+      'Medicine Activity History (${medicineActivities.length})',
       medCols,
       medWidths,
-      details.medicineSupplies.asMap().entries.map((e) {
-        final s = e.value;
+      medicineActivities.asMap().entries.map((e) {
+        final activity = e.value;
+        final medicine = [
+          activity.medicineName,
+          if (activity.medicineCode.trim().isNotEmpty)
+            activity.medicineCode.trim(),
+        ].join('\n');
         return _TRow(
           [
             '${e.key + 1}',
-            s.medicineName,
-            '${s.qtyGiven}',
-            _fmtDate(s.givenAt),
-            s.staffName,
-            s.supplyDays != null ? '${s.supplyDays}d' : '—',
-            _v(s.prescribedBy),
-            _medStatusLabel(s.status),
+            _fmtDate(activity.date),
+            activity.eventLabel,
+            medicine,
+            activity.quantityLabel,
+            _v(activity.batchNumber),
+            _fmtDate(activity.supplyDate),
+            _fmtDate(activity.expiryDate),
+            _v(activity.stockLabel),
           ],
-          statusColIndex: 7,
-          statusValue: s.status ?? 'given',
+          statusColIndex: 2,
+          statusValue: activity.statusValue,
         );
       }).toList(),
-      'No medicine supplies recorded',
+      'No medicine activity recorded',
     );
 
     // ── Section H – Social Support ───────────────────────────────────────
@@ -970,13 +981,6 @@ class PatientPdfGenerator {
     'returned' => 'Returned',
     'lost' => 'Lost',
     _ => status,
-  };
-
-  static String _medStatusLabel(String? status) => switch (status) {
-    'partially_given' => 'Partial',
-    'returned' => 'Returned',
-    'cancelled' => 'Cancelled',
-    _ => 'Given',
   };
 
   static Color _statusColor(String status) => switch (status) {

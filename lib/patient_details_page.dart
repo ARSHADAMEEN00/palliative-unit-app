@@ -5,7 +5,7 @@ import 'package:oruma_app/features/visit_assessment/domain/visit_assessment.dart
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_list_screen.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/models/home_visit.dart';
-import 'package:oruma_app/models/medicine_supply.dart';
+import 'package:oruma_app/models/medicine_supply_activity.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/patient_details.dart';
 import 'package:oruma_app/models/social_support.dart';
@@ -748,7 +748,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     final visitCount = _details.homeVisits.length;
     final equipmentCount = _details.equipmentSupplies.length;
     final assessmentCount = _details.visitAssessments.length;
-    final medicineSupplyCount = _details.medicineSupplies.length;
+    final medicineSupplyCount = _medicineActivityEntries().length;
     final socialSupportCount = _details.socialSupports.length;
 
     return Container(
@@ -1078,13 +1078,15 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   }
 
   Widget _buildMedicineSuppliesTab() {
+    final activities = _medicineActivityEntries();
+
     if (_detailsLoading && _details.medicineSupplies.isEmpty) {
       return const AppListSkeleton(itemCount: 4);
     }
     if (_detailsError != null && _details.medicineSupplies.isEmpty) {
       return _recordsError('Could not load medicine supply history');
     }
-    if (_details.medicineSupplies.isEmpty) {
+    if (activities.isEmpty) {
       return _emptyState(
         icon: Icons.medication_outlined,
         title: 'No medicine supplies yet',
@@ -1097,10 +1099,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppInsets.page,
-        itemCount: _details.medicineSupplies.length,
+        itemCount: activities.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
-          return _medicineSupplyCard(_details.medicineSupplies[index]);
+          return _medicineActivityCard(activities[index]);
         },
       ),
     );
@@ -1424,8 +1426,18 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     );
   }
 
-  Widget _medicineSupplyCard(MedicineSupply supply) {
-    final statusColor = _medicineSupplyStatusColor(supply.status);
+  Widget _medicineActivityCard(MedicineSupplyActivity activity) {
+    final statusColor = _medicineActivityColor(activity.type);
+    final title = _formatDate(activity.date);
+    final subtitle = switch (activity.type) {
+      MedicineSupplyActivityType.supplied => 'Medicine supplied',
+      MedicineSupplyActivityType.returned => 'Medicine returned',
+      MedicineSupplyActivityType.cancelled => 'Medicine cancelled',
+    };
+    final medicineParts = [
+      activity.medicineName,
+      if (activity.medicineCode.trim().isNotEmpty) activity.medicineCode.trim(),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1444,7 +1456,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
-                  Icons.medication_outlined,
+                  _medicineActivityIcon(activity.type),
                   color: statusColor,
                   size: 21,
                 ),
@@ -1455,7 +1467,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _value(supply.medicineName),
+                      title,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -1464,7 +1476,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Qty ${supply.qtyGiven} • ${_formatDate(supply.givenAt)}',
+                      subtitle,
                       style: TextStyle(
                         color: Colors.grey.shade500,
                         fontSize: 12,
@@ -1474,45 +1486,85 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   ],
                 ),
               ),
-              _statusPill(
-                _medicineSupplyStatusLabel(supply.status),
-                statusColor,
-              ),
+              _statusPill(activity.eventLabel, statusColor),
             ],
           ),
           const SizedBox(height: 15),
           _detailLine(
-            Icons.person_outline,
-            'Given by',
-            _value(supply.staffName),
+            Icons.medication_outlined,
+            'Medicine',
+            medicineParts.join(' • '),
           ),
-          if (supply.supplyDays != null) ...[
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.inventory_2_outlined,
+            'Quantity',
+            activity.quantityLabel,
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.confirmation_number_outlined,
+            'Batch',
+            _value(activity.batchNumber),
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.calendar_today_outlined,
+            'Supply date',
+            _formatDate(activity.supplyDate),
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.event_outlined,
+            'Expiry date',
+            _formatDate(activity.expiryDate),
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.local_pharmacy_outlined,
+            'Stock',
+            _value(activity.stockLabel),
+          ),
+          if (activity.supply.staffName.trim().isNotEmpty &&
+              activity.supply.staffName != 'Unknown') ...[
+            const SizedBox(height: 10),
+            _detailLine(
+              Icons.person_outline,
+              activity.type == MedicineSupplyActivityType.returned
+                  ? 'Original supply by'
+                  : 'Given by',
+              activity.supply.staffName,
+            ),
+          ],
+          if (activity.supply.supplyDays != null &&
+              activity.type == MedicineSupplyActivityType.supplied) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.calendar_month_outlined,
               'Supply days',
-              '${supply.supplyDays}',
+              '${activity.supply.supplyDays}',
             ),
           ],
-          if (supply.prescribedBy?.trim().isNotEmpty == true) ...[
+          if (activity.supply.prescribedBy?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.badge_outlined,
               'Prescribed by',
-              supply.prescribedBy!,
+              activity.supply.prescribedBy!,
             ),
           ],
-          if (supply.doctorPrescription?.trim().isNotEmpty == true) ...[
+          if (activity.supply.doctorPrescription?.trim().isNotEmpty ==
+              true) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.description_outlined,
               'Prescription',
-              supply.doctorPrescription!,
+              activity.supply.doctorPrescription!,
             ),
           ],
-          if (supply.staffNote?.trim().isNotEmpty == true) ...[
+          if (activity.note?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
-            _detailLine(Icons.notes_outlined, 'Notes', supply.staffNote!),
+            _detailLine(Icons.notes_outlined, 'Notes', activity.note!),
           ],
         ],
       ),
@@ -1914,13 +1966,15 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     return status == 'submitted' ? 'Submitted' : 'Draft';
   }
 
-  String _medicineSupplyStatusLabel(String? status) {
-    return switch (status) {
-      'partially_given' => 'Partial',
-      'returned' => 'Returned',
-      'cancelled' => 'Cancelled',
-      'given' || null || '' => 'Given',
-      _ => status,
+  List<MedicineSupplyActivity> _medicineActivityEntries() {
+    return MedicineSupplyActivity.fromSupplies(_details.medicineSupplies);
+  }
+
+  IconData _medicineActivityIcon(MedicineSupplyActivityType type) {
+    return switch (type) {
+      MedicineSupplyActivityType.supplied => Icons.medication_outlined,
+      MedicineSupplyActivityType.returned => Icons.assignment_return_outlined,
+      MedicineSupplyActivityType.cancelled => Icons.cancel_outlined,
     };
   }
 
@@ -1932,12 +1986,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     };
   }
 
-  Color _medicineSupplyStatusColor(String? status) {
-    return switch (status) {
-      'returned' => AppColors.offline,
-      'cancelled' => AppColors.danger,
-      'partially_given' => AppColors.warning,
-      _ => AppColors.success,
+  Color _medicineActivityColor(MedicineSupplyActivityType type) {
+    return switch (type) {
+      MedicineSupplyActivityType.supplied => AppColors.success,
+      MedicineSupplyActivityType.returned => AppColors.warning,
+      MedicineSupplyActivityType.cancelled => AppColors.danger,
     };
   }
 

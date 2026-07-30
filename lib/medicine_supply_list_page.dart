@@ -897,10 +897,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cellWidth = (constraints.maxWidth - 8) / 2;
+        final cellWidth = (constraints.maxWidth - 6) / 2;
         return Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 6,
+          runSpacing: 6,
           children: [
             for (final cell in cells)
               SizedBox(
@@ -923,17 +923,17 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
   }) {
     if (value.trim().isEmpty || value == 'null') return const SizedBox.shrink();
     return Container(
-      constraints: const BoxConstraints(minHeight: 30),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 26),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
         color: background ?? _screenBg,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 14, color: valueColor ?? _secondaryText),
-          const SizedBox(width: 6),
+          Icon(icon, size: 13, color: valueColor ?? _secondaryText),
+          const SizedBox(width: 5),
           Expanded(
             child: Row(
               children: [
@@ -943,7 +943,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: _secondaryText,
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -954,7 +954,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: valueColor ?? _primaryText,
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: emphasize ? FontWeight.w800 : FontWeight.w700,
                     ),
                   ),
@@ -1018,16 +1018,16 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
   ) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.028),
+            blurRadius: 9,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1080,11 +1080,12 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.end,
                 children: [
-                  _itemStatusPill(item),
-                  const SizedBox(height: 4),
                   Text(
                     _itemQuantity(item),
                     style: const TextStyle(
@@ -1093,72 +1094,70 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                  _itemStatusPill(item),
+                  if (auth.canEdit && item.canReturn)
+                    Tooltip(
+                      message: 'Return',
+                      child: SizedBox.square(
+                        dimension: 30,
+                        child: IconButton.filled(
+                          onPressed: () async {
+                            final updated = await _returnSupplyItem(
+                              supply,
+                              item,
+                            );
+                            if (updated != null) onUpdated(updated);
+                          },
+                          style: IconButton.styleFrom(
+                            backgroundColor: _medicineGreen,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.square(30),
+                            fixedSize: const Size.square(30),
+                            padding: EdgeInsets.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(
+                            Icons.assignment_return_outlined,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (auth.canEdit && item.canCancel)
+                    Tooltip(
+                      message: 'Cancel',
+                      child: SizedBox.square(
+                        dimension: 30,
+                        child: IconButton(
+                          onPressed: () async {
+                            final updated = await _cancelSupplyItem(
+                              supply,
+                              item,
+                            );
+                            if (updated != null) onUpdated(updated);
+                          },
+                          style: IconButton.styleFrom(
+                            foregroundColor: _dangerRed,
+                            minimumSize: const Size.square(30),
+                            fixedSize: const Size.square(30),
+                            padding: EdgeInsets.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.cancel_outlined, size: 19),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           _medicineInfoGrid(supply, item),
-          if (auth.canEdit && (item.canReturn || item.canCancel)) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                if (item.canReturn)
-                  Tooltip(
-                    message: 'Return',
-                    child: SizedBox.square(
-                      dimension: 34,
-                      child: IconButton.filled(
-                        onPressed: () async {
-                          final updated = await _returnSupplyItem(supply, item);
-                          if (updated != null) onUpdated(updated);
-                        },
-                        style: IconButton.styleFrom(
-                          backgroundColor: _medicineGreen,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.square(34),
-                          fixedSize: const Size.square(34),
-                          padding: EdgeInsets.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        icon: const Icon(
-                          Icons.assignment_return_outlined,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (item.canCancel)
-                  Tooltip(
-                    message: 'Cancel',
-                    child: SizedBox.square(
-                      dimension: 34,
-                      child: IconButton(
-                        onPressed: () async {
-                          final updated = await _cancelSupplyItem(supply, item);
-                          if (updated != null) onUpdated(updated);
-                        },
-                        style: IconButton.styleFrom(
-                          foregroundColor: _dangerRed,
-                          minimumSize: const Size.square(34),
-                          fixedSize: const Size.square(34),
-                          padding: EdgeInsets.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        icon: const Icon(Icons.cancel_outlined, size: 20),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
         ],
       ),
     );
