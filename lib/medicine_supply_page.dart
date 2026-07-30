@@ -135,7 +135,18 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
 
       final totalQty = items.fold<int>(0, (sum, item) => sum + item.qtyGiven);
       final supply = MedicineSupply(
-        patientId: _selectedPatient!.id,
+        patientId: {
+          'id': _selectedPatient!.id,
+          '_id': _selectedPatient!.id,
+          'name': _selectedPatient!.name,
+          'registerId': _selectedPatient!.registerId,
+          'phone': _selectedPatient!.phone,
+          'address': _selectedPatient!.address,
+          'place': _selectedPatient!.place,
+          'gender': _selectedPatient!.gender,
+          'age': _selectedPatient!.age,
+          'disease': _selectedPatient!.disease,
+        },
         medicineId: items.first.medicineId,
         givenByStaff: staffId,
         givenAt: _givenAt,
@@ -229,6 +240,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
               medicineId: medicineId,
               stockEntryId: batch.id,
               qtyGiven: quantity,
+              givenAt: _givenAt,
             ),
           );
         }

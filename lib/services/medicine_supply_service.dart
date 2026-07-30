@@ -12,7 +12,12 @@ class MedicineSupplyService {
   static const _ttl = Duration(minutes: 5);
 
   /// Get all medicine supplies from the API. Cached for [_ttl].
-  static Future<List<MedicineSupply>> getAllMedicineSupplies() async {
+  static Future<List<MedicineSupply>> getAllMedicineSupplies({
+    bool forceRefresh = false,
+  }) async {
+    if (forceRefresh) {
+      AppCache.invalidate(_keyAll);
+    }
     return AppCache.get<List<MedicineSupply>>(
       _keyAll,
       ttl: _ttl,
@@ -51,6 +56,41 @@ class MedicineSupplyService {
   static Future<MedicineSupply> createMedicineSupply(
     MedicineSupply supply,
   ) async {
+    final existingSupply = await _findExistingPatientSupply(supply);
+    if (existingSupply?.id != null) {
+      final existingItems = _itemsOwnedBySupply(existingSupply!);
+      final appendedItems = [
+        ...existingItems,
+        ...supply.items.map(
+          (item) => item.copyWith(givenAt: item.givenAt ?? supply.givenAt),
+        ),
+      ];
+      final latestGivenAt = _latestDate([
+        existingSupply.givenAt,
+        supply.givenAt,
+        ...appendedItems.map((item) => item.givenAt),
+      ]);
+      final updatedSupply = existingSupply.copyWith(
+        medicineId: appendedItems.isNotEmpty
+            ? appendedItems.first.medicineId
+            : supply.medicineId,
+        givenByStaff: supply.givenByStaff,
+        givenAt: latestGivenAt,
+        qtyGiven: appendedItems.fold<int>(
+          0,
+          (sum, item) => sum + item.qtyGiven,
+        ),
+        items: appendedItems,
+        status: _aggregateStatus(appendedItems),
+        staffNote: supply.staffNote ?? existingSupply.staffNote,
+        prescribedBy: supply.prescribedBy ?? existingSupply.prescribedBy,
+        doctorPrescription:
+            supply.doctorPrescription ?? existingSupply.doctorPrescription,
+        supplyDays: supply.supplyDays ?? existingSupply.supplyDays,
+      );
+      return updateMedicineSupply(existingSupply.id!, updatedSupply);
+    }
+
     final result = await ApiService.post<Map<String, dynamic>>(
       ApiConfig.v2MedicineSuppliesEndpoint,
       body: supply.toJson(),
@@ -64,6 +104,83 @@ class MedicineSupplyService {
     }
 
     throw Exception(result.error ?? 'Failed to create medicine supply');
+  }
+
+  static Future<MedicineSupply?> _findExistingPatientSupply(
+    MedicineSupply supply,
+  ) async {
+    final targetKey = _patientIdentityKey(supply);
+    if (targetKey == null) return null;
+
+    final supplies = await _fetchAllMedicineSupplies();
+    final matches =
+        supplies
+            .where((item) => _patientIdentityKey(item) == targetKey)
+            .toList()
+          ..sort((a, b) => b.givenAt.compareTo(a.givenAt));
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  static List<MedicineSupplyItem> _itemsOwnedBySupply(MedicineSupply supply) {
+    final supplyId = supply.id;
+    final owned = supply.items
+        .where((item) => item.supplyId == null || item.supplyId == supplyId)
+        .map((item) => item.copyWith(givenAt: item.givenAt ?? supply.givenAt))
+        .toList();
+    if (owned.isNotEmpty) return owned;
+    return supply.items
+        .map((item) => item.copyWith(givenAt: item.givenAt ?? supply.givenAt))
+        .toList();
+  }
+
+  static DateTime _latestDate(Iterable<DateTime?> values) {
+    DateTime? latest;
+    for (final value in values) {
+      if (value == null) continue;
+      if (latest == null || value.isAfter(latest)) {
+        latest = value;
+      }
+    }
+    return latest ?? DateTime.now();
+  }
+
+  static String _aggregateStatus(List<MedicineSupplyItem> items) {
+    if (items.isEmpty) return 'given';
+    final statuses = items.map((item) => item.status).toList();
+    if (statuses.every((status) => status == 'cancelled')) return 'cancelled';
+    if (statuses.every((status) => status == 'returned')) return 'returned';
+    if (statuses.every((status) => status == 'given')) return 'given';
+    return 'partially_given';
+  }
+
+  static String? _patientIdentityKey(MedicineSupply supply) {
+    final register = supply.patientRegisterId?.trim().toLowerCase();
+    if (register != null && register.isNotEmpty) return 'reg:$register';
+
+    final name = _normalizeName(supply.patientName);
+    final phone = _digitsOnly(supply.patientPhone);
+    if (name.isNotEmpty && phone.isNotEmpty) return 'name_phone:$name|$phone';
+    if (name.isNotEmpty && name != 'unknown') return 'name:$name';
+
+    final id = _fieldId(supply.patientId);
+    return id == null ? null : 'id:$id';
+  }
+
+  static String? _fieldId(dynamic value) {
+    if (value == null) return null;
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+    if (value is Map && value['_id'] != null) return value['_id'].toString();
+    if (value is Map && value['id'] != null) return value['id'].toString();
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static String _normalizeName(String value) {
+    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  static String _digitsOnly(String value) {
+    return value.replaceAll(RegExp(r'\D'), '');
   }
 
   /// Update an existing medicine supply and invalidate the cache.

@@ -1,8 +1,10 @@
 class MedicineSupplyItem {
   final String? id;
+  final String? supplyId;
   final dynamic medicineId;
   final dynamic stockEntryId;
   final int qtyGiven;
+  final DateTime? givenAt;
   final String status;
   final int? qtyReturned;
   final DateTime? returnedAt;
@@ -11,9 +13,11 @@ class MedicineSupplyItem {
 
   const MedicineSupplyItem({
     this.id,
+    this.supplyId,
     required this.medicineId,
     this.stockEntryId,
     required this.qtyGiven,
+    this.givenAt,
     this.status = 'given',
     this.qtyReturned,
     this.returnedAt,
@@ -24,11 +28,15 @@ class MedicineSupplyItem {
   factory MedicineSupplyItem.fromJson(Map<String, dynamic> json) {
     return MedicineSupplyItem(
       id: json['_id']?.toString() ?? json['id']?.toString(),
+      supplyId: json['supplyId']?.toString(),
       medicineId: json['medicineId'],
       stockEntryId: json['stockEntryId'],
       qtyGiven: (json['qtyGiven'] is num)
           ? (json['qtyGiven'] as num).toInt()
           : int.tryParse(json['qtyGiven']?.toString() ?? '0') ?? 0,
+      givenAt: json['givenAt'] != null
+          ? DateTime.tryParse(json['givenAt'].toString())
+          : null,
       status: json['status']?.toString() ?? 'given',
       qtyReturned: (json['qtyReturned'] is num)
           ? (json['qtyReturned'] as num).toInt()
@@ -49,12 +57,41 @@ class MedicineSupplyItem {
       if (MedicineSupply._getId(stockEntryId) != null)
         'stockEntryId': MedicineSupply._getId(stockEntryId),
       'qtyGiven': qtyGiven,
+      if (givenAt != null) 'givenAt': givenAt!.toIso8601String(),
       'status': status,
       if (qtyReturned != null) 'qtyReturned': qtyReturned,
       if (returnedAt != null) 'returnedAt': returnedAt!.toIso8601String(),
       if (cancelledAt != null) 'cancelledAt': cancelledAt!.toIso8601String(),
       if (staffNote != null) 'staffNote': staffNote,
     };
+  }
+
+  MedicineSupplyItem copyWith({
+    String? id,
+    String? supplyId,
+    dynamic medicineId,
+    dynamic stockEntryId,
+    int? qtyGiven,
+    DateTime? givenAt,
+    String? status,
+    int? qtyReturned,
+    DateTime? returnedAt,
+    DateTime? cancelledAt,
+    String? staffNote,
+  }) {
+    return MedicineSupplyItem(
+      id: id ?? this.id,
+      supplyId: supplyId ?? this.supplyId,
+      medicineId: medicineId ?? this.medicineId,
+      stockEntryId: stockEntryId ?? this.stockEntryId,
+      qtyGiven: qtyGiven ?? this.qtyGiven,
+      givenAt: givenAt ?? this.givenAt,
+      status: status ?? this.status,
+      qtyReturned: qtyReturned ?? this.qtyReturned,
+      returnedAt: returnedAt ?? this.returnedAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      staffNote: staffNote ?? this.staffNote,
+    );
   }
 
   String get medicineName {

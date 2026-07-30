@@ -15,9 +15,18 @@ import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/module_switch_tabs.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 
-const _medicineGreen = Color(0xFF0F6E56);
-const _cardBg = Color(0xFFE1F5EE);
-const _iconBg = Color(0xFF9FE1CB);
+const _medicineGreen = Color(0xFF0F766E);
+const _successGreen = Color(0xFF16A34A);
+const _warningAmber = Color(0xFFF59E0B);
+const _dangerRed = Color(0xFFDC2626);
+const _screenBg = Color(0xFFF8FAFC);
+const _cardBg = Color(0xFFFFFFFF);
+const _topBarBg = Color(0xFFE1F5EE);
+const _iconBg = Color(0xFFE6F6F3);
+const _primaryText = Color(0xFF111827);
+const _secondaryText = Color(0xFF6B7280);
+
+enum _ExpiryState { normal, warning, expired }
 
 class MedicineSupplyListPage extends StatefulWidget {
   const MedicineSupplyListPage({super.key});
@@ -54,7 +63,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     setState(() => _searchQuery = query);
   }
 
-  Future<void> _loadData({bool showLoading = true}) async {
+  Future<void> _loadData({
+    bool showLoading = true,
+    bool forceRefresh = false,
+  }) async {
     if (showLoading) {
       setState(() {
         _loading = true;
@@ -63,7 +75,9 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     }
 
     try {
-      final list = await MedicineSupplyService.getAllMedicineSupplies();
+      final list = await MedicineSupplyService.getAllMedicineSupplies(
+        forceRefresh: forceRefresh,
+      );
       if (!mounted) return;
       setState(() {
         _supplies = list;
@@ -118,8 +132,8 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     return AdaptiveAppScaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: _cardBg,
-        surfaceTintColor: _cardBg,
+        backgroundColor: _topBarBg,
+        surfaceTintColor: _topBarBg,
         foregroundColor: _medicineGreen,
         elevation: 1,
         title: ModuleSwitchTabs(
@@ -150,7 +164,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadData(forceRefresh: true),
+          ),
         ],
       ),
       floatingActionButton: auth.canCreate && auth.canAccessMedicineSupply
@@ -238,7 +255,9 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       );
     }
 
-    final filteredList = _supplies.where(_matchesSearch).toList();
+    final filteredList = _groupSuppliesByPatient(
+      _supplies,
+    ).where(_matchesSearch).toList();
 
     if (filteredList.isEmpty) {
       return Center(
@@ -265,7 +284,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => _loadData(showLoading: false),
+      onRefresh: () => _loadData(showLoading: false, forceRefresh: true),
       color: _medicineGreen,
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
@@ -283,7 +302,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     MedicineSupply supply,
     MedicineSupplyItem item,
   ) async {
-    if (supply.id == null || item.id == null || !item.canReturn) return null;
+    final sourceSupplyId = item.supplyId ?? supply.id;
+    if (sourceSupplyId == null || item.id == null || !item.canReturn) {
+      return null;
+    }
 
     final qtyController = TextEditingController(
       text: item.remainingQty.toString(),
@@ -397,7 +419,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       if (confirm != true) return null;
 
       final updated = await MedicineSupplyService.returnMedicineSupplyItem(
-        supply.id!,
+        sourceSupplyId,
         item.id!,
         qtyReturned: int.parse(qtyController.text.trim()),
         returnedAt: returnDate,
@@ -432,7 +454,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     MedicineSupply supply,
     MedicineSupplyItem item,
   ) async {
-    if (supply.id == null || item.id == null || !item.canCancel) return null;
+    final sourceSupplyId = item.supplyId ?? supply.id;
+    if (sourceSupplyId == null || item.id == null || !item.canCancel) {
+      return null;
+    }
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -459,7 +484,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
 
     try {
       final updated = await MedicineSupplyService.cancelMedicineSupplyItem(
-        supply.id!,
+        sourceSupplyId,
         item.id!,
       );
       if (!mounted) return null;
@@ -485,11 +510,129 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
 
   void _replaceSupply(MedicineSupply updated) {
     if (!mounted) return;
+    var replaced = false;
     setState(() {
-      _supplies = _supplies
-          .map((supply) => supply.id == updated.id ? updated : supply)
-          .toList();
+      _supplies = _supplies.map((supply) {
+        if (supply.id == updated.id) {
+          replaced = true;
+          return updated;
+        }
+        return supply;
+      }).toList();
+      if (!replaced) {
+        _supplies = [updated, ..._supplies];
+      }
     });
+  }
+
+  List<MedicineSupply> _groupSuppliesByPatient(List<MedicineSupply> supplies) {
+    final baseByKey = <String, MedicineSupply>{};
+    final itemsByKey = <String, List<MedicineSupplyItem>>{};
+    final seenItemKeys = <String>{};
+
+    for (final supply in supplies) {
+      final key = _supplyPatientIdentityKey(supply) ?? supply.id;
+      if (key == null) continue;
+
+      final currentBase = baseByKey[key];
+      if (currentBase == null || supply.givenAt.isAfter(currentBase.givenAt)) {
+        baseByKey[key] = supply;
+      }
+
+      final groupedItems = itemsByKey.putIfAbsent(
+        key,
+        () => <MedicineSupplyItem>[],
+      );
+      for (var index = 0; index < supply.items.length; index += 1) {
+        final item = supply.items[index];
+        final sourceSupplyId = item.supplyId ?? supply.id;
+        final itemKey = [
+          sourceSupplyId ?? supply.id ?? key,
+          item.id ??
+              '${item.medicineName}:${item.batchNumber}:${item.qtyGiven}:$index',
+        ].join(':');
+        if (!seenItemKeys.add(itemKey)) continue;
+        groupedItems.add(
+          item.copyWith(
+            supplyId: sourceSupplyId,
+            givenAt: item.givenAt ?? supply.givenAt,
+          ),
+        );
+      }
+    }
+
+    final histories = <MedicineSupply>[];
+    for (final entry in baseByKey.entries) {
+      final items = [...(itemsByKey[entry.key] ?? const <MedicineSupplyItem>[])]
+        ..sort(
+          (a, b) => (b.givenAt ?? entry.value.givenAt).compareTo(
+            a.givenAt ?? entry.value.givenAt,
+          ),
+        );
+      final latestGivenAt = _latestItemDate(items) ?? entry.value.givenAt;
+      histories.add(
+        entry.value.copyWith(
+          givenAt: latestGivenAt,
+          medicineId: items.isNotEmpty
+              ? items.first.medicineId
+              : entry.value.medicineId,
+          qtyGiven: items.fold<int>(0, (sum, item) => sum + item.qtyGiven),
+          items: items,
+          status: _aggregateSupplyItemStatus(items),
+        ),
+      );
+    }
+
+    histories.sort((a, b) => b.givenAt.compareTo(a.givenAt));
+    return histories;
+  }
+
+  DateTime? _latestItemDate(List<MedicineSupplyItem> items) {
+    DateTime? latest;
+    for (final item in items) {
+      final givenAt = item.givenAt;
+      if (givenAt == null) continue;
+      if (latest == null || givenAt.isAfter(latest)) latest = givenAt;
+    }
+    return latest;
+  }
+
+  String _aggregateSupplyItemStatus(List<MedicineSupplyItem> items) {
+    if (items.isEmpty) return 'given';
+    final statuses = items.map((item) => item.status).toList();
+    if (statuses.every((status) => status == 'cancelled')) return 'cancelled';
+    if (statuses.every((status) => status == 'returned')) return 'returned';
+    if (statuses.every((status) => status == 'given')) return 'given';
+    return 'partially_given';
+  }
+
+  String? _supplyPatientIdentityKey(MedicineSupply supply) {
+    final register = supply.patientRegisterId?.trim().toLowerCase();
+    if (register != null && register.isNotEmpty) return 'reg:$register';
+
+    final name = _normalizePatientName(supply.patientName);
+    final phone = _digitsOnly(supply.patientPhone);
+    if (name.isNotEmpty && phone.isNotEmpty) return 'name_phone:$name|$phone';
+    if (name.isNotEmpty && name != 'unknown') return 'name:$name';
+
+    final patient = supply.patientId;
+    if (patient == null) return null;
+    if (patient is String) return 'id:$patient';
+    if (patient is Map && patient['_id'] != null) {
+      return 'id:${patient['_id']}';
+    }
+    if (patient is Map && patient['id'] != null) {
+      return 'id:${patient['id']}';
+    }
+    return 'id:$patient';
+  }
+
+  String _normalizePatientName(String value) {
+    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  String _digitsOnly(String value) {
+    return value.replaceAll(RegExp(r'\D'), '');
   }
 
   void _showSupplyDetails(MedicineSupply supply) {
@@ -505,7 +648,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: _screenBg,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: SingleChildScrollView(
@@ -566,10 +709,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                   const SizedBox(height: 24),
                   _buildPatientDetails(currentSupply),
                   const SizedBox(height: 20),
-                  const Text(
-                    'Medicine List',
-                    style: TextStyle(fontSize: 16, color: _medicineGreen),
-                  ),
+                  _buildMedicineListHeader(currentSupply),
                   const SizedBox(height: 12),
                   if (currentSupply.items.isEmpty)
                     Text(
@@ -631,11 +771,17 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
   Widget _buildPatientDetails(MedicineSupply supply) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -673,56 +819,174 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     );
   }
 
+  Widget _buildMedicineListHeader(MedicineSupply supply) {
+    final count = supply.items.length;
+    final subtitle = '$count ${count == 1 ? 'Medicine' : 'Medicines'}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Medicine List',
+          style: TextStyle(
+            color: _primaryText,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: _secondaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _itemStatusPill(MedicineSupplyItem item) {
     final color = _itemStatusColor(item);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Text(
-        _itemStatusLabel(item),
+        _itemStatusLabel(item).toUpperCase(),
         style: TextStyle(
           color: color,
           fontSize: 11,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
   }
 
-  Widget _infoChip(IconData icon, String label) {
-    if (label.trim().isEmpty || label == 'null') return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(99),
+  Widget _medicineInfoGrid(MedicineSupply supply, MedicineSupplyItem item) {
+    final cells = <Widget>[
+      _expiryInfoCell(item.expiryDate),
+      _infoCell(
+        icon: Icons.event_available_outlined,
+        label: 'Supply',
+        value: _formatDateShort(item.givenAt ?? supply.givenAt),
       ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 260),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: _medicineGreen),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _medicineGreen,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
+      _infoCell(
+        icon: Icons.confirmation_number_outlined,
+        label: 'Batch',
+        value: item.batchNumber,
+      ),
+      _infoCell(
+        icon: Icons.label_outline,
+        label: 'Stock',
+        value: _itemSourceText(item),
+      ),
+      if (item.returnedQty > 0)
+        _infoCell(
+          icon: Icons.assignment_return_outlined,
+          label: 'Returned',
+          value: _itemQuantity(item, quantity: item.returnedQty),
+          valueColor: _warningAmber,
+          emphasize: true,
         ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cellWidth = (constraints.maxWidth - 8) / 2;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final cell in cells)
+              SizedBox(
+                width: cellWidth.clamp(120, 420).toDouble(),
+                child: cell,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _infoCell({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? valueColor,
+    bool emphasize = false,
+    Color? background,
+  }) {
+    if (value.trim().isEmpty || value == 'null') return const SizedBox.shrink();
+    return Container(
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: background ?? _screenBg,
+        borderRadius: BorderRadius.circular(10),
       ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: valueColor ?? _secondaryText),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Row(
+              children: [
+                Text(
+                  '$label ',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _secondaryText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: valueColor ?? _primaryText,
+                      fontSize: 12,
+                      fontWeight: emphasize ? FontWeight.w800 : FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _expiryInfoCell(DateTime? expiry) {
+    final state = _expiryState(expiry);
+    final color = switch (state) {
+      _ExpiryState.expired => _dangerRed,
+      _ExpiryState.warning => _warningAmber,
+      _ => _primaryText,
+    };
+    final background = switch (state) {
+      _ExpiryState.expired => _dangerRed.withValues(alpha: 0.08),
+      _ExpiryState.warning => _warningAmber.withValues(alpha: 0.1),
+      _ => null,
+    };
+
+    return _infoCell(
+      icon: Icons.event_outlined,
+      label: 'Expiry',
+      value: expiry == null ? 'Not recorded' : _formatDateShort(expiry),
+      valueColor: color,
+      emphasize: state != _ExpiryState.normal,
+      background: background,
     );
   }
 
@@ -752,24 +1016,40 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     AuthService auth,
     ValueChanged<MedicineSupply> onUpdated,
   ) {
-    final expiry = item.expiryDate;
-    final statusColor = _itemStatusColor(item);
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.07),
+        color: _cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: statusColor.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.inventory_2_outlined, color: statusColor, size: 20),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: _iconBg,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.medication_liquid_outlined,
+                  color: _medicineGreen,
+                  size: 18,
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -779,82 +1059,102 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                       item.medicineName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w900,
+                      style: const TextStyle(
+                        color: _primaryText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     if (item.medicineCode.trim().isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         item.medicineCode,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                        style: const TextStyle(
+                          color: _secondaryText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              _itemStatusPill(item),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _itemStatusPill(item),
+                  const SizedBox(height: 4),
+                  Text(
+                    _itemQuantity(item),
+                    style: const TextStyle(
+                      color: _primaryText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _infoChip(Icons.confirmation_number_outlined, item.batchNumber),
-              _infoChip(
-                Icons.event_available_outlined,
-                'Supply ${_formatDate(supply.givenAt)}',
-              ),
-              _infoChip(Icons.label_outline, _itemSourceText(item)),
-              _infoChip(
-                Icons.event_outlined,
-                'Exp ${expiry == null ? 'Not recorded' : _formatDate(expiry)}',
-              ),
-              _infoChip(
-                Icons.inventory_2_outlined,
-                'Supplied ${_itemQuantity(item)}',
-              ),
-              if (item.returnedQty > 0)
-                _infoChip(
-                  Icons.assignment_return_outlined,
-                  'Returned ${_itemQuantity(item, quantity: item.returnedQty)}',
-                ),
-            ],
-          ),
+          const SizedBox(height: 8),
+          _medicineInfoGrid(supply, item),
           if (auth.canEdit && (item.canReturn || item.canCancel)) ...[
-            const SizedBox(height: 12),
-            Row(
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 if (item.canReturn)
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final updated = await _returnSupplyItem(supply, item);
-                      if (updated != null) onUpdated(updated);
-                    },
-                    icon: const Icon(
-                      Icons.assignment_return_outlined,
-                      size: 17,
+                  Tooltip(
+                    message: 'Return',
+                    child: SizedBox.square(
+                      dimension: 34,
+                      child: IconButton.filled(
+                        onPressed: () async {
+                          final updated = await _returnSupplyItem(supply, item);
+                          if (updated != null) onUpdated(updated);
+                        },
+                        style: IconButton.styleFrom(
+                          backgroundColor: _medicineGreen,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.square(34),
+                          fixedSize: const Size.square(34),
+                          padding: EdgeInsets.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(
+                          Icons.assignment_return_outlined,
+                          size: 18,
+                        ),
+                      ),
                     ),
-                    label: const Text('Return'),
                   ),
-                if (item.canReturn && item.canCancel) const SizedBox(width: 8),
                 if (item.canCancel)
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final updated = await _cancelSupplyItem(supply, item);
-                      if (updated != null) onUpdated(updated);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade700,
+                  Tooltip(
+                    message: 'Cancel',
+                    child: SizedBox.square(
+                      dimension: 34,
+                      child: IconButton(
+                        onPressed: () async {
+                          final updated = await _cancelSupplyItem(supply, item);
+                          if (updated != null) onUpdated(updated);
+                        },
+                        style: IconButton.styleFrom(
+                          foregroundColor: _dangerRed,
+                          minimumSize: const Size.square(34),
+                          fixedSize: const Size.square(34),
+                          padding: EdgeInsets.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.cancel_outlined, size: 20),
+                      ),
                     ),
-                    icon: const Icon(Icons.cancel_outlined, size: 17),
-                    label: const Text('Cancel'),
                   ),
               ],
             ),
@@ -874,6 +1174,40 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     return '${value.day}/${value.month}/${value.year}';
   }
 
+  String _formatDateShort(DateTime value) {
+    return '${value.day} ${_monthLabel(value.month)} ${value.year}';
+  }
+
+  String _monthLabel(int month) {
+    return switch (month) {
+      1 => 'Jan',
+      2 => 'Feb',
+      3 => 'Mar',
+      4 => 'Apr',
+      5 => 'May',
+      6 => 'Jun',
+      7 => 'Jul',
+      8 => 'Aug',
+      9 => 'Sep',
+      10 => 'Oct',
+      11 => 'Nov',
+      12 => 'Dec',
+      _ => '',
+    };
+  }
+
+  _ExpiryState _expiryState(DateTime? expiry) {
+    if (expiry == null) return _ExpiryState.normal;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expiryDay = DateTime(expiry.year, expiry.month, expiry.day);
+    if (expiryDay.isBefore(today)) return _ExpiryState.expired;
+    if (!expiryDay.isAfter(today.add(const Duration(days: 30)))) {
+      return _ExpiryState.warning;
+    }
+    return _ExpiryState.normal;
+  }
+
   String _statusLabel(String status) {
     return switch (status.toLowerCase()) {
       'returned' => 'Returned',
@@ -885,10 +1219,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
 
   Color _statusColor(String status) {
     return switch (status.toLowerCase()) {
-      'returned' => Colors.orange.shade800,
-      'cancelled' => Colors.red.shade700,
-      'partially_given' => Colors.blueGrey.shade700,
-      _ => _medicineGreen,
+      'returned' => _warningAmber,
+      'cancelled' => _dangerRed,
+      'partially_given' => _warningAmber,
+      _ => _successGreen,
     };
   }
 
