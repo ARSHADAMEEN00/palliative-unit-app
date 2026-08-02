@@ -460,7 +460,7 @@ class VisitAssessment {
     required this.visitDate,
     this.timeFrom = '',
     this.timeTo = '',
-    this.team = 'CareNest Team',
+    this.team = 'Palliative App Team',
     this.visitMode = 'new',
     this.visitType = 'NHC',
     this.vitals = const VisitVitals(),
@@ -514,7 +514,7 @@ class VisitAssessment {
           DateTime.now(),
       timeFrom: json['timeFrom']?.toString() ?? '',
       timeTo: json['timeTo']?.toString() ?? '',
-      team: json['team']?.toString() ?? 'CareNest Team',
+      team: json['team']?.toString() ?? 'Palliative App Team',
       visitMode: json['visitMode']?.toString() ?? 'new',
       visitType: json['visitType']?.toString() ?? 'NHC',
       vitals: VisitVitals.fromJson(

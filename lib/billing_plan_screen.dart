@@ -155,7 +155,7 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
                 SnackBar(
                   content: Text(
                     result.isSuccess
-                        ? 'Upgrade enquiry sent to CareNest team.'
+                        ? 'Upgrade enquiry sent to Palliative App team.'
                         : result.error ?? 'Failed to send enquiry.',
                   ),
                   backgroundColor: result.isSuccess

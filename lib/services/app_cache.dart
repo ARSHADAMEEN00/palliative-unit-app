@@ -1,4 +1,4 @@
-/// In-memory cache engine for the CareNest app.
+/// In-memory cache engine for the Palliative App.
 ///
 /// Reduces repeated API calls by storing GET results in memory with a
 /// configurable TTL (time-to-live). Write operations (POST/PUT/DELETE)

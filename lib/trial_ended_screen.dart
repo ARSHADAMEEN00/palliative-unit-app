@@ -82,7 +82,7 @@ class TrialEndedScreen extends StatelessWidget {
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           auth.accessBlockedMessage ??
-                              'Your trial period has ended. Please contact support to renew your plan and continue using CareNest.',
+                              'Your trial period has ended. Please contact support to renew your plan and continue using Palliative App.',
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
                                 color: AppColors.textSecondary,

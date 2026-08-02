@@ -1,5 +1,5 @@
 name: oruma_app
-description: "CareNest - Comprehensive Palliative Care Management System. A compassionate digital solution for managing palliative care services, patient records, home visits, equipment tracking, and volunteer coordination."
+description: "Palliative App - Comprehensive Palliative Care Management System. A compassionate digital solution for managing palliative care services, patient records, home visits, equipment tracking, and volunteer coordination."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

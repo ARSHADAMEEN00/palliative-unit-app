@@ -51,7 +51,7 @@ class PatientPdfGenerator {
   static const Color _altRow = Color(0xFFF0F6FC);
 
   // ─── Org info ─────────────────────────────────────────────────────────────
-  static const String _orgName = 'CareNest';
+  static const String _orgName = 'Palliative App';
   static const String _orgSub = 'Palliative Care Management';
 
   // ═══════════════════════════════════════════════════════════════════════════

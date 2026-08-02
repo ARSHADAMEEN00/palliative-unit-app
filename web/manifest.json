@@ -1,11 +1,11 @@
 {
-    "name": "CareNest",
-    "short_name": "CareNest",
+    "name": "Palliative App",
+    "short_name": "Palliative App",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#2196F3",
-    "description": "CareNest palliative care management.",
+    "description": "Palliative App for palliative care management.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

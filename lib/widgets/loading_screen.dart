@@ -102,7 +102,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
-                    auth?.unitName ?? 'CareNest',
+                    auth?.unitName ?? 'Palliative App',
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

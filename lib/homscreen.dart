@@ -2276,7 +2276,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       }
                     },
                     child: Text(
-                      "All rights reserved by CareNest",
+                      "All rights reserved by Palliative App",
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: AppColors.textMuted,
                       ),

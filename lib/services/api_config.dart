@@ -1,4 +1,4 @@
-/// API Configuration for the CareNest app.
+/// API Configuration for the Palliative App.
 ///
 /// Contains the base URL and common headers for API requests.
 class ApiConfig {

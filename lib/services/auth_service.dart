@@ -146,7 +146,7 @@ class AuthService with ChangeNotifier {
   String? get unitId => _cleanString(_user?['unitId'] ?? unit?['id']);
 
   String get unitName =>
-      _firstText([unit?['name'], _user?['unitName']], fallback: 'CareNest');
+      _firstText([unit?['name'], _user?['unitName']], fallback: 'Palliative App');
 
   String get unitLocation {
     final locationParts = [
