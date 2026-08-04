@@ -1131,7 +1131,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       _buildModernActionCard(
                         context,
                         title: 'Equipment Supply',
-                        icon: Icons.inventory_2_rounded,
+                        icon: Icons.wheelchair_pickup_rounded,
                         palette: ModulePalettes.equipmentSupply,
                         page: const ModuleTheme(
                           palette: ModulePalettes.equipmentSupply,
@@ -1164,7 +1164,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       _buildModernActionCard(
                         context,
                         title: 'Social Support',
-                        icon: Icons.volunteer_activism_rounded,
+                        icon: Icons.food_bank_rounded,
                         palette: ModulePalettes.socialSupport,
                         page: const ModuleTheme(
                           palette: ModulePalettes.socialSupport,
@@ -1175,7 +1175,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       _buildModernActionCard(
                         context,
                         title: 'Volunteers',
-                        icon: Icons.badge_rounded,
+                        icon: Icons.volunteer_activism_rounded,
                         palette: ModulePalettes.volunteers,
                         page: const ModuleTheme(
                           palette: ModulePalettes.volunteers,
@@ -2044,7 +2044,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   if (auth.canAccessSocialSupport)
                     _buildDrawerItem(
                       context,
-                      icon: Icons.volunteer_activism_outlined,
+                      icon: Icons.food_bank_outlined,
                       title: "Social Support",
                       color: ModulePalettes.socialSupport.primary,
                       onTap: () {
@@ -2063,7 +2063,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   if (auth.canAccessVolunteers)
                     _buildDrawerItem(
                       context,
-                      icon: Icons.badge_outlined,
+                      icon: Icons.volunteer_activism_outlined,
                       title: "Volunteers",
                       color: ModulePalettes.volunteers.primary,
                       onTap: () {
@@ -2124,7 +2124,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   if (auth.canAccessEquipmentDistribution)
                     _buildDrawerItem(
                       context,
-                      icon: Icons.medical_services_outlined,
+                      icon: Icons.wheelchair_pickup_outlined,
                       title: "Supply Record",
                       color: ModulePalettes.equipmentSupply.primary,
                       onTap: () {
@@ -2181,7 +2181,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   if (auth.canAccessEquipmentDistribution)
                     _buildDrawerItem(
                       context,
-                      icon: Icons.precision_manufacturing_outlined,
+                      icon: Icons.wheelchair_pickup_outlined,
                       title: "Equipments",
                       color: ModulePalettes.equipmentSupply.primary,
                       onTap: () {
