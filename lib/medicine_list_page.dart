@@ -14,6 +14,7 @@ import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/medicine_service.dart';
 import 'package:oruma_app/services/medicine_stock_service.dart';
+import 'package:oruma_app/models/medicine_stock_entry.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
@@ -312,7 +313,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
               if (availableBatches.isEmpty)
                 _emptyBatchesCard()
               else
-                ...availableBatches.map(_batchCard),
+                ...availableBatches.map((b) => _batchCard(b, medicine)),
               if (medicine.photos.isNotEmpty) ...[
                 const SizedBox(height: 18),
                 const Text(
@@ -409,7 +410,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
     );
   }
 
-  Widget _batchCard(MedicineBatch batch) {
+  Widget _batchCard(MedicineBatch batch, Medicine medicine) {
     final isEmpty = batch.isEmpty;
     final expiryWarning = !isEmpty && batch.expiresWithin60Days;
     final color = isEmpty
@@ -454,6 +455,17 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 ),
               ),
               _batchQtyPill(batch, color),
+              if (!isEmpty) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.assignment_return_outlined, size: 20),
+                  color: color,
+                  tooltip: 'Return to main stock',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => _returnToMainStock(medicine, batch),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -534,6 +546,58 @@ class _MedicineListPageState extends State<MedicineListPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _returnToMainStock(Medicine medicine, MedicineBatch batch) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Return to Main Stock?'),
+        content: Text(
+          'Return this batch to main stock?\n\n'
+          'Batch: ${batch.batchNumber ?? 'N/A'}\n'
+          'Quantity: ${_number(batch.quantity)} ${_stockUnitLabel(batch.qtyUnit)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Return'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      if (batch.id == null) {
+        throw Exception('Batch ID is missing');
+      }
+
+      await MedicineStockService.returnBatchToMainStock(
+        batch.id!,
+        qtyReturned: batch.quantity,
+        note: 'Returned due to expire or other reason',
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Batch returned to main stock')),
+      );
+
+      Navigator.pop(context); // Close bottom sheet
+      _loadMedicines();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(error))),
+      );
+    }
   }
 
   @override

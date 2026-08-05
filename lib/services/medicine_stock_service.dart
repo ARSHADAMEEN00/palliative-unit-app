@@ -100,6 +100,31 @@ class MedicineStockService {
     throw Exception(result.error ?? 'Failed to update medicine stock');
   }
 
+  static Future<MedicineStockEntry> returnBatchToMainStock(
+    String batchId, {
+    required double qtyReturned,
+    String? note,
+  }) async {
+    final result = await ApiService.post<Map<String, dynamic>>(
+      '${ApiConfig.v2MedicineStockEntriesEndpoint}/$batchId/return',
+      body: {
+        'qtyReturned': qtyReturned,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
+
+    if (result.isSuccess && result.data != null) {
+      AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidatePrefix('medicines:');
+      final entry = result.data!['entry'] as Map<String, dynamic>?;
+      if (entry != null) {
+        return MedicineStockEntry.fromJson(entry);
+      }
+    }
+
+    throw Exception(result.error ?? 'Failed to return medicine batch');
+  }
+
   static void invalidateCache() {
     AppCache.invalidatePrefix(_prefix);
   }
