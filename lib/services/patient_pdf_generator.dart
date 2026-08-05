@@ -999,14 +999,14 @@ class PatientReportBrand {
     this.name,
     this.subtitle,
     this.supportPhone,
-    this.contactPhone,
+    this.contactPhones,
     this.logoSource,
   });
 
   final String? name;
   final String? subtitle;
   final String? supportPhone;
-  final String? contactPhone;
+  final List<String>? contactPhones;
   final String? logoSource;
 
   String get orgName => _clean(name) ?? PatientPdfGenerator._orgName;
@@ -1015,8 +1015,13 @@ class PatientReportBrand {
 
   String get phoneLine {
     final phones = <String>[];
-    for (final phone in [_clean(supportPhone), _clean(contactPhone)]) {
-      if (phone != null && !phones.contains(phone)) phones.add(phone);
+    if (_clean(supportPhone) != null) phones.add(_clean(supportPhone)!);
+    if (contactPhones != null) {
+      for (final phone in contactPhones!) {
+        if (_clean(phone) != null && !phones.contains(_clean(phone))) {
+          phones.add(_clean(phone)!);
+        }
+      }
     }
     if (phones.isEmpty) {
       return 'Support contact not configured';

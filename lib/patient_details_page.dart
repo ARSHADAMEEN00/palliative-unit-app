@@ -1723,6 +1723,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
           name: auth.unitName,
           subtitle: auth.unitLocation,
           supportPhone: auth.unitSupportPhone,
+          contactPhones: auth.unitContactPhones,
           logoSource: auth.unitLogo ?? auth.unitAppIcon,
         ),
       );

@@ -160,6 +160,13 @@ class AuthService with ChangeNotifier {
   String? get unitLogo => _cleanString(unit?['logo']);
   String? get unitAppIcon => _cleanString(unit?['appIcon']);
   String? get unitSupportQr => _cleanString(unit?['supportQr']);
+  List<String> get unitContactPhones {
+    final phones = unit?['contactPhones'];
+    if (phones is List) {
+      return phones.map((e) => _cleanString(e) ?? '').where((e) => e.isNotEmpty).toList();
+    }
+    return [];
+  }
   String? get unitStatus =>
       _cleanString(unit?['status'] ?? _user?['status'])?.toLowerCase();
   String? get unitSubscriptionStatus => _cleanString(
@@ -177,7 +184,7 @@ class AuthService with ChangeNotifier {
 
   String? get unitSupportPhone =>
       _cleanString(_supportValue('phone')) ??
-      _cleanString(unit?['contactPhone']);
+      (unitContactPhones.isNotEmpty ? unitContactPhones.first : null);
 
   String? get unitSupportPhoneDial {
     final phone = unitSupportPhone;
