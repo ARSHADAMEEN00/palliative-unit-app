@@ -120,7 +120,7 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
     if (portal == null) return;
 
     final controller = TextEditingController(
-      text: portal.unit.contactPhone ?? '',
+      text: portal.unit.contactPhones?.join(', ') ?? '',
     );
     final formKey = GlobalKey<FormState>();
     // Capture the parent's context/scaffold messenger before the sheet opens,

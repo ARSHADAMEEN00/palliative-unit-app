@@ -62,7 +62,7 @@ class BillingUnit {
     this.district,
     this.village,
     this.contactEmail,
-    this.contactPhone,
+    this.contactPhones,
     this.subscriptionStartDate,
     this.trialEndDate,
     this.renewalDate,
@@ -79,7 +79,7 @@ class BillingUnit {
   final String? district;
   final String? village;
   final String? contactEmail;
-  final String? contactPhone;
+  final List<String>? contactPhones;
   final DateTime? subscriptionStartDate;
   final DateTime? trialEndDate;
   final DateTime? renewalDate;
@@ -100,7 +100,7 @@ class BillingUnit {
       district: _nullableString(json['district']),
       village: _nullableString(json['village']),
       contactEmail: _nullableString(json['contactEmail']),
-      contactPhone: _nullableString(json['contactPhone']),
+      contactPhones: (json['contactPhones'] as List?)?.map((e) => e.toString()).toList(),
       subscriptionStartDate: _date(json['subscriptionStartDate']),
       trialEndDate: _date(json['trialEndDate']),
       renewalDate: _date(json['renewalDate']),
