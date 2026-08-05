@@ -29,6 +29,7 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
   static const _unitWidth = 112.0;
   static const _expiryWidth = 144.0;
   static const _batchWidth = 140.0;
+  static const _sourceWidth = 140.0;
   static const _noteWidth = 210.0;
   static const _actionWidth = 38.0;
   static const _tableContentWidth =
@@ -38,9 +39,10 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
       _unitWidth +
       _expiryWidth +
       _batchWidth +
+      _sourceWidth +
       _noteWidth +
       _actionWidth +
-      (_tableGap * 6);
+      (_tableGap * 7);
   static const _tableWidth =
       (_tableHorizontalPadding * 2) + _tableContentWidth + 4;
 
@@ -199,6 +201,12 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
           qtyUnit: row.qtyUnit,
           expiryDate: row.expiryDate!,
           batchNumber: _emptyToNull(row.batchController.text),
+          sourceLabel: row.sourceController.text.trim().isEmpty
+              ? 'Main Stock'
+              : row.sourceController.text.trim(),
+          sourceType: row.sourceController.text.trim().toLowerCase() == 'main stock'
+              ? 'main_stock'
+              : row.sourceController.text.trim().toLowerCase(),
           note: _emptyToNull(row.noteController.text),
         ),
       );
@@ -496,9 +504,32 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
             ],
           ),
           const SizedBox(height: 12),
-          _fieldLabel('Note'),
-          const SizedBox(height: 6),
-          _simpleField(row.noteController),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fieldLabel('Source'),
+                    const SizedBox(height: 6),
+                    _simpleField(row.sourceController),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fieldLabel('Note'),
+                    const SizedBox(height: 6),
+                    _simpleField(row.noteController),
+                  ],
+                ),
+              ),
+            ],
+          ),
           if (row.error != null) ...[
             const SizedBox(height: 10),
             Text(
@@ -549,6 +580,8 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
             SizedBox(width: _expiryWidth, child: _HeaderCell('Expiry')),
             SizedBox(width: _tableGap),
             SizedBox(width: _batchWidth, child: _HeaderCell('Batch')),
+            SizedBox(width: _tableGap),
+            SizedBox(width: _sourceWidth, child: _HeaderCell('Source')),
             SizedBox(width: _tableGap),
             SizedBox(width: _noteWidth, child: _HeaderCell('Note')),
             SizedBox(width: _tableGap),
@@ -601,6 +634,11 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
                   SizedBox(
                     width: _batchWidth,
                     child: _simpleField(row.batchController),
+                  ),
+                  const SizedBox(width: _tableGap),
+                  SizedBox(
+                    width: _sourceWidth,
+                    child: _simpleField(row.sourceController),
                   ),
                   const SizedBox(width: _tableGap),
                   SizedBox(
@@ -949,6 +987,7 @@ class _StockEntryRow {
   final TextEditingController medicineController = TextEditingController();
   final TextEditingController qtyController = TextEditingController();
   final TextEditingController batchController = TextEditingController();
+  final TextEditingController sourceController = TextEditingController(text: 'Main Stock');
   final TextEditingController noteController = TextEditingController();
   final FocusNode medicineFocusNode = FocusNode();
 
@@ -961,6 +1000,7 @@ class _StockEntryRow {
     return medicineController.text.trim().isEmpty &&
         qtyController.text.trim().isEmpty &&
         batchController.text.trim().isEmpty &&
+        sourceController.text.trim() == 'Main Stock' &&
         noteController.text.trim().isEmpty &&
         expiryDate == null;
   }
@@ -969,6 +1009,7 @@ class _StockEntryRow {
     medicineController.clear();
     qtyController.clear();
     batchController.clear();
+    sourceController.text = 'Main Stock';
     noteController.clear();
     selectedMedicine = null;
     qtyUnit = 'tab';
@@ -980,6 +1021,7 @@ class _StockEntryRow {
     medicineController.dispose();
     qtyController.dispose();
     batchController.dispose();
+    sourceController.dispose();
     noteController.dispose();
     medicineFocusNode.dispose();
   }
