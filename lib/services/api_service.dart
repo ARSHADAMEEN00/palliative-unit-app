@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import 'credential_store.dart';
 
 /// Result wrapper for API responses.
 class ApiResult<T> {
@@ -22,8 +22,7 @@ class ApiService {
 
   /// Helper to get headers with Authorization token
   static Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await CredentialStore.readToken();
 
     final headers = Map<String, String>.from(ApiConfig.headers);
     if (token != null) {

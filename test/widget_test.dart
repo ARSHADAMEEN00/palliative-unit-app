@@ -63,7 +63,7 @@ void main() {
     expect(find.text('Medicine code'), findsOneWidget);
     expect(find.text('Generic / scientific name'), findsOneWidget);
     expect(find.text('Dosage strength'), findsOneWidget);
-    expect(find.text('Quantity'), findsOneWidget);
+    expect(find.text('Net Content'), findsOneWidget);
     expect(find.text('Additional details'), findsNothing);
 
     await tester.drag(find.byType(ListView), const Offset(0, -480));
@@ -73,6 +73,6 @@ void main() {
 
     expect(find.text('Additional details'), findsOneWidget);
     expect(find.text('Barcode'), findsOneWidget);
-    expect(find.text('Batch / lot number'), findsOneWidget);
+    expect(find.text('Brand names'), findsOneWidget);
   });
 }

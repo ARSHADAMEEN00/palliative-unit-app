@@ -10,7 +10,9 @@ import 'package:oruma_app/features/visit_assessment/presentation/providers/visit
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_flow_screen.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_list_screen.dart';
 import 'package:oruma_app/models/home_visit.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -75,16 +77,11 @@ void main() {
     expect(assessment.vitals.activityLevel, 'IV');
   });
 
-  test('new NHC assessments start with requested physical exam defaults', () {
-    expect(assessment.physicalExam['respiration']?.value, 'normal');
-    expect(assessment.physicalExam['foodWater']?.value, 'self_feeding');
-    expect(
-      assessment.physicalExam['urine']?.value,
-      'uses_toilet_independently',
-    );
-    expect(assessment.physicalExam['defecation']?.value, 'normal');
-    expect(assessment.physicalExam['sleep']?.value, 'normal');
-    expect(assessment.physicalExam['scalpHair']?.value, 'clean');
+  test('new NHC assessments do not pre-fill clinical findings', () {
+    for (final finding in assessment.physicalExam.values) {
+      expect(finding.status, 'not_assessed');
+      expect(finding.value, isEmpty);
+    }
   });
 
   test('older blank drafts receive baseline vitals when loaded', () {
@@ -589,8 +586,8 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Medicine'), findsOneWidget);
     expect(find.text('Patients'), findsOneWidget);
-    expect(find.text('Home Visit'), findsOneWidget);
-    expect(find.text('Visit (NHC)'), findsOneWidget);
+    expect(find.text('Visits'), findsOneWidget);
+    expect(find.text('NHC'), findsOneWidget);
   });
 
   testWidgets('previous assessment opens a read-only details screen', (
@@ -622,7 +619,12 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: VisitAssessmentListScreen(controller: controller)),
+      ChangeNotifierProvider(
+        create: (_) => AuthService(),
+        child: MaterialApp(
+          home: VisitAssessmentListScreen(controller: controller),
+        ),
+      ),
     );
 
     expect(find.text('23 Jun 2026'), findsOneWidget);
@@ -658,7 +660,12 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: VisitAssessmentListScreen(controller: controller)),
+      ChangeNotifierProvider(
+        create: (_) => AuthService(),
+        child: MaterialApp(
+          home: VisitAssessmentListScreen(controller: controller),
+        ),
+      ),
     );
 
     expect(find.text('New Assessment'), findsOneWidget);
@@ -719,12 +726,14 @@ void main() {
       isComplete: true,
     );
 
-    final bytes = await VisitAssessmentPdfGenerator.generate(value);
+    final bytes = (await tester.runAsync(
+      () => VisitAssessmentPdfGenerator.generate(value),
+    ))!;
     final header = ascii.decode(bytes.take(4).toList());
     final pdfText = latin1.decode(bytes, allowInvalid: true);
 
     expect(header, '%PDF');
-    expect(RegExp(r'/Type /Page\b').allMatches(pdfText), hasLength(2));
+    expect(RegExp(r'/Type\s*/Page\b').allMatches(pdfText), hasLength(2));
   });
 
   testWidgets('medicine step uses editable table inputs', (tester) async {

@@ -13,6 +13,7 @@ import 'package:oruma_app/social_support_list_page.dart';
 import 'package:oruma_app/volunteer_list_page.dart';
 import 'package:oruma_app/pt_registration.dart' show patientrigister;
 import 'package:oruma_app/patient_list_page.dart';
+import 'package:oruma_app/privacy_policy_screen.dart';
 import 'package:oruma_app/deceased_patient_list_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
@@ -715,6 +716,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     onTap: () {
                       Navigator.pop(context);
                       _showHelpAndSupport(context);
+                    },
+                  ),
+                  _buildProfileMenuItem(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy & Data Use',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => PrivacyPolicyScreen(
+                            supportEmail: auth.unitSupportEmail,
+                            supportPhone: auth.unitSupportPhone,
+                          ),
+                        ),
+                      );
                     },
                   ),
                   const Divider(height: 32),
@@ -2244,6 +2260,22 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ),
               child: Column(
                 children: [
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy & Data Use',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => PrivacyPolicyScreen(
+                            supportEmail: auth.unitSupportEmail,
+                            supportPhone: auth.unitSupportPhone,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                   _buildDrawerItem(
                     context,
                     icon: Icons.logout_rounded,

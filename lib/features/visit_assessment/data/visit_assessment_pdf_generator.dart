@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/domain/visit_assessment.dart';
 import 'package:pdf/pdf.dart';
@@ -10,11 +11,11 @@ import 'package:pdf/widgets.dart' as pw;
 class VisitAssessmentPdfGenerator {
   const VisitAssessmentPdfGenerator._();
 
-  // Keep the existing A4 layout coordinates, then render at 4x so the
-  // embedded PDF page images are 600 DPI for clearer printing and zooming.
+  // Render at 225 DPI: clear enough for print while keeping generation fast
+  // and avoiding the memory spikes caused by the former 600 DPI pages.
   static const double _pageWidth = 1240;
   static const double _pageHeight = 1754;
-  static const double _rasterScale = 4;
+  static const double _rasterScale = 1.5;
   static int get _rasterWidth => (_pageWidth * _rasterScale).round();
   static int get _rasterHeight => (_pageHeight * _rasterScale).round();
   static const String _fontFamily = 'NotoSansMalayalam';
@@ -79,7 +80,12 @@ class VisitAssessmentPdfGenerator {
       (canvas) => _paintPageTwo(canvas, assessment),
     );
 
-    final document = pw.Document();
+    final document = pw.Document(
+      compress: false,
+      version: PdfVersion.pdf_1_4,
+      title: 'Palliative visit assessment',
+      creator: 'Palliative App',
+    );
     for (final pageBytes in [pageOne, pageTwo]) {
       final image = pw.MemoryImage(pageBytes);
       document.addPage(
@@ -119,11 +125,23 @@ class VisitAssessmentPdfGenerator {
     canvas.scale(_rasterScale, _rasterScale);
     painter(canvas);
     final picture = recorder.endRecording();
-    final image = await picture.toImage(_rasterWidth, _rasterHeight);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final image = picture.toImageSync(_rasterWidth, _rasterHeight);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     image.dispose();
     picture.dispose();
-    return byteData!.buffer.asUint8List();
+    final raster = img.Image.fromBytes(
+      width: _rasterWidth,
+      height: _rasterHeight,
+      bytes: byteData!.buffer,
+      bytesOffset: byteData.offsetInBytes,
+      rowStride: _rasterWidth * 4,
+      order: img.ChannelOrder.rgba,
+    );
+    return img.encodeJpg(
+      raster,
+      quality: 90,
+      chroma: img.JpegChroma.yuv444,
+    );
   }
 
   static void _paintPageOne(Canvas canvas, VisitAssessment assessment) {

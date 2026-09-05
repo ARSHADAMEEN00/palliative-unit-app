@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
@@ -29,6 +30,11 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
   BillingPortal? _portal;
   String? _error;
   bool _loading = true;
+
+  bool get _showExternalBillingActions =>
+      kIsWeb ||
+      !kReleaseMode ||
+      defaultTargetPlatform != TargetPlatform.android;
 
   @override
   void initState() {
@@ -322,7 +328,7 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
             portal: portal,
             currency: _money,
             date: _formatDate,
-            onOpenPlanPage: _openPlanPage,
+            onOpenPlanPage: _showExternalBillingActions ? _openPlanPage : null,
           ),
           if (portal.pendingMaintenanceEntries.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -339,14 +345,16 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
             date: _formatDate,
           ),
           const SizedBox(height: AppSpacing.sm),
-          _PlansSection(
-            plans: portal.plans,
-            currentPlanId: portal.currentPlan?.id ?? portal.unit.planId,
-            currency: _money,
-            featureLabel: _featureLabel,
-            onUpgrade: _showUpgradeSheet,
-          ),
-          const SizedBox(height: AppSpacing.sm),
+          if (_showExternalBillingActions) ...[
+            _PlansSection(
+              plans: portal.plans,
+              currentPlanId: portal.currentPlan?.id ?? portal.unit.planId,
+              currency: _money,
+              featureLabel: _featureLabel,
+              onUpgrade: _showUpgradeSheet,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           _SubscriptionSection(portal: portal, date: _formatDate),
           const SizedBox(height: AppSpacing.sm),
           _PlanDetailsSection(
@@ -545,7 +553,7 @@ class _CurrentPlanCard extends StatelessWidget {
   final BillingPortal portal;
   final String Function(double value) currency;
   final String Function(DateTime? value) date;
-  final VoidCallback onOpenPlanPage;
+  final VoidCallback? onOpenPlanPage;
 
   @override
   Widget build(BuildContext context) {
@@ -600,15 +608,17 @@ class _CurrentPlanCard extends StatelessWidget {
                   helper: date(portal.summary.upcomingPaymentDueDate),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _SmallInfo(
-                  label: 'Plan page',
-                  value: 'More info',
-                  helper: 'Pricing and modules',
-                  onTap: onOpenPlanPage,
+              if (onOpenPlanPage != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _SmallInfo(
+                    label: 'Plan page',
+                    value: 'More info',
+                    helper: 'Pricing and modules',
+                    onTap: onOpenPlanPage,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

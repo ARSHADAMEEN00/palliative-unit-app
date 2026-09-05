@@ -1,0 +1,6 @@
+# Copy this file to key.properties and replace every placeholder if you create
+# or restore the Play upload keystore manually. Never commit the real file.
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyPassword=REPLACE_WITH_KEY_PASSWORD
+keyAlias=upload
+storeFile=../upload-keystore.jks

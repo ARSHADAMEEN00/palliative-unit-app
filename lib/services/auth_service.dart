@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oruma_app/services/api_config.dart';
 import 'package:oruma_app/services/app_cache.dart';
+import 'package:oruma_app/services/credential_store.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 
 class AuthService with ChangeNotifier {
@@ -78,10 +79,12 @@ class AuthService with ChangeNotifier {
   }
 
   Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('auth_token');
-    _role = prefs.getString('auth_role');
-    debugPrint('Auth service initialized. Role: $_role');
+    final credentials = await CredentialStore.read();
+    _token = credentials.token;
+    _role = credentials.role;
+    if (kDebugMode) {
+      debugPrint('Auth service initialized. Role: $_role');
+    }
     if (_token != null) {
       await fetchUserProfile();
     }
@@ -107,16 +110,18 @@ class AuthService with ChangeNotifier {
 
         final prefs = await SharedPreferences.getInstance();
 
-        // Check if this is the first login for this user
-        final wasLoggedInBefore = prefs.containsKey('auth_token');
+        // This non-sensitive marker controls onboarding only. Credentials are
+        // stored separately in encrypted platform storage.
+        final wasLoggedInBefore =
+            prefs.getBool('has_logged_in_before') ?? false;
         _isFirstLogin = !wasLoggedInBefore;
 
-        await prefs.setString('auth_token', _token!);
-        if (_role != null) {
-          await prefs.setString('auth_role', _role!);
-        }
+        await CredentialStore.write(token: _token!, role: _role);
+        await prefs.setBool('has_logged_in_before', true);
 
-        debugPrint('Login Successful. Role: $_role');
+        if (kDebugMode) {
+          debugPrint('Login successful. Role: $_role');
+        }
 
         // Fetch user profile after successful login
         await fetchUserProfile();
@@ -127,7 +132,7 @@ class AuthService with ChangeNotifier {
       await _handleAuthFailure(response);
       return false;
     } catch (e) {
-      print('Login error: $e');
+      if (kDebugMode) debugPrint('Login error: $e');
       _loginErrorMessage = 'Unable to connect. Please try again.';
       return false;
     }
@@ -145,8 +150,10 @@ class AuthService with ChangeNotifier {
 
   String? get unitId => _cleanString(_user?['unitId'] ?? unit?['id']);
 
-  String get unitName =>
-      _firstText([unit?['name'], _user?['unitName']], fallback: 'Palliative App');
+  String get unitName => _firstText([
+    unit?['name'],
+    _user?['unitName'],
+  ], fallback: 'Palliative App');
 
   String get unitLocation {
     final locationParts = [
@@ -163,10 +170,14 @@ class AuthService with ChangeNotifier {
   List<String> get unitContactPhones {
     final phones = unit?['contactPhones'];
     if (phones is List) {
-      return phones.map((e) => _cleanString(e) ?? '').where((e) => e.isNotEmpty).toList();
+      return phones
+          .map((e) => _cleanString(e) ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
     return [];
   }
+
   String? get unitStatus =>
       _cleanString(unit?['status'] ?? _user?['status'])?.toLowerCase();
   String? get unitSubscriptionStatus => _cleanString(
@@ -213,10 +224,12 @@ class AuthService with ChangeNotifier {
         notifyListeners();
       } else {
         await _handleAuthFailure(response);
-        print('Failed to fetch profile: ${response.statusCode}');
+        if (kDebugMode) {
+          debugPrint('Failed to fetch profile: ${response.statusCode}');
+        }
       }
     } catch (e) {
-      print('Error fetching profile: $e');
+      if (kDebugMode) debugPrint('Error fetching profile: $e');
     }
   }
 
@@ -244,9 +257,7 @@ class AuthService with ChangeNotifier {
     _loginErrorMessage = null;
     // Clear all cached data so stale data cannot leak to another user session
     AppCache.clear();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('auth_role');
+    await CredentialStore.clear();
     notifyListeners();
   }
 
@@ -299,9 +310,7 @@ class AuthService with ChangeNotifier {
   }
 
   Future<void> _clearStoredCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('auth_role');
+    await CredentialStore.clear();
   }
 
   void _applyFeaturePermissions(Map<String, dynamic> data) {

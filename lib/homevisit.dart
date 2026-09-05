@@ -8,7 +8,6 @@ import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:intl/intl.dart';
 
-const _homeVisitCardBackground = Color(0xFFF0FDF4);
 const _homeVisitIconBackground = Color(0xFFDCFCE7);
 const _homeVisitPrimary = AppColors.success;
 

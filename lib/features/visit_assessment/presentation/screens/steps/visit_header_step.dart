@@ -3,8 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/providers/visit_assessment_controller.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/widgets/assessment_widgets.dart';
 
-import 'package:provider/provider.dart';
-
 const _visitModeOptions = <({String value, String label, IconData icon})>[
   (value: 'new', label: 'New', icon: Icons.add_circle_outline),
   (value: 'monthly', label: 'Planned NHC', icon: Icons.calendar_month_outlined),

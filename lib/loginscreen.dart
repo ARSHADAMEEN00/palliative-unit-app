@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/homscreen.dart';
+import 'package:oruma_app/privacy_policy_screen.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/loading_screen.dart';
@@ -207,6 +208,18 @@ class _LoginCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             const _SupportStrip(),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const PrivacyPolicyScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+              label: const Text('Privacy & data use'),
+            ),
           ],
         ),
       ),
