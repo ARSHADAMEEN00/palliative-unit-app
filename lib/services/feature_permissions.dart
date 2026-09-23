@@ -48,6 +48,23 @@ class AppFeature {
   }
 }
 
+class FeatureAccessPolicy {
+  FeatureAccessPolicy._();
+
+  static const Set<String> _memberRestrictedFeatures = {
+    AppFeature.nhcAssessment,
+    AppFeature.nhcPdf,
+    AppFeature.medicineMaster,
+    AppFeature.medicineStock,
+    AppFeature.medicineSupply,
+  };
+
+  static bool roleAllows(String? role, String featureId) {
+    if (role?.trim().toLowerCase() != 'member') return true;
+    return !_memberRestrictedFeatures.contains(featureId);
+  }
+}
+
 class FeaturePermissionSnapshot {
   const FeaturePermissionSnapshot({
     required this.enabledFeatureIds,

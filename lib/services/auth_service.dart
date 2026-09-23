@@ -72,6 +72,7 @@ class AuthService with ChangeNotifier {
 
   bool hasFeature(String featureId) {
     if (_role == 'superadmin') return true;
+    if (!FeatureAccessPolicy.roleAllows(_role, featureId)) return false;
     if (_featurePermissionsLoaded) {
       return _featurePermissions?.has(featureId) ?? false;
     }
@@ -174,9 +175,23 @@ class AuthService with ChangeNotifier {
           .map((e) => _cleanString(e) ?? '')
           .where((e) => e.isNotEmpty)
           .toList();
+    } else if (phones is String && phones.trim().isNotEmpty) {
+      return phones
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
     return [];
   }
+
+  String? get unitCode => _cleanString(unit?['code'] ?? unit?['unitCode']);
+  String? get unitVillage => _cleanString(unit?['village']);
+  String? get unitDistrict => _cleanString(unit?['district']);
+  String? get unitAddress => _cleanString(unit?['address']);
+  String? get unitContactEmail =>
+      _cleanString(unit?['contactEmail'] ?? _supportValue('email'));
+  String? get unitNotes => _cleanString(unit?['notes']);
 
   String? get unitStatus =>
       _cleanString(unit?['status'] ?? _user?['status'])?.toLowerCase();

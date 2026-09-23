@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:oruma_app/billing_plan_screen.dart';
 import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/equipment_list_page.dart';
@@ -633,7 +634,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           top: false,
           child: Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.86,
+              maxHeight: MediaQuery.of(context).size.height * 0.92,
             ),
             decoration: const BoxDecoration(
               color: AppColors.surface,
@@ -642,10 +643,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             ),
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
+                AppSpacing.md,
                 AppSpacing.sm,
-                AppSpacing.lg,
-                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.md,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -663,9 +664,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   Text(
                     auth.unitName,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    style: GoogleFonts.outfit(
+                      textStyle:
+                          Theme.of(context).textTheme.headlineMedium,
                       color: AppColors.text,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ).copyWith(
+                      fontFamilyFallback: const ['NotoSansMalayalam'],
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
@@ -675,17 +681,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   if ((user?['email']?.toString().trim().isNotEmpty ?? false))
                     Text(
                       user!['email'].toString(),
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textMuted,
                       ),
                     ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildUnitDetailsCard(context, auth),
+                  const SizedBox(height: AppSpacing.lg),
                   _buildProfileMenuItem(
                     icon: Icons.settings_outlined,
                     title: "Settings & Staff Management",
@@ -1033,6 +1042,209 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildUnitDetailsCard(BuildContext context, AuthService auth) {
+    final status = auth.unitStatus ?? 'active';
+    final isActive = status.toLowerCase() == 'active';
+    final phones = auth.unitContactPhones;
+    final code = auth.unitCode;
+    final village = auth.unitVillage;
+    final district = auth.unitDistrict;
+    final locationParts = [
+      if (village != null && village.isNotEmpty) village,
+      if (district != null && district.isNotEmpty) district,
+    ];
+    final resolvedLocation = locationParts.isNotEmpty
+        ? locationParts.join(', ')
+        : auth.unitLocation;
+    final email = auth.unitContactEmail;
+    final address = auth.unitAddress;
+    final notes = auth.unitNotes;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: AppRadius.card,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.domain_rounded,
+                  color: AppColors.primary,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'Unit Details',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.success.withValues(alpha: 0.12)
+                      : AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: isActive ? AppColors.success : AppColors.warning,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      status.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? AppColors.success : AppColors.warning,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Divider(height: 1),
+          const SizedBox(height: AppSpacing.sm),
+          if (code != null && code.isNotEmpty) ...[
+            _buildUnitDetailRow(
+              icon: Icons.tag_rounded,
+              label: 'Unit Code',
+              value: code,
+              isBadge: true,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          if (resolvedLocation.isNotEmpty) ...[
+            _buildUnitDetailRow(
+              icon: Icons.location_on_outlined,
+              label: 'Area / District',
+              value: resolvedLocation,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          if (phones.isNotEmpty) ...[
+            _buildUnitDetailRow(
+              icon: Icons.phone_outlined,
+              label: 'Contact Phone(s)',
+              value: phones.join(', '),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          if (email != null && email.isNotEmpty) ...[
+            _buildUnitDetailRow(
+              icon: Icons.email_outlined,
+              label: 'Contact Email',
+              value: email,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          if (address != null && address.isNotEmpty) ...[
+            _buildUnitDetailRow(
+              icon: Icons.home_work_outlined,
+              label: 'Address',
+              value: address,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          if (notes != null && notes.isNotEmpty) ...[
+            _buildUnitDetailRow(
+              icon: Icons.notes_rounded,
+              label: 'Notes',
+              value: notes,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnitDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    bool isBadge = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 15, color: AppColors.textSecondary),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 105,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: isBadge
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                )
+              : Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProfileMenuItem({
     required IconData icon,
     required String title,
@@ -1087,13 +1299,26 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final isCompact = screenWidth < AppBreakpoints.tablet;
     final horizontalPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
 
-    return AdaptiveAppScaffold(
-      scaffoldKey: _scaffoldKey,
-      drawer: _buildProfessionalDrawer(context),
-      backgroundColor: AppColors.background,
-      currentSection: AppBottomSection.home,
-      onNavigationSelected: _handleBottomNavigation,
-      contentMaxWidth: 1040,
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFEEF5FF), // Gentle soothing light blue tint
+            Color(0xFFF7FAFD), // Smooth transition tone
+            AppColors.background, // Base clean surface
+          ],
+          stops: [0.0, 0.40, 1.0],
+        ),
+      ),
+      child: AdaptiveAppScaffold(
+        scaffoldKey: _scaffoldKey,
+        drawer: _buildProfessionalDrawer(context),
+        backgroundColor: Colors.transparent,
+        currentSection: AppBottomSection.home,
+        onNavigationSelected: _handleBottomNavigation,
+        contentMaxWidth: 1040,
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -1257,8 +1482,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   AppNotification? _visibleMaintenanceDueNotification() {
     for (final notification in _notifications) {
@@ -1460,10 +1686,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           const SizedBox(height: AppSpacing.xs),
           Text(
             auth.unitName,
-            style: textTheme.headlineMedium?.copyWith(
+            style: GoogleFonts.outfit(
+              textStyle: textTheme.headlineMedium,
               color: AppColors.text,
               fontWeight: FontWeight.w700,
-              height: 1.12,
+              letterSpacing: -0.5,
+              height: 1.15,
+            ).copyWith(
+              fontFamilyFallback: const ['NotoSansMalayalam'],
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -1476,12 +1706,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 icon: Icons.location_on_outlined,
                 color: AppColors.primary,
               ),
-              if (auth.unitSupportPhone != null)
-                _ShellStatusPill(
-                  label: auth.unitSupportPhone!,
-                  icon: Icons.support_agent_rounded,
-                  color: AppColors.success,
-                ),
             ],
           ),
         ],
