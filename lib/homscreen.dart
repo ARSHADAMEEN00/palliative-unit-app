@@ -259,7 +259,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
+                            horizontal: AppSpacing.md,
                             vertical: AppSpacing.md,
                           ),
                           shrinkWrap: true,
@@ -1083,6 +1083,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final maintenanceNotification = auth.isTrialUnit
         ? null
         : _visibleMaintenanceDueNotification();
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < AppBreakpoints.tablet;
+    final horizontalPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
+
     return AdaptiveAppScaffold(
       scaffoldKey: _scaffoldKey,
       drawer: _buildProfessionalDrawer(context),
@@ -1094,16 +1098,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         bottom: false,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.lg,
-            AppSpacing.xl,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            isCompact ? AppSpacing.sm : AppSpacing.md,
+            horizontalPadding,
+            AppSpacing.xxl,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDashboardHeader(context, auth),
+              _buildDashboardHeader(context, auth, isCompact: isCompact),
               if (maintenanceNotification != null) ...[
                 const SizedBox(height: AppSpacing.md),
                 _buildMaintenanceDueBanner(context, maintenanceNotification),
@@ -1216,13 +1220,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: columns,
-                    crossAxisSpacing: AppSpacing.md,
-                    mainAxisSpacing: AppSpacing.md,
+                    crossAxisSpacing: isCompact ? AppSpacing.sm : AppSpacing.md,
+                    mainAxisSpacing: isCompact ? AppSpacing.sm : AppSpacing.md,
                     childAspectRatio: columns >= 4
                         ? 1.42
                         : columns == 3
                         ? 1.28
-                        : 1.02,
+                        : 1.15,
                     children: cards,
                   );
                 },
@@ -1370,12 +1374,30 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildDashboardHeader(BuildContext context, AuthService auth) {
+  String _getGreeting(AuthService auth) {
+    if (auth.isFirstLogin) {
+      return 'Welcome to';
+    }
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) {
+      return 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      return 'Good Afternoon';
+    } else {
+      return 'Good Evening';
+    }
+  }
+
+  Widget _buildDashboardHeader(
+    BuildContext context,
+    AuthService auth, {
+    bool isCompact = false,
+  }) {
     final textTheme = Theme.of(context).textTheme;
 
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(isCompact ? AppSpacing.md : AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1427,9 +1449,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: isCompact ? AppSpacing.md : AppSpacing.lg),
           Text(
-            'Good Morning',
+            _getGreeting(auth),
             style: textTheme.labelLarge?.copyWith(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,

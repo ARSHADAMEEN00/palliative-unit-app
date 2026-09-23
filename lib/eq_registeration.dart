@@ -134,7 +134,7 @@ class _EquipmentRegistrationState extends State<EquipmentRegistration> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 72,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -146,10 +146,10 @@ class _EquipmentRegistrationState extends State<EquipmentRegistration> {
         ),
         contentMaxWidth: 900,
         bottomSheet: Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
             AppSpacing.sm,
-            AppSpacing.lg,
+            AppInsets.screenHorizontal(context),
             AppSpacing.md,
           ),
           decoration: const BoxDecoration(
@@ -169,10 +169,10 @@ class _EquipmentRegistrationState extends State<EquipmentRegistration> {
           ),
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
             AppSpacing.md,
-            AppSpacing.lg,
+            AppInsets.screenHorizontal(context),
             112,
           ),
           child: Form(

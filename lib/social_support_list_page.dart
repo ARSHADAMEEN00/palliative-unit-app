@@ -213,7 +213,7 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         toolbarHeight: 72,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.text,
         elevation: 0,
@@ -253,10 +253,10 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
 
   Widget _buildFilters() {
     return AppCard(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
       ),
       padding: AppInsets.md,
@@ -430,10 +430,10 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
       color: _supportPrimary,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.xs,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           112,
         ),
         itemCount: records.length,

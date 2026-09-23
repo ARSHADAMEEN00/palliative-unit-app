@@ -324,7 +324,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 76,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -362,10 +362,10 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(60),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
                 0,
-                AppSpacing.lg,
+                AppInsets.screenHorizontal(context),
                 AppSpacing.sm,
               ),
               child: _buildSupplyTabs(),
@@ -459,10 +459,10 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
 
   Widget _buildSearchBar() {
     return AppCard(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
       ),
       padding: AppInsets.md,
@@ -527,10 +527,10 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     return RefreshIndicator(
       onRefresh: _fetchActiveSupplies,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.xs,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           112,
         ),
         itemCount: filteredList.length,
@@ -572,10 +572,10 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     return RefreshIndicator(
       onRefresh: _fetchAllSupplies,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.xs,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           112,
         ),
         itemCount: filteredList.length,

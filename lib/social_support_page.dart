@@ -191,7 +191,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 72,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -210,7 +210,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         toolbarHeight: 72,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.text,
         elevation: 0,
@@ -223,10 +223,10 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
             AppSpacing.md,
-            AppSpacing.lg,
+            AppInsets.screenHorizontal(context),
             112,
           ),
           children: [
@@ -266,10 +266,10 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       ),
       contentMaxWidth: 900,
       bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.sm,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           AppSpacing.md,
         ),
         decoration: const BoxDecoration(

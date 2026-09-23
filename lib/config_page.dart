@@ -393,8 +393,8 @@ class _ConfigPageState extends State<ConfigPage>
 
               return Padding(
                 padding: EdgeInsets.only(
-                  left: AppSpacing.md,
-                  right: AppSpacing.md,
+                  left: AppInsets.screenHorizontal(context),
+                  right: AppInsets.screenHorizontal(context),
                   bottom:
                       MediaQuery.viewInsetsOf(context).bottom + AppSpacing.md,
                 ),
@@ -406,10 +406,10 @@ class _ConfigPageState extends State<ConfigPage>
                     top: false,
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
+                        AppSpacing.md,
                         AppSpacing.sm,
-                        AppSpacing.lg,
-                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.md,
                       ),
                       child: Form(
                         key: formKey,
@@ -595,7 +595,7 @@ class _ConfigPageState extends State<ConfigPage>
       backgroundColor: _surfaceColor,
       appBar: AppBar(
         toolbarHeight: 76,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         title: Text(
           'System Config',
           style: Theme.of(context).textTheme.titleLarge,
@@ -608,10 +608,10 @@ class _ConfigPageState extends State<ConfigPage>
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(66),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
+                  padding: EdgeInsets.fromLTRB(
+                    AppInsets.screenHorizontal(context),
                     0,
-                    AppSpacing.lg,
+                    AppInsets.screenHorizontal(context),
                     AppSpacing.sm,
                   ),
                   child: _ConfigTabBar(controller: _tabController),
@@ -679,14 +679,13 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   Widget _buildLoadingList() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.lg,
+    return Padding(
+      padding: AppInsets.screen(
+        context,
+        top: AppSpacing.md,
+        bottom: AppSpacing.md,
       ),
-      child: AppListSkeleton(itemCount: 5),
+      child: const AppListSkeleton(itemCount: 5),
     );
   }
 
@@ -704,11 +703,10 @@ class _ConfigPageState extends State<ConfigPage>
     return RefreshIndicator(
       onRefresh: _fetchConfig,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          112,
+        padding: AppInsets.screen(
+          context,
+          top: AppSpacing.md,
+          bottom: 112,
         ),
         children: [
           _buildOverviewHeader(config),
@@ -922,11 +920,10 @@ class _ConfigPageState extends State<ConfigPage>
     return RefreshIndicator(
       onRefresh: _fetchStaff,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          112,
+        padding: AppInsets.screen(
+          context,
+          top: AppSpacing.md,
+          bottom: 112,
         ),
         children: [
           _SectionCard(

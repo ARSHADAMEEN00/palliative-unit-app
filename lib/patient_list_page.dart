@@ -148,7 +148,7 @@ class _PatientListPageState extends State<PatientListPage> {
         foregroundColor: AppColors.text,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         title: _isSearching
             ? _buildSearchField('Search patients...')
             : Text("Patients", style: Theme.of(context).textTheme.titleLarge),
@@ -266,10 +266,10 @@ class _PatientListPageState extends State<PatientListPage> {
                   color: AppColors.primary,
                   backgroundColor: AppColors.surface,
                   child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.lg,
+                    padding: EdgeInsets.fromLTRB(
+                      AppInsets.screenHorizontal(context),
                       AppSpacing.md,
-                      AppSpacing.lg,
+                      AppInsets.screenHorizontal(context),
                       112,
                     ),
                     itemCount: filteredPatients.length,
@@ -343,10 +343,10 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Widget _buildFilterTabs() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
       ),
       child: Container(
@@ -448,10 +448,10 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Widget _buildSecondaryFilters() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
       ),
       child: Row(

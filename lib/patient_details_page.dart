@@ -144,10 +144,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
           ),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+          AppSpacing.md,
           0,
-          AppSpacing.lg,
-          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.md,
         ),
         actions: [
           AppSecondaryButton(
@@ -214,10 +214,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
           ),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+          AppSpacing.md,
           0,
-          AppSpacing.lg,
-          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.md,
         ),
         actions: [
           AppSecondaryButton(
@@ -601,7 +601,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
+        horizontal: AppSpacing.md,
         vertical: AppSpacing.md,
       ),
       decoration: BoxDecoration(

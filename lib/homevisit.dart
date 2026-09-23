@@ -213,7 +213,7 @@ class _HomevisitState extends State<Homevisit> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         toolbarHeight: 72,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         title: Text(
           isEditing ? 'Edit Home Visit' : 'Schedule Visit',
           style: Theme.of(context).textTheme.titleLarge,
@@ -226,10 +226,10 @@ class _HomevisitState extends State<Homevisit> {
       body: _isLoadingPatients
           ? const AppListSkeleton(itemCount: 4)
           : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
                 AppSpacing.md,
-                AppSpacing.lg,
+                AppInsets.screenHorizontal(context),
                 112,
               ),
               child: Form(
@@ -320,10 +320,10 @@ class _HomevisitState extends State<Homevisit> {
               ),
             ),
       bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.sm,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           AppSpacing.md,
         ),
         decoration: const BoxDecoration(

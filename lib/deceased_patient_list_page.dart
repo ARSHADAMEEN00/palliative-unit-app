@@ -77,7 +77,7 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
         foregroundColor: AppColors.text,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         title: _isSearching
             ? _buildSearchField()
             : Text(
@@ -163,10 +163,10 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
             color: AppColors.primary,
             backgroundColor: AppColors.surface,
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
                 AppSpacing.md,
-                AppSpacing.lg,
+                AppInsets.screenHorizontal(context),
                 AppSpacing.lg,
               ),
               itemCount: filteredPatients.length,

@@ -192,7 +192,7 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         toolbarHeight: 72,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         title: Text(
           "Home Visits",
           style: Theme.of(context).textTheme.titleLarge,
@@ -304,10 +304,10 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     final selectedDate = DateFormat('d MMM yyyy').format(_selectedDate);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.xxs,
       ),
       child: AppCard(
@@ -526,10 +526,10 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         112,
       ),
       itemCount: visits.length,

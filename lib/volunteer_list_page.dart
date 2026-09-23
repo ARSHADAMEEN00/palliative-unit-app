@@ -194,7 +194,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 72,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -235,10 +235,10 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
 
   Widget _buildFilters() {
     return AppCard(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
       ),
       padding: AppInsets.md,
@@ -333,10 +333,10 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
       onRefresh: () => _loadData(showLoading: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.xs,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           112,
         ),
         itemCount: volunteers.length,
@@ -879,7 +879,7 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
           backgroundColor: AppColors.background,
           appBar: AppBar(
             toolbarHeight: 72,
-            titleSpacing: AppSpacing.lg,
+            titleSpacing: AppSpacing.md,
             backgroundColor: AppColors.background,
             foregroundColor: AppColors.text,
             elevation: 0,
@@ -901,7 +901,7 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 72,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -914,10 +914,10 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
         body: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
+            padding: EdgeInsets.fromLTRB(
+              AppInsets.screenHorizontal(context),
               AppSpacing.md,
-              AppSpacing.lg,
+              AppInsets.screenHorizontal(context),
               112,
             ),
             children: [
@@ -1057,10 +1057,10 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
         ),
         contentMaxWidth: 900,
         bottomSheet: Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
             AppSpacing.sm,
-            AppSpacing.lg,
+            AppInsets.screenHorizontal(context),
             AppSpacing.md,
           ),
           decoration: const BoxDecoration(

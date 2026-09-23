@@ -25,15 +25,31 @@ class AppInsets {
   static const lg = EdgeInsets.all(AppSpacing.lg);
   static const xl = EdgeInsets.all(AppSpacing.xl);
 
-  static const page = EdgeInsets.all(AppSpacing.lg);
+  static const page = EdgeInsets.all(AppSpacing.md);
   static const pageWide = EdgeInsets.symmetric(
     horizontal: AppSpacing.xl,
     vertical: AppSpacing.lg,
   );
-  static const card = EdgeInsets.all(AppSpacing.lg);
+  static const card = EdgeInsets.all(AppSpacing.md);
+  static const cardLarge = EdgeInsets.all(AppSpacing.lg);
   static const input = EdgeInsets.symmetric(
     horizontal: AppSpacing.md,
     vertical: 15,
   );
-  static const button = EdgeInsets.symmetric(horizontal: AppSpacing.lg);
+  static const button = EdgeInsets.symmetric(horizontal: AppSpacing.md);
+
+  static double screenHorizontal(BuildContext context) {
+    return MediaQuery.sizeOf(context).width < 600
+        ? AppSpacing.md
+        : AppSpacing.lg;
+  }
+
+  static EdgeInsets screen(
+    BuildContext context, {
+    double top = AppSpacing.sm,
+    double bottom = AppSpacing.xl,
+  }) {
+    final h = screenHorizontal(context);
+    return EdgeInsets.fromLTRB(h, top, h, bottom);
+  }
 }

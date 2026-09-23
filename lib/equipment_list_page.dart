@@ -204,7 +204,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 76,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -242,10 +242,10 @@ class _EquipmentListPageState extends State<EquipmentListPage>
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(60),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
                 0,
-                AppSpacing.lg,
+                AppInsets.screenHorizontal(context),
                 AppSpacing.sm,
               ),
               child: _buildInventoryTabs(),
@@ -326,10 +326,10 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     final isAvailableTab = _currentIndex == 0;
 
     return AppCard(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.sm,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
       ),
       padding: AppInsets.md,
@@ -371,10 +371,10 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         112,
       ),
       itemCount: _availableItems.length,
@@ -495,10 +495,10 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
         AppSpacing.xs,
-        AppSpacing.lg,
+        AppInsets.screenHorizontal(context),
         112,
       ),
       itemCount: filteredItems.length,
@@ -1584,7 +1584,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 72,
-          titleSpacing: AppSpacing.lg,
+          titleSpacing: AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -1595,10 +1595,10 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
           ),
         ),
         bottomSheet: Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
             AppSpacing.sm,
-            AppSpacing.lg,
+            AppInsets.screenHorizontal(context),
             AppSpacing.md,
           ),
           decoration: const BoxDecoration(
@@ -1619,10 +1619,10 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
         ),
         contentMaxWidth: 900,
         body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
             AppSpacing.md,
-            AppSpacing.lg,
+            AppInsets.screenHorizontal(context),
             112,
           ),
           child: Form(

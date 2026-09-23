@@ -535,7 +535,7 @@ class _patientrigisterState extends State<patientrigister> {
   PreferredSizeWidget _buildRegistrationAppBar(bool isEditing) {
     return AppBar(
       toolbarHeight: 72,
-      titleSpacing: AppSpacing.lg,
+      titleSpacing: AppSpacing.md,
       backgroundColor: AppColors.background,
       foregroundColor: AppColors.text,
       elevation: 0,
@@ -645,10 +645,10 @@ class _patientrigisterState extends State<patientrigister> {
       backgroundColor: AppColors.background,
       appBar: _buildRegistrationAppBar(isEditing),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.md,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           112,
         ),
         child: Form(
@@ -995,10 +995,10 @@ class _patientrigisterState extends State<patientrigister> {
         ),
       ),
       bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
           AppSpacing.sm,
-          AppSpacing.lg,
+          AppInsets.screenHorizontal(context),
           AppSpacing.md,
         ),
         decoration: BoxDecoration(

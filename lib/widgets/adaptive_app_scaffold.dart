@@ -65,7 +65,23 @@ class AdaptiveAppScaffold extends StatelessWidget {
             : _TabletWidthFrame(
                 enabled: isTablet && centerBodyOnTablet,
                 maxWidth: contentMaxWidth,
-                child: bottomSheet!,
+                child: Builder(
+                  builder: (sheetContext) {
+                    final mediaQuery = MediaQuery.of(sheetContext);
+                    final viewPadding = MediaQuery.viewPaddingOf(sheetContext);
+                    final bottomInset = mediaQuery.viewInsets.bottom > 0
+                        ? 0.0
+                        : viewPadding.bottom;
+                    return MediaQuery(
+                      data: mediaQuery.copyWith(
+                        padding: mediaQuery.padding.copyWith(
+                          bottom: bottomInset,
+                        ),
+                      ),
+                      child: bottomSheet!,
+                    );
+                  },
+                ),
               );
 
         return Scaffold(

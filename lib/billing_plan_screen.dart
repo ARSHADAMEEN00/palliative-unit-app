@@ -173,9 +173,9 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
 
             return Padding(
               padding: EdgeInsets.only(
-                left: AppSpacing.md,
-                right: AppSpacing.md,
-                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+                left: AppInsets.screenHorizontal(context),
+                right: AppInsets.screenHorizontal(context),
+                bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.md,
               ),
               child: Material(
                 color: AppColors.surfaceModal,
@@ -187,10 +187,10 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
                     top: false,
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
+                        AppSpacing.md,
                         AppSpacing.sm,
-                        AppSpacing.lg,
-                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.md,
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -279,7 +279,7 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
       contentMaxWidth: 980,
       appBar: AppBar(
         toolbarHeight: 76,
-        titleSpacing: AppSpacing.lg,
+        titleSpacing: AppSpacing.md,
         title: Text(
           'Billing & Plan',
           style: Theme.of(context).textTheme.titleLarge,
@@ -295,14 +295,13 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.lg,
+      return Padding(
+        padding: AppInsets.screen(
+          context,
+          top: AppSpacing.md,
+          bottom: AppSpacing.md,
         ),
-        child: AppListSkeleton(itemCount: 5),
+        child: const AppListSkeleton(itemCount: 5),
       );
     }
 
@@ -317,11 +316,10 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
     return RefreshIndicator(
       onRefresh: _loadBilling,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.xl,
+        padding: AppInsets.screen(
+          context,
+          top: AppSpacing.md,
+          bottom: AppSpacing.xl,
         ),
         children: [
           _CurrentPlanCard(
@@ -444,7 +442,9 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppInsets.screenHorizontal(context),
+          ),
           child: Material(
             color: AppColors.surfaceModal,
             borderRadius: AppRadius.sheet,
@@ -453,10 +453,10 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
               top: false,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
+                  AppSpacing.md,
                   AppSpacing.sm,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.md,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

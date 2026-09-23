@@ -83,27 +83,41 @@ class _LoginscreenState extends State<Loginscreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isWide ? AppSpacing.xl : AppSpacing.lg,
-              vertical: AppSpacing.xl,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: _LoginCard(
-                emailController: _emailController,
-                passwordController: _passwordController,
-                isLoading: _isLoading,
-                errorMessage: _errorMessage,
-                isPasswordVisible: _isPasswordVisible,
-                onSubmit: _handleLogin,
-                onTogglePassword: _togglePasswordVisibility,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.35,
+              child: Image.asset(
+                'assets/logo/app_icon.png',
+                fit: BoxFit.cover,
               ),
             ),
           ),
-        ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isWide ? AppSpacing.xl : AppSpacing.lg,
+                  vertical: AppSpacing.xl,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: _LoginCard(
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    isLoading: _isLoading,
+                    errorMessage: _errorMessage,
+                    isPasswordVisible: _isPasswordVisible,
+                    onSubmit: _handleLogin,
+                    onTogglePassword: _togglePasswordVisibility,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
