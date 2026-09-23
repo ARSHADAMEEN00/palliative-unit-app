@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import 'credential_store.dart';
 
 /// Result wrapper for API responses.
 class ApiResult<T> {
@@ -22,8 +22,7 @@ class ApiService {
 
   /// Helper to get headers with Authorization token
   static Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = await CredentialStore.readToken();
 
     final headers = Map<String, String>.from(ApiConfig.headers);
     if (token != null) {
@@ -103,6 +102,31 @@ class ApiService {
       final headers = await _getHeaders();
       final response = await _client
           .put(Uri.parse(url), headers: headers, body: json.encode(body))
+          .timeout(ApiConfig.timeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic jsonData = json.decode(response.body);
+        final T? data = fromJson != null ? fromJson(jsonData) : jsonData as T?;
+        return ApiResult(data: data, statusCode: response.statusCode);
+      } else {
+        final errorBody = _parseError(response.body);
+        return ApiResult(error: errorBody, statusCode: response.statusCode);
+      }
+    } catch (e) {
+      return ApiResult(error: e.toString(), statusCode: 0);
+    }
+  }
+
+  /// Perform a PATCH request.
+  static Future<ApiResult<T>> patch<T>(
+    String url, {
+    required Map<String, dynamic> body,
+    T Function(dynamic json)? fromJson,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await _client
+          .patch(Uri.parse(url), headers: headers, body: json.encode(body))
           .timeout(ApiConfig.timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {

@@ -24,6 +24,11 @@ class MedicineBatch {
   final DateTime? entryDate;
   final DateTime? expiryDate;
   final String? batchNumber;
+  final String sourceType;
+  final String sourceLabel;
+  final String? sourcePatientName;
+  final String? sourcePatientRegisterId;
+  final String? sourceSupplyId;
   final String? note;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -36,6 +41,11 @@ class MedicineBatch {
     this.entryDate,
     this.expiryDate,
     this.batchNumber,
+    this.sourceType = 'main_stock',
+    this.sourceLabel = 'Main Stock',
+    this.sourcePatientName,
+    this.sourcePatientRegisterId,
+    this.sourceSupplyId,
     this.note,
     this.createdAt,
     this.updatedAt,
@@ -51,6 +61,11 @@ class MedicineBatch {
       entryDate: _toDate(json['entryDate']),
       expiryDate: _toDate(json['expiryDate']),
       batchNumber: json['batchNumber']?.toString(),
+      sourceType: json['sourceType']?.toString() ?? 'main_stock',
+      sourceLabel: json['sourceLabel']?.toString() ?? 'Main Stock',
+      sourcePatientName: json['sourcePatientName']?.toString(),
+      sourcePatientRegisterId: json['sourcePatientRegisterId']?.toString(),
+      sourceSupplyId: json['sourceSupplyId']?.toString(),
       note: json['note']?.toString(),
       createdAt: _toDate(json['createdAt']),
       updatedAt: _toDate(json['updatedAt']),

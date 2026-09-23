@@ -1,4 +1,4 @@
-/// In-memory cache engine for the Oruma app.
+/// In-memory cache engine for the Palliative App.
 ///
 /// Reduces repeated API calls by storing GET results in memory with a
 /// configurable TTL (time-to-live). Write operations (POST/PUT/DELETE)
@@ -24,7 +24,7 @@ class _CacheEntry<T> {
   final DateTime expiresAt;
 
   _CacheEntry({required this.data, required Duration ttl})
-      : expiresAt = DateTime.now().add(ttl);
+    : expiresAt = DateTime.now().add(ttl);
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
@@ -68,6 +68,5 @@ class AppCache {
 
   /// Returns the number of currently live (non-expired) entries.
   /// Useful for debugging.
-  static int get liveCount =>
-      _store.values.where((e) => !e.isExpired).length;
+  static int get liveCount => _store.values.where((e) => !e.isExpired).length;
 }

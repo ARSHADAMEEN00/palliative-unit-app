@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/volunteer.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
-const _patientCardBackground = Color(0xFFE6F1FB);
-const _patientIconBackground = Color(0xFFB5D4F4);
-const _patientPrimary = Color(0xFF185FA5);
+const _patientCardBackground = AppColors.primarySoft;
+const _patientIconBackground = AppColors.primaryLight;
+const _patientPrimary = AppColors.primary;
 
 // ignore: camel_case_types
 class patientrigister extends StatefulWidget {
@@ -206,34 +210,47 @@ class _patientrigisterState extends State<patientrigister> {
 
   InputDecoration _buildInputDecoration(String label, IconData icon) {
     return InputDecoration(
+      isDense: true,
       labelText: label,
+      labelStyle: const TextStyle(color: AppColors.textSecondary),
       prefixIcon: Container(
-        width: 40,
-        height: 40,
-        margin: const EdgeInsets.all(8),
+        width: 36,
+        height: 36,
+        margin: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: _patientIconBackground,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: AppRadius.sm,
         ),
-        child: Icon(icon, size: 20, color: _patientPrimary),
+        child: Icon(icon, size: AppIcons.normal, color: _patientPrimary),
       ),
-      prefixIconConstraints: const BoxConstraints(minWidth: 56, minHeight: 56),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
       floatingLabelBehavior: FloatingLabelBehavior.auto,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: AppColors.surface1,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _patientPrimary, width: 2),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _patientPrimary, width: 1.4),
       ),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
     );
   }
 
@@ -250,7 +267,7 @@ class _patientrigisterState extends State<patientrigister> {
             colorScheme: const ColorScheme.light(
               primary: _patientPrimary,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -277,250 +294,324 @@ class _patientrigisterState extends State<patientrigister> {
     String? popupSelectedVillage = _selectedVillage;
     bool isSaving = false;
 
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateBuilder) {
-            return AlertDialog(
-              title: const Text('Add New Ward', style: TextStyle(fontSize: 16)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    decoration: _buildInputDecoration(
-                      "Village",
-                      Icons.location_city,
-                    ),
-                    value: popupSelectedVillage,
-                    items: villages
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                    onChanged: (v) {
-                      setStateBuilder(() {
-                        popupSelectedVillage = v;
-                      });
-                    },
-                    hint: const Text("Select Village"),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: newWardController,
-                    decoration: const InputDecoration(
-                      labelText: 'Ward Number',
-                      hintText: 'e.g. 1',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    autofocus: true,
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setStateBuilder) {
+              return AlertDialog(
+                backgroundColor: AppColors.surface,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadius.dialog,
                 ),
-                ElevatedButton(
-                  onPressed: (isSaving || popupSelectedVillage == null)
-                      ? null
-                      : () async {
-                          final newWardNumber = normalizeWardNumberValue(
-                            newWardController.text,
-                          );
-                          if (newWardNumber.isEmpty) return;
-
-                          setStateBuilder(() => isSaving = true);
-
-                          try {
-                            final config = await ConfigService.getConfig();
-                            final exists = config.wards.any(
-                              (w) =>
-                                  w.number == newWardNumber &&
-                                  w.village == popupSelectedVillage,
+                title: _DialogTitle(
+                  icon: Icons.map_outlined,
+                  title: 'Add ward',
+                  subtitle: 'Create a ward under the selected village.',
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      decoration: _buildInputDecoration(
+                        "Village",
+                        Icons.location_city,
+                      ),
+                      initialValue: popupSelectedVillage,
+                      style: AppTypography.dropdownTextStyle(context),
+                      items: villages
+                          .map(
+                            (v) => DropdownMenuItem(value: v, child: Text(v)),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        setStateBuilder(() {
+                          popupSelectedVillage = v;
+                        });
+                      },
+                      hint: const Text("Select Village"),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: newWardController,
+                      decoration: _buildInputDecoration(
+                        'Ward Number',
+                        Icons.tag_outlined,
+                      ).copyWith(hintText: 'e.g. 1'),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      autofocus: true,
+                    ),
+                  ],
+                ),
+                actionsPadding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                actions: [
+                  AppSecondaryButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  AppPrimaryButton(
+                    label: 'Add',
+                    icon: Icons.add,
+                    loading: isSaving,
+                    onPressed: (isSaving || popupSelectedVillage == null)
+                        ? null
+                        : () async {
+                            final newWardNumber = normalizeWardNumberValue(
+                              newWardController.text,
                             );
+                            if (newWardNumber.isEmpty) return;
 
-                            if (!exists) {
-                              config.wards.add(
-                                WardConfig(
-                                  number: newWardNumber,
-                                  village: popupSelectedVillage!,
-                                ),
-                              );
-                              await ConfigService.updateConfig(config);
-                            }
+                            setStateBuilder(() => isSaving = true);
 
-                            setState(() {
-                              if (!allWards.any(
+                            try {
+                              final config = await ConfigService.getConfig();
+                              final exists = config.wards.any(
                                 (w) =>
                                     w.number == newWardNumber &&
                                     w.village == popupSelectedVillage,
-                              )) {
-                                allWards = sortWardConfigs([
-                                  ...allWards,
+                              );
+
+                              if (!exists) {
+                                config.wards.add(
                                   WardConfig(
                                     number: newWardNumber,
                                     village: popupSelectedVillage!,
                                   ),
-                                ]);
+                                );
+                                await ConfigService.updateConfig(config);
                               }
-                              // If we added it for the currently selected village in the main form,
-                              // update the filtered list and select it. Otherwise just refresh.
-                              if (_selectedVillage == popupSelectedVillage) {
-                                _updateFilteredWards();
-                                _selectedWardTitle = newWardNumber;
-                              }
-                            });
 
-                            if (context.mounted) Navigator.pop(context);
-                          } catch (e) {
-                            setStateBuilder(() => isSaving = false);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to add ward: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              setState(() {
+                                if (!allWards.any(
+                                  (w) =>
+                                      w.number == newWardNumber &&
+                                      w.village == popupSelectedVillage,
+                                )) {
+                                  allWards = sortWardConfigs([
+                                    ...allWards,
+                                    WardConfig(
+                                      number: newWardNumber,
+                                      village: popupSelectedVillage!,
+                                    ),
+                                  ]);
+                                }
+                                // If we added it for the currently selected village in the main form,
+                                // update the filtered list and select it. Otherwise just refresh.
+                                if (_selectedVillage == popupSelectedVillage) {
+                                  _updateFilteredWards();
+                                  _selectedWardTitle = newWardNumber;
+                                }
+                              });
+
+                              if (context.mounted) Navigator.pop(context);
+                            } catch (e) {
+                              setStateBuilder(() => isSaving = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to add ward: $e'),
+                                    backgroundColor: AppColors.danger,
+                                  ),
+                                );
+                              }
                             }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _patientPrimary,
-                    foregroundColor: Colors.white,
+                          },
                   ),
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Add'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      newWardController.dispose();
+    }
   }
 
   Future<void> _showAddDiseaseDialog() async {
     final TextEditingController newDiseaseController = TextEditingController();
     bool isSaving = false;
 
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateBuilder) {
-            return AlertDialog(
-              title: const Text('Add New Disease'),
-              content: TextField(
-                controller: newDiseaseController,
-                decoration: const InputDecoration(
-                  labelText: 'Disease Name',
-                  hintText: 'e.g. ASTHMA',
-                  border: OutlineInputBorder(),
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setStateBuilder) {
+              return AlertDialog(
+                backgroundColor: AppColors.surface,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadius.dialog,
                 ),
-                textCapitalization: TextCapitalization.characters,
-                autofocus: true,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                title: _DialogTitle(
+                  icon: Icons.medical_information_outlined,
+                  title: 'Add disease',
+                  subtitle: 'Add it once and reuse it across patient records.',
                 ),
-                ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          final newDisease = newDiseaseController.text
-                              .trim()
-                              .toUpperCase();
-                          if (newDisease.isEmpty) return;
-
-                          setStateBuilder(() => isSaving = true);
-
-                          try {
-                            // Fetch current config to update it
-                            final config = await ConfigService.getConfig();
-                            if (!config.diseases.contains(newDisease)) {
-                              config.diseases.add(newDisease);
-                              await ConfigService.updateConfig(config);
-                            }
-
-                            // Update the local state
-                            setState(() {
-                              if (!diseases.contains(newDisease)) {
-                                diseases.add(newDisease);
-                              }
-                              if (!_selectedDiseases.contains(newDisease)) {
-                                _selectedDiseases.add(newDisease);
-                              }
-                            });
-
-                            if (context.mounted) Navigator.pop(context);
-                          } catch (e) {
-                            setStateBuilder(() => isSaving = false);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to add disease: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _patientPrimary,
-                    foregroundColor: Colors.white,
+                content: TextField(
+                  controller: newDiseaseController,
+                  decoration: _buildInputDecoration(
+                    'Disease Name',
+                    Icons.medical_services_outlined,
+                  ).copyWith(hintText: 'e.g. ASTHMA'),
+                  textCapitalization: TextCapitalization.characters,
+                  autofocus: true,
+                ),
+                actionsPadding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                actions: [
+                  AppSecondaryButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(context),
                   ),
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Add'),
+                  AppPrimaryButton(
+                    label: 'Add',
+                    icon: Icons.add,
+                    loading: isSaving,
+                    onPressed: isSaving
+                        ? null
+                        : () async {
+                            final newDisease = newDiseaseController.text
+                                .trim()
+                                .toUpperCase();
+                            if (newDisease.isEmpty) return;
+
+                            setStateBuilder(() => isSaving = true);
+
+                            try {
+                              // Fetch current config to update it
+                              final config = await ConfigService.getConfig();
+                              if (!config.diseases.contains(newDisease)) {
+                                config.diseases.add(newDisease);
+                                await ConfigService.updateConfig(config);
+                              }
+
+                              // Update the local state
+                              setState(() {
+                                if (!diseases.contains(newDisease)) {
+                                  diseases.add(newDisease);
+                                }
+                                if (!_selectedDiseases.contains(newDisease)) {
+                                  _selectedDiseases.add(newDisease);
+                                }
+                              });
+
+                              if (context.mounted) Navigator.pop(context);
+                            } catch (e) {
+                              setStateBuilder(() => isSaving = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to add disease: $e'),
+                                    backgroundColor: AppColors.danger,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      newDiseaseController.dispose();
+    }
+  }
+
+  PreferredSizeWidget _buildRegistrationAppBar(bool isEditing) {
+    return AppBar(
+      toolbarHeight: 72,
+      titleSpacing: AppSpacing.md,
+      backgroundColor: AppColors.background,
+      foregroundColor: AppColors.text,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      title: Text(
+        isEditing ? "Edit Patient" : "New Patient",
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      centerTitle: false,
+    );
+  }
+
+  Widget _registrationDateCard() {
+    return AppCard(
+      padding: AppInsets.card,
+      surfaceLevel: AppSurfaceLevel.elevated,
+      onTap: _pickRegistrationDate,
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: _patientIconBackground,
+              borderRadius: AppRadius.md,
+            ),
+            child: const Icon(
+              Icons.calendar_today_outlined,
+              color: _patientPrimary,
+              size: AppIcons.large,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Registration Date',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  _registrationDate == null
+                      ? 'Select date'
+                      : DateFormat(
+                          'EEEE, d MMMM yyyy',
+                        ).format(_registrationDate!),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppColors.textSecondary,
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.patient != null;
+    final canManageConfig = context.watch<AuthService>().isAdmin;
 
     // Show loading indicator while config is loading
     if (_isLoadingConfig) {
       return AdaptiveAppScaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: Text(
-            isEditing ? "Edit Patient" : "New Patient Registration",
-            style: const TextStyle(fontSize: 18),
-          ),
-          backgroundColor: _patientPrimary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(color: _patientPrimary),
-        ),
+        backgroundColor: AppColors.background,
+        appBar: _buildRegistrationAppBar(isEditing),
+        body: const AppListSkeleton(itemCount: 4),
         contentMaxWidth: 900,
       );
     }
@@ -528,56 +619,22 @@ class _patientrigisterState extends State<patientrigister> {
     // Show error if config failed to load
     if (_configError != null) {
       return AdaptiveAppScaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: Text(
-            isEditing ? "Edit Patient" : "New Patient Registration",
-            style: const TextStyle(fontSize: 18),
-          ),
-          backgroundColor: _patientPrimary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 64),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load configuration',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  _configError!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _isLoadingConfig = true;
-                    _configError = null;
-                  });
-                  _loadConfig();
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _patientPrimary,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
+        backgroundColor: AppColors.background,
+        appBar: _buildRegistrationAppBar(isEditing),
+        body: AppEmptyState(
+          icon: Icons.error_outline,
+          title: 'Failed to load configuration',
+          message: _configError!,
+          action: AppPrimaryButton(
+            label: 'Retry',
+            icon: Icons.refresh,
+            onPressed: () {
+              setState(() {
+                _isLoadingConfig = true;
+                _configError = null;
+              });
+              _loadConfig();
+            },
           ),
         ),
         contentMaxWidth: 900,
@@ -585,77 +642,22 @@ class _patientrigisterState extends State<patientrigister> {
     }
 
     return AdaptiveAppScaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          isEditing ? "Edit Patient" : "New Patient Registration",
-          style: const TextStyle(fontSize: 18),
-        ),
-        backgroundColor: _patientPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-      ),
+      backgroundColor: AppColors.background,
+      appBar: _buildRegistrationAppBar(isEditing),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.md,
+          AppInsets.screenHorizontal(context),
+          112,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              InkWell(
-                onTap: _pickRegistrationDate,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _patientCardBackground,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: _patientPrimary,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Registration Date',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _registrationDate == null
-                                  ? 'Select Date'
-                                  : DateFormat(
-                                      'EEEE, d MMMM yyyy',
-                                    ).format(_registrationDate!),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
+              _registrationDateCard(),
+              const SizedBox(height: AppSpacing.lg),
               _buildSectionCard(
                 title: "Basic Information",
                 icon: Icons.person_outline,
@@ -669,7 +671,7 @@ class _patientrigisterState extends State<patientrigister> {
                     validator: (val) =>
                         val == null || val.isEmpty ? "Required" : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   SizedBox(
                     width: 180,
                     child: TextFormField(
@@ -686,31 +688,49 @@ class _patientrigisterState extends State<patientrigister> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
                     "Gender",
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
                     children: ["Male", "Female", "Other"].map((g) {
                       final isSelected = _gender == g;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: ChoiceChip(
-                          label: Text(g),
-                          selected: isSelected,
-                          selectedColor: _patientPrimary,
-                          checkmarkColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black,
-                          ),
-                          onSelected: (selected) {
-                            setState(() {
-                              _gender = selected ? g : null;
-                            });
-                          },
+                      return ChoiceChip(
+                        label: Text(g),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        selectedColor: _patientPrimary,
+                        backgroundColor: AppColors.surface1,
+                        side: BorderSide(
+                          color: isSelected
+                              ? _patientPrimary
+                              : AppColors.border,
                         ),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: AppRadius.button,
+                        ),
+                        labelStyle: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: isSelected
+                                  ? AppColors.textInverse
+                                  : AppColors.text,
+                              fontWeight: FontWeight.w600,
+                            ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        onSelected: (selected) {
+                          setState(() {
+                            _gender = selected ? g : null;
+                          });
+                        },
                       );
                     }).toList(),
                   ),
@@ -719,18 +739,20 @@ class _patientrigisterState extends State<patientrigister> {
                       padding: EdgeInsets.only(top: 8.0),
                       child: Text(
                         "Please select a gender",
-                        style: TextStyle(color: Colors.red, fontSize: 12),
+                        style: TextStyle(color: AppColors.danger, fontSize: 12),
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  const Text(
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
                     "Diseases",
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.xs),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
                     children: [
                       ...diseases.map((disease) {
                         final isSelected = _selectedDiseases.contains(disease);
@@ -738,11 +760,23 @@ class _patientrigisterState extends State<patientrigister> {
                           label: Text(disease),
                           selected: isSelected,
                           selectedColor: _patientPrimary,
-                          backgroundColor: Colors.grey.shade100,
-                          checkmarkColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
+                          backgroundColor: AppColors.surface1,
+                          checkmarkColor: AppColors.textInverse,
+                          side: BorderSide(
+                            color: isSelected
+                                ? _patientPrimary
+                                : AppColors.border,
                           ),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: AppRadius.button,
+                          ),
+                          labelStyle: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: isSelected
+                                    ? AppColors.textInverse
+                                    : AppColors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                           onSelected: (selected) {
                             setState(() {
                               if (selected) {
@@ -754,25 +788,34 @@ class _patientrigisterState extends State<patientrigister> {
                           },
                         );
                       }),
-                      ActionChip(
-                        label: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add, size: 16, color: _patientPrimary),
-                            SizedBox(width: 4),
-                            Text(
-                              'Other',
-                              style: TextStyle(color: _patientPrimary),
-                            ),
-                          ],
+                      if (canManageConfig)
+                        ActionChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.add,
+                                size: AppIcons.small,
+                                color: _patientPrimary,
+                              ),
+                              const SizedBox(width: AppSpacing.xxs),
+                              Text(
+                                'Other',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: _patientPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: _patientCardBackground,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: AppRadius.button,
+                            side: BorderSide(color: _patientIconBackground),
+                          ),
+                          onPressed: _showAddDiseaseDialog,
                         ),
-                        backgroundColor: _patientCardBackground,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: _patientIconBackground),
-                        ),
-                        onPressed: _showAddDiseaseDialog,
-                      ),
                     ],
                   ),
                   if (_selectedDiseases.isEmpty)
@@ -780,19 +823,20 @@ class _patientrigisterState extends State<patientrigister> {
                       padding: EdgeInsets.only(top: 8.0),
                       child: Text(
                         "Please select at least one disease",
-                        style: TextStyle(color: Colors.red, fontSize: 12),
+                        style: TextStyle(color: AppColors.danger, fontSize: 12),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
               _buildSectionCard(
                 title: "Contact Details",
                 icon: Icons.contact_phone_outlined,
                 children: [
                   TextFormField(
                     controller: addressController,
-                    maxLines: 2,
+                    minLines: 1,
+                    maxLines: 3,
                     decoration: _buildInputDecoration(
                       "Full Address",
                       Icons.home_outlined,
@@ -800,7 +844,7 @@ class _patientrigisterState extends State<patientrigister> {
                     validator: (val) =>
                         val == null || val.isEmpty ? "Required" : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
@@ -812,7 +856,7 @@ class _patientrigisterState extends State<patientrigister> {
                         val == null || val.isEmpty ? "Required" : null,
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: relationController,
                     decoration: _buildInputDecoration(
@@ -822,7 +866,7 @@ class _patientrigisterState extends State<patientrigister> {
                     validator: (val) =>
                         val == null || val.isEmpty ? "Required" : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: phone2Controller,
                     keyboardType: TextInputType.phone,
@@ -833,7 +877,7 @@ class _patientrigisterState extends State<patientrigister> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
               _buildSectionCard(
                 title: "Location & Care Plan",
                 icon: Icons.map_outlined,
@@ -843,7 +887,9 @@ class _patientrigisterState extends State<patientrigister> {
                       "Village",
                       Icons.location_city,
                     ),
-                    value: _selectedVillage,
+                    key: ValueKey(_selectedVillage),
+                    initialValue: _selectedVillage,
+                    style: AppTypography.dropdownTextStyle(context),
                     items: villages
                         .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                         .toList(),
@@ -855,7 +901,7 @@ class _patientrigisterState extends State<patientrigister> {
                     },
                     validator: (val) => val == null ? "Required" : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -865,7 +911,11 @@ class _patientrigisterState extends State<patientrigister> {
                             "Ward Number",
                             Icons.apartment,
                           ),
-                          value: _selectedWardTitle,
+                          key: ValueKey(
+                            '${_selectedVillage ?? ''}:${_selectedWardTitle ?? ''}:${filteredWards.length}',
+                          ),
+                          initialValue: _selectedWardTitle,
+                          style: AppTypography.dropdownTextStyle(context),
                           hint: const Text("Select Ward Number"),
                           items: filteredWards
                               .map(
@@ -879,29 +929,42 @@ class _patientrigisterState extends State<patientrigister> {
                               setState(() => _selectedWardTitle = v),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        child: IconButton(
-                          onPressed: _showAddWardDialog,
-                          icon: const Icon(
-                            Icons.add_circle,
-                            color: _patientPrimary,
-                            size: 30,
+                      if (canManageConfig) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Tooltip(
+                          message: 'Add New Ward',
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Material(
+                              color: AppColors.primaryLight,
+                              borderRadius: AppRadius.md,
+                              child: InkWell(
+                                borderRadius: AppRadius.md,
+                                onTap: _showAddWardDialog,
+                                child: const SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Icon(
+                                    Icons.add,
+                                    color: _patientPrimary,
+                                    size: AppIcons.large,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                          tooltip: 'Add New Ward',
                         ),
-                      ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: placeController,
                     decoration: _buildInputDecoration("Place", Icons.place),
                     validator: (val) =>
                         val == null || val.isEmpty ? "Required" : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: locationLinkController,
                     decoration: _buildInputDecoration(
@@ -909,15 +972,16 @@ class _patientrigisterState extends State<patientrigister> {
                       Icons.map,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   _volunteerSelector(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
                       "Care Plan",
                       Icons.assignment_outlined,
                     ),
                     initialValue: _selectedPlan,
+                    style: AppTypography.dropdownTextStyle(context),
                     items: plans
                         .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                         .toList(),
@@ -931,43 +995,25 @@ class _patientrigisterState extends State<patientrigister> {
         ),
       ),
       bottomSheet: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.sm,
+          AppInsets.screenHorizontal(context),
+          AppSpacing.md,
         ),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceFloating,
+          border: const Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: AppShadow.medium,
+        ),
+        child: SafeArea(
+          top: false,
+          child: AppPrimaryButton(
+            label: isEditing ? "Update Patient" : "Register Patient",
+            icon: isEditing ? Icons.save_outlined : Icons.person_add_alt_1,
+            fullWidth: true,
+            loading: _isLoading,
             onPressed: _isLoading ? null : _handleSubmit,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _patientPrimary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 1,
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : Text(
-                    isEditing ? "UPDATE PATIENT" : "REGISTER PATIENT",
-                    style: const TextStyle(fontSize: 14, letterSpacing: 1.0),
-                  ),
           ),
         ),
       ),
@@ -980,19 +1026,9 @@ class _patientrigisterState extends State<patientrigister> {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _patientCardBackground,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: AppInsets.card,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1002,18 +1038,19 @@ class _patientrigisterState extends State<patientrigister> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: _patientIconBackground,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.sm,
                 ),
-                child: Icon(icon, color: _patientPrimary, size: 20),
+                child: Icon(
+                  icon,
+                  color: _patientPrimary,
+                  size: AppIcons.normal,
+                ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 16, color: Color(0xFF333333)),
-              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.lg),
           ...children,
         ],
       ),
@@ -1023,11 +1060,11 @@ class _patientrigisterState extends State<patientrigister> {
   Widget _volunteerSelector() {
     if (volunteers.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(14),
+        padding: AppInsets.md,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
+          color: AppColors.surface1,
+          borderRadius: AppRadius.input,
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -1035,11 +1072,13 @@ class _patientrigisterState extends State<patientrigister> {
               Icons.volunteer_activism_outlined,
               color: _patientPrimary,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 "No volunteers added yet",
-                style: TextStyle(color: Colors.grey.shade700),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           ],
@@ -1109,7 +1148,7 @@ class _patientrigisterState extends State<patientrigister> {
               },
         ),
         if (_selectedVolunteer != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.sm),
           _selectedVolunteerCard(),
         ],
       ],
@@ -1119,25 +1158,25 @@ class _patientrigisterState extends State<patientrigister> {
   Widget _selectedVolunteerCard() {
     final volunteer = _selectedVolunteer!;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: AppInsets.md,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.primarySoft,
+        borderRadius: AppRadius.md,
         border: Border.all(color: _patientIconBackground),
       ),
       child: Row(
         children: [
           const Icon(Icons.badge_outlined, color: _patientPrimary),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   volunteer.name,
-                  style: const TextStyle(
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: _patientPrimary,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
@@ -1148,7 +1187,9 @@ class _patientrigisterState extends State<patientrigister> {
                   ].join(' - '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -1163,7 +1204,7 @@ class _patientrigisterState extends State<patientrigister> {
                 volunteerContactController.clear();
               });
             },
-            icon: const Icon(Icons.close, color: _patientPrimary),
+            icon: const Icon(Icons.close, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -1175,7 +1216,7 @@ class _patientrigisterState extends State<patientrigister> {
       if (volunteer.phone.isNotEmpty) volunteer.phone,
       if (volunteer.phone2.isNotEmpty) volunteer.phone2,
       if (volunteer.place.isNotEmpty) volunteer.place,
-      if (volunteer.ward.isNotEmpty) 'Ward ${volunteer.ward}',
+      if (volunteer.ward.isNotEmpty) 'Ward\u00A0${volunteer.ward}',
     ].join(' - ');
     return details.isEmpty ? volunteer.name : '${volunteer.name} - $details';
   }
@@ -1234,8 +1275,8 @@ class _patientrigisterState extends State<patientrigister> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text("✅ Patient Updated Successfully"),
-                backgroundColor: Colors.green,
+                content: Text("Patient updated successfully"),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -1246,8 +1287,8 @@ class _patientrigisterState extends State<patientrigister> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text("✅ Patient Registered Successfully"),
-                backgroundColor: Colors.green,
+                content: Text("Patient registered successfully"),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -1258,8 +1299,8 @@ class _patientrigisterState extends State<patientrigister> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("❌ Failed: ${e.toString()}"),
-              backgroundColor: Colors.red,
+              content: Text("Failed: ${e.toString()}"),
+              backgroundColor: AppColors.danger,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1270,5 +1311,52 @@ class _patientrigisterState extends State<patientrigister> {
         }
       }
     }
+  }
+}
+
+class _DialogTitle extends StatelessWidget {
+  const _DialogTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryLight,
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: AppColors.primary, size: AppIcons.large),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

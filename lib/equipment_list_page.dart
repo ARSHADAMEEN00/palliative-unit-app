@@ -1,23 +1,28 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/equipment_supply_list_page.dart';
 import 'package:oruma_app/eq_supply.dart'; // Import for Distribute Page
+import 'package:intl/intl.dart';
 import 'package:oruma_app/models/equipment.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/equipment_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/services/feature_permissions.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/module_switch_tabs.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:provider/provider.dart';
 
-const _equipmentPrimary = Color(0xFF854F0B);
-const _equipmentSurface = Color(0xFFFAEEDA);
-const _equipmentIconSurface = Color(0xFFFAC775);
+const _equipmentPrimary = Color(0xFFF59E0B);
+const _equipmentStrong = Color(0xFFB45309);
+const _equipmentSurface = Color(0xFFFFFBEB);
+const _equipmentIconSurface = Color(0xFFFEF3C7);
 
 class EquipmentListPage extends StatefulWidget {
   final int initialTab;
@@ -92,17 +97,31 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       setState(() {
         _currentIndex = _tabController.index;
       });
+      final auth = context.read<AuthService>();
       if (_currentIndex == 0) {
-        _fetchAvailableEquipment(search: _searchQuery);
+        if (auth.canAccessEquipment) {
+          _fetchAvailableEquipment(search: _searchQuery);
+        }
       } else {
-        _fetchDistributedEquipment();
+        if (auth.canAccessEquipmentDistribution) {
+          _fetchDistributedEquipment();
+        }
       }
     }
   }
 
   void _loadAllData() {
-    _fetchAvailableEquipment(search: _searchQuery);
-    _fetchDistributedEquipment();
+    final auth = context.read<AuthService>();
+    if (auth.canAccessEquipment) {
+      _fetchAvailableEquipment(search: _searchQuery);
+    } else {
+      setState(() => _loadingAvailable = false);
+    }
+    if (auth.canAccessEquipmentDistribution) {
+      _fetchDistributedEquipment();
+    } else {
+      setState(() => _loadingDistributed = false);
+    }
   }
 
   Future<void> _fetchAvailableEquipment({String? search}) async {
@@ -172,88 +191,132 @@ class _EquipmentListPageState extends State<EquipmentListPage>
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveAppScaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: _equipmentSurface,
-        surfaceTintColor: _equipmentSurface,
-        foregroundColor: _equipmentPrimary,
-        elevation: 1,
-        title: ModuleSwitchTabs(
-          labels: const ['Supplies', 'Equipment'],
-          icons: const [
-            Icons.assignment_turned_in_outlined,
-            Icons.medical_services_outlined,
-          ],
-          selectedIndex: 1,
-          color: _equipmentPrimary,
-          onSelected: (index) {
-            if (index == 0) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ModuleTheme(
-                    palette: ModulePalettes.equipmentSupply,
-                    child: EquipmentSupplyListPage(),
+    final auth = context.watch<AuthService>();
+    final canUseFab =
+        auth.canCreate &&
+        (_currentIndex == 0
+            ? auth.canAccessEquipment
+            : auth.canAccessEquipmentDistribution);
+
+    return ModuleTheme(
+      palette: ModulePalettes.equipmentSupply,
+      child: AdaptiveAppScaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          toolbarHeight: 76,
+          titleSpacing: AppSpacing.md,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: ModuleSwitchTabs(
+            labels: const ['Supplies', 'Equipment'],
+            icons: const [
+              Icons.assignment_turned_in_outlined,
+              Icons.medical_services_outlined,
+            ],
+            selectedIndex: 1,
+            color: _equipmentStrong,
+            onSelected: (index) {
+              if (index == 0) {
+                if (!FeaturePermissionMiddleware.ensure(
+                  context,
+                  AppFeature.equipmentDistribution,
+                  moduleName: 'Equipment Supply',
+                )) {
+                  return;
+                }
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ModuleTheme(
+                      palette: ModulePalettes.equipmentSupply,
+                      child: EquipmentSupplyListPage(),
+                    ),
                   ),
-                ),
-              );
-            }
-          },
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              labelColor: _equipmentPrimary,
-              unselectedLabelColor: Colors.grey[600],
-              indicatorColor: _equipmentPrimary,
-              indicatorWeight: 3,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.normal,
-                fontSize: 14,
-              ),
-              tabs: const [
-                Tab(text: 'Available'),
-                Tab(text: 'Distributed'),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _fetchAvailableEquipment(search: _searchQuery);
-              _fetchDistributedEquipment();
+                );
+              }
             },
           ),
-        ],
-      ),
-      floatingActionButton: Provider.of<AuthService>(context).canCreate
-          ? RevealActionFab(
-              onPressed: _navigateToAdd,
-              icon: Icons.add,
-              label: _tabController.index == 0 ? 'Add Equipment' : 'Distribute',
-            )
-          : null,
-      contentMaxWidth: 860,
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildAvailableList(), _buildDistributedList()],
+          centerTitle: true,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
+                0,
+                AppInsets.screenHorizontal(context),
+                AppSpacing.sm,
+              ),
+              child: _buildInventoryTabs(),
             ),
           ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: _EquipmentIconButton(
+                icon: Icons.refresh,
+                onPressed: _loadAllData,
+              ),
+            ),
+          ],
+        ),
+        floatingActionButton: canUseFab
+            ? RevealActionFab(
+                onPressed: _navigateToAdd,
+                backgroundColor: _equipmentStrong,
+                foregroundColor: AppColors.textInverse,
+                icon: Icons.add,
+                label: _tabController.index == 0
+                    ? 'Add Equipment'
+                    : 'Distribute',
+              )
+            : null,
+        contentMaxWidth: 860,
+        body: Column(
+          children: [
+            _buildSearchBar(),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [_buildAvailableList(), _buildDistributedList()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInventoryTabs() {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.button,
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadow.small,
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: _equipmentStrong,
+        unselectedLabelColor: AppColors.textSecondary,
+        indicator: const BoxDecoration(
+          color: _equipmentSurface,
+          borderRadius: AppRadius.md,
+        ),
+        labelStyle: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+        unselectedLabelStyle: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+        tabs: const [
+          Tab(text: 'Available'),
+          Tab(text: 'Distributed'),
         ],
       ),
     );
@@ -262,44 +325,22 @@ class _EquipmentListPageState extends State<EquipmentListPage>
   Widget _buildSearchBar() {
     final isAvailableTab = _currentIndex == 0;
 
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+    return AppCard(
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+      ),
+      padding: AppInsets.md,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: TextField(
         controller: _searchController,
         textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: isAvailableTab
-              ? 'Search by equipment name or unique ID'
-              : 'Search by patient or equipment',
-          prefixIcon: const Icon(Icons.search, size: 20),
-          suffixIcon: _searchQuery.trim().isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () {
-                    _searchController.clear();
-                    FocusScope.of(context).unfocus();
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.grey.shade50,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: _equipmentPrimary, width: 1.5),
-          ),
+        decoration: _searchDecoration(
+          isAvailableTab
+              ? 'Search equipment name or unique ID'
+              : 'Search patient or equipment',
         ),
       ),
     );
@@ -308,121 +349,113 @@ class _EquipmentListPageState extends State<EquipmentListPage>
   // --- Available List Tab ---
   Widget _buildAvailableList() {
     if (_loadingAvailable) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 5);
     }
     if (_errorAvailable != null) {
-      return Center(child: Text('Error: $_errorAvailable'));
+      return _errorState(_errorAvailable!, () {
+        _fetchAvailableEquipment(search: _searchQuery);
+      });
     }
     if (_availableItems.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _searchQuery.trim().isNotEmpty
-                  ? Icons.search_off
-                  : Icons.inventory_2_outlined,
-              size: 60,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _searchQuery.trim().isNotEmpty
-                  ? 'No matching equipment found.'
-                  : 'No available equipment.',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
-        ),
+      return _emptyState(
+        icon: _searchQuery.trim().isNotEmpty
+            ? Icons.search_off_outlined
+            : Icons.inventory_2_outlined,
+        title: _searchQuery.trim().isNotEmpty
+            ? 'No matching equipment'
+            : 'No available equipment',
+        message: _searchQuery.trim().isNotEmpty
+            ? 'Try another equipment name or unique ID.'
+            : 'Equipment ready for distribution will appear here.',
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+        AppInsets.screenHorizontal(context),
+        112,
+      ),
       itemCount: _availableItems.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppSpacing.sm),
       itemBuilder: (context, index) {
         final eq = _availableItems[index];
-        return Card(
-          elevation: 2,
-          shadowColor: Colors.black12,
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: CircleAvatar(
-              backgroundColor: _equipmentSurface,
-              child: Icon(Icons.medical_services, color: _equipmentPrimary),
-            ),
-            title: Text(
-              eq.uniqueId,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              eq.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            isThreeLine: false,
-            trailing:
-                (context.read<AuthService>().canEdit ||
-                    context.read<AuthService>().canDelete)
-                ? PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                EquipmentFormPage(equipment: eq),
-                          ),
-                        ).then((result) {
-                          if (result == true) {
-                            _fetchAvailableEquipment(search: _searchQuery);
-                          }
-                        });
-                      } else if (value == 'delete') {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Delete?'),
-                            content: Text('Delete ${eq.uniqueId}?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          await EquipmentService.deleteEquipment(eq.id!);
+        final auth = context.read<AuthService>();
+        return AppCard(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          surfaceLevel: AppSurfaceLevel.elevated,
+          onTap: () => _showEquipmentDetails(eq),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _equipmentAvatar(Icons.medical_services_outlined),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      eq.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      eq.uniqueId,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _equipmentStrong,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (eq.storagePlace?.trim().isNotEmpty == true) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      _inlineDetail(
+                        Icons.warehouse_outlined,
+                        eq.storagePlace!.trim(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (auth.canEdit || auth.canDelete)
+                PopupMenuButton<String>(
+                  iconColor: AppColors.textSecondary,
+                  onSelected: (value) async {
+                    if (value == 'edit') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              EquipmentFormPage(equipment: eq),
+                        ),
+                      ).then((result) {
+                        if (result == true) {
                           _fetchAvailableEquipment(search: _searchQuery);
                         }
-                      }
-                    },
-                    itemBuilder: (context) {
-                      final auth = context.read<AuthService>();
-                      return [
-                        if (auth.canEdit)
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                        if (auth.canDelete)
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                      ];
-                    },
-                  )
-                : null,
-            onTap: () => _showEquipmentDetails(eq),
+                      });
+                    } else if (value == 'delete') {
+                      await _deleteEquipment(eq);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    if (auth.canEdit)
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    if (auth.canDelete)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(color: AppColors.danger),
+                        ),
+                      ),
+                  ],
+                )
+              else
+                const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            ],
           ),
         );
       },
@@ -432,28 +465,16 @@ class _EquipmentListPageState extends State<EquipmentListPage>
   // --- Distributed List Tab ---
   Widget _buildDistributedList() {
     if (_loadingDistributed) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 5);
     }
     if (_errorDistributed != null) {
-      return Center(child: Text('Error: $_errorDistributed'));
+      return _errorState(_errorDistributed!, _fetchDistributedEquipment);
     }
     if (_distributedItems.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.assignment_turned_in_outlined,
-              size: 60,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No distributed equipment.',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
-        ),
+      return _emptyState(
+        icon: Icons.assignment_turned_in_outlined,
+        title: 'No distributed equipment',
+        message: 'Active equipment distributions will appear here.',
       );
     }
 
@@ -466,71 +487,89 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     }).toList();
 
     if (filteredItems.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off, size: 60, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No matching distribution found.',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
-        ),
+      return _emptyState(
+        icon: Icons.search_off_outlined,
+        title: 'No matching distribution',
+        message: 'Try another patient name, equipment name, or unique ID.',
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+        AppInsets.screenHorizontal(context),
+        112,
+      ),
       itemCount: filteredItems.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppSpacing.sm),
       itemBuilder: (context, index) {
         final supply = filteredItems[index];
-        return Card(
-          elevation: 2,
-          shadowColor: Colors.black12,
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: CircleAvatar(
-              backgroundColor: Colors.orange.shade50,
-              child: Icon(Icons.person, color: Colors.orange.shade400),
-            ),
-            title: Text(
-              supply.patientName ?? supply.receiverName ?? 'Unknown',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${supply.equipmentUniqueId} - ${supply.equipmentName}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text('Supplied: ${_formatDate(supply.supplyDate)}'),
-              ],
-            ),
-            isThreeLine: true,
-            trailing: context.read<AuthService>().canEdit
-                ? PopupMenuButton<String>(
-                    onSelected: (val) {
-                      if (val == 'return') _returnSupply(supply);
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'return',
-                        child: Row(
-                          children: [
-                            Icon(Icons.assignment_return, color: Colors.orange),
-                            SizedBox(width: 8),
-                            Text('Mark Returned'),
-                          ],
-                        ),
+        final recipient =
+            supply.patientName ?? supply.receiverName ?? 'Unknown';
+        return AppCard(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          surfaceLevel: AppSurfaceLevel.elevated,
+          onTap: () => _showSupplyDetails(supply),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _equipmentAvatar(Icons.person_outline),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recipient,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      '${supply.equipmentUniqueId} - ${supply.equipmentName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _equipmentStrong,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  )
-                : null,
-            onTap: () => _showSupplyDetails(supply),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    _inlineDetail(
+                      Icons.calendar_today_outlined,
+                      'Supplied ${_formatDate(supply.supplyDate)}',
+                    ),
+                  ],
+                ),
+              ),
+              if (context.read<AuthService>().canEdit)
+                PopupMenuButton<String>(
+                  iconColor: AppColors.textSecondary,
+                  onSelected: (val) {
+                    if (val == 'return') _returnSupply(supply);
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'return',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.assignment_return,
+                            color: _equipmentStrong,
+                          ),
+                          SizedBox(width: 8),
+                          Text('Mark Returned'),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            ],
           ),
         );
       },
@@ -542,59 +581,49 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => SafeArea(
-        top: false,
-        child: Container(
+      builder: (context) {
+        final bottomSafePadding = MediaQuery.of(context).viewPadding.bottom;
+
+        return Container(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.9,
           ),
           decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            color: AppColors.surface,
+            borderRadius: AppRadius.sheet,
+          ),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg + bottomSafePadding,
           ),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
+                const Center(child: _SheetHandle()),
+                const SizedBox(height: AppSpacing.lg),
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: Colors.orange.shade50,
-                      child: Icon(
-                        Icons.medical_services,
-                        color: Colors.orange.shade400,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
+                    _equipmentAvatar(Icons.medical_services_outlined, size: 48),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             supply.equipmentName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
                           Text(
                             supply.equipmentUniqueId,
-                            style: TextStyle(color: Colors.grey[600]),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: _equipmentStrong,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ],
                       ),
@@ -602,19 +631,14 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     _buildStatusBadge(supply.status),
                   ],
                 ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
-                // Receiver Details
-                const Text(
+                const SizedBox(height: AppSpacing.lg),
+                Text(
                   'Receiver Details',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: _equipmentPrimary,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: AppColors.text),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
                 _buildDetailRow(
                   Icons.person_outline,
                   'Name',
@@ -632,23 +656,16 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     'Address',
                     '${supply.receiverAddress}${supply.receiverPlace != null ? ', ${supply.receiverPlace}' : ''}',
                   ),
-
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                // Patient Details (if exists)
                 if (supply.patientName != null &&
                     supply.patientName!.isNotEmpty) ...[
-                  const Text(
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
                     'Patient Details',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: _equipmentPrimary,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: AppColors.text),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   _buildDetailRow(
                     Icons.person_outlined,
                     'Name',
@@ -668,11 +685,8 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                       'Address',
                       supply.patientAddress!,
                     ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 16),
                 ],
-
+                const SizedBox(height: AppSpacing.lg),
                 _buildDetailRow(
                   Icons.calendar_today_outlined,
                   'Supply Date',
@@ -682,43 +696,31 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                   _buildDetailRow(Icons.note_outlined, 'Notes', supply.notes!),
                 if (supply.createdBy != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Text(
                       'Created by: ${supply.createdBy}',
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ),
-                const SizedBox(height: 24),
-                if (context.read<AuthService>().canEdit)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _returnSupply(supply);
-                      },
-                      icon: const Icon(Icons.assignment_return_outlined),
-                      label: const Text('Mark as Returned'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Colors.orange.shade50,
-                        foregroundColor: Colors.orange.shade700,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
+                if (context.read<AuthService>().canEdit) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  AppSecondaryButton(
+                    label: 'Mark as Returned',
+                    icon: Icons.assignment_return_outlined,
+                    fullWidth: true,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _returnSupply(supply);
+                    },
                   ),
-                const SizedBox(height: 16),
+                ],
               ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -727,66 +729,49 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => SafeArea(
-        top: false,
-        child: Container(
+      builder: (context) {
+        final bottomSafePadding = MediaQuery.of(context).viewPadding.bottom;
+
+        return Container(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.9,
           ),
           decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            color: AppColors.surface,
+            borderRadius: AppRadius.sheet,
+          ),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg + bottomSafePadding,
           ),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
+                const Center(child: _SheetHandle()),
+                const SizedBox(height: AppSpacing.lg),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _equipmentSurface,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.medical_services,
-                        color: _equipmentPrimary,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
+                    _equipmentAvatar(Icons.medical_services_outlined, size: 48),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             eq.name,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
                           Text(
                             eq.uniqueId,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: _equipmentStrong,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ],
                       ),
@@ -794,9 +779,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     _buildStatusBadge(eq.status),
                   ],
                 ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.lg),
                 if (eq.storagePlace != null && eq.storagePlace!.isNotEmpty)
                   _buildDetailRow(
                     Icons.warehouse_outlined,
@@ -806,7 +789,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                 _buildDetailRow(
                   Icons.store_outlined,
                   'Purchased From',
-                  eq.purchasedFrom ?? 'N/A',
+                  eq.purchasedFrom.isEmpty ? 'N/A' : eq.purchasedFrom,
                 ),
                 if (eq.purchaseDate != null)
                   _buildDetailRow(
@@ -823,25 +806,27 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                 _buildDetailRow(
                   Icons.phone_outlined,
                   'Contact',
-                  eq.phone ?? 'N/A',
+                  eq.phone.isEmpty ? 'N/A' : eq.phone,
                 ),
                 if (eq.createdBy != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Text(
                       'Created by: ${eq.createdBy}',
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.lg),
                 Row(
                   children: [
                     if (context.read<AuthService>().canEdit) ...[
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: AppSecondaryButton(
+                          label: 'Edit Details',
+                          icon: Icons.edit_outlined,
+                          fullWidth: true,
                           onPressed: () {
                             Navigator.pop(context);
                             Navigator.push(
@@ -856,102 +841,55 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                               }
                             });
                           },
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Edit Details'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: const BorderSide(
-                              color: _equipmentIconSurface,
-                            ),
-                            foregroundColor: _equipmentPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
                         ),
                       ),
                     ],
                     if (context.read<AuthService>().canDelete) ...[
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: AppDangerButton(
+                          label: 'Delete',
+                          icon: Icons.delete_outline,
+                          fullWidth: true,
                           onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Delete Equipment?'),
-                                content: Text(
-                                  'Are you sure you want to delete ${eq.uniqueId}? This action cannot be undone.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text(
-                                      'Delete',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
+                            final deleted = await _deleteEquipment(eq);
+                            if (deleted) {
                               if (!mounted) return;
                               Navigator.of(this.context).pop();
-                              await EquipmentService.deleteEquipment(eq.id!);
-                              _fetchAvailableEquipment(search: _searchQuery);
                             }
                           },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Delete'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            backgroundColor: Colors.red.shade50,
-                            foregroundColor: Colors.red.shade700,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
                         ),
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 16),
               ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildStatusBadge(String status) {
-    Color color = Colors.green;
+    Color color = AppColors.success;
     final s = status.toLowerCase();
-    if (s == 'distributed' || s == 'active') color = Colors.orange;
-    if (s == 'maintenance' || s == 'lost') color = Colors.red;
-    if (s == 'returned') color = Colors.green;
+    if (s == 'distributed' || s == 'active') color = _equipmentStrong;
+    if (s == 'maintenance' || s == 'lost') color = AppColors.danger;
+    if (s == 'returned') color = AppColors.success;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.5)),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Text(
         status.toUpperCase(),
-        style: TextStyle(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -959,35 +897,156 @@ class _EquipmentListPageState extends State<EquipmentListPage>
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: _equipmentIconSurface,
+              borderRadius: AppRadius.sm,
             ),
-            child: Icon(icon, size: 20, color: Colors.grey[600]),
+            child: Icon(icon, size: AppIcons.normal, color: _equipmentStrong),
           ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _errorState(String error, VoidCallback retry) {
+    return AppEmptyState(
+      icon: Icons.cloud_off_outlined,
+      title: 'Could not load equipment',
+      message: error.replaceFirst(RegExp(r'^Exception:\s*'), ''),
+      action: AppPrimaryButton(
+        label: 'Retry',
+        icon: Icons.refresh,
+        onPressed: retry,
+      ),
+    );
+  }
+
+  Widget _emptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: constraints.maxHeight,
+            child: AppEmptyState(icon: icon, title: title, message: message),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _equipmentAvatar(IconData icon, {double size = 44}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        color: _equipmentIconSurface,
+        borderRadius: AppRadius.md,
+      ),
+      child: Icon(icon, color: _equipmentStrong, size: size * 0.52),
+    );
+  }
+
+  Widget _inlineDetail(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: AppIcons.small, color: AppColors.textMuted),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _compactPrefixIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
+        color: _equipmentIconSurface,
+        borderRadius: AppRadius.sm,
+      ),
+      child: Icon(icon, color: _equipmentStrong, size: AppIcons.normal),
+    );
+  }
+
+  InputDecoration _searchDecoration(String hint) {
+    return InputDecoration(
+      isDense: true,
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactPrefixIcon(Icons.search),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      suffixIcon: _searchQuery.trim().isNotEmpty
+          ? IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: () {
+                _searchController.clear();
+                FocusScope.of(context).unfocus();
+              },
+            )
+          : null,
+      filled: true,
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _equipmentStrong, width: 1.5),
       ),
     );
   }
@@ -1000,18 +1059,35 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Return'),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const _EquipmentDialogHeader(
+          icon: Icons.assignment_return_outlined,
+          title: 'Confirm return',
+          color: _equipmentStrong,
+        ),
         content: Text(
           'Mark ${supply.equipmentUniqueId} as returned from ${supply.patientName}?',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
         ),
         actions: [
-          TextButton(
+          AppSecondaryButton(
+            label: 'Cancel',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          TextButton(
+          AppPrimaryButton(
+            label: 'Confirm',
+            icon: Icons.assignment_return_outlined,
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -1021,19 +1097,92 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       try {
         await EquipmentSupplyService.returnSupply(supply.id!);
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('✅ Equipment returned')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Equipment returned'),
+              backgroundColor: AppColors.success,
+            ),
+          );
           _fetchDistributedEquipment();
           _fetchAvailableEquipment(search: _searchQuery);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
         }
       }
+    }
+  }
+
+  Future<bool> _deleteEquipment(Equipment eq) async {
+    if (eq.id == null) return false;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const _EquipmentDialogHeader(
+          icon: Icons.delete_outline,
+          title: 'Delete equipment?',
+          color: AppColors.danger,
+        ),
+        content: Text(
+          'Delete ${eq.uniqueId}? This action cannot be undone.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        actions: [
+          AppSecondaryButton(
+            label: 'Cancel',
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          AppDangerButton(
+            label: 'Delete',
+            icon: Icons.delete_outline,
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return false;
+
+    try {
+      await EquipmentService.deleteEquipment(eq.id!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Equipment deleted'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        _fetchAvailableEquipment(search: _searchQuery);
+      }
+      return true;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $error'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+      return false;
     }
   }
 }
@@ -1212,9 +1361,9 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
                   padding: EdgeInsets.zero,
                   shrinkWrap: true,
                   itemCount: _suggestions.length,
-                  separatorBuilder: (_, _s) =>
+                  separatorBuilder: (context, index) =>
                       Divider(height: 1, color: Colors.grey.shade100),
-                  itemBuilder: (_, i) {
+                  itemBuilder: (context, i) {
                     final eq = _suggestions[i];
                     final prefix = _extractPrefix(eq);
                     return InkWell(
@@ -1298,45 +1447,22 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
         controller: _nameController,
         focusNode: _nameFocus,
         validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-        style: const TextStyle(
-          fontSize: 14,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppColors.text,
           fontWeight: FontWeight.w500,
-          color: Colors.black,
         ),
-        decoration: InputDecoration(
-          labelText: 'Equipment Name',
-          prefixIcon: Icon(
-            Icons.medical_services_outlined,
-            size: 20,
-            color: Colors.grey[400],
-          ),
-          suffixIcon: _suggestions.isNotEmpty
-              ? Icon(Icons.arrow_drop_down, color: Colors.grey[500])
-              : null,
-          filled: true,
-          fillColor: Colors.grey[50],
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 14,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: _equipmentPrimary, width: 1.5),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.red, width: 1),
-          ),
-        ),
+        decoration:
+            _formInputDecoration(
+              'Equipment Name',
+              Icons.medical_services_outlined,
+            ).copyWith(
+              suffixIcon: _suggestions.isNotEmpty
+                  ? const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                    )
+                  : null,
+            ),
       ),
     );
   }
@@ -1452,215 +1578,179 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveAppScaffold(
-      backgroundColor: const Color(0xFFF8F9FC), // Light blue-grey background
-      appBar: AppBar(
-        title: Text(
-          _isEditing ? 'Edit Equipment' : 'Add Equipment',
-          style: const TextStyle(fontSize: 18),
+    return ModuleTheme(
+      palette: ModulePalettes.equipmentSupply,
+      child: AdaptiveAppScaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          toolbarHeight: 72,
+          titleSpacing: AppSpacing.md,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(
+            _isEditing ? 'Edit Equipment' : 'Add Equipment',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
         ),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 50,
-            child: ElevatedButton(
+        bottomSheet: Container(
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
+            AppSpacing.sm,
+            AppInsets.screenHorizontal(context),
+            AppSpacing.md,
+          ),
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceFloating,
+            border: Border(top: BorderSide(color: AppColors.border)),
+            boxShadow: AppShadow.medium,
+          ),
+          child: SafeArea(
+            top: false,
+            child: AppPrimaryButton(
+              label: _isEditing ? 'Save Changes' : 'Create Equipment',
+              icon: Icons.save_outlined,
+              fullWidth: true,
+              loading: _isSubmitting,
               onPressed: _isSubmitting ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _equipmentPrimary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      _isEditing ? 'Save Changes' : 'Create Equipment',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
             ),
           ),
         ),
-      ),
-      contentMaxWidth: 900,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Header Card
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 20,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_equipmentPrimary, Color(0xFF68400C)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _equipmentPrimary.withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        _isEditing ? Icons.edit : Icons.add_box_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _isEditing ? 'Update Details' : 'New Equipment',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _isEditing
-                                ? 'Modify existing record'
-                                : 'Add to inventory',
-                            style: TextStyle(
-                              color: _equipmentIconSurface,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Main Info Card
-              _buildSection(
-                title: 'Basic Information',
-                children: [
-                  _buildNameFieldWithAutocomplete(),
-                  const SizedBox(height: 12),
-                  if (_isEditing) ...[
-                    _buildCompactField(
-                      controller: _uniqueIdController,
-                      label: 'Unique ID',
-                      icon: Icons.qr_code,
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  _buildCompactField(
-                    controller: _serialNoPrefixController,
-                    label: 'Serial No Prefix (Optional)',
-                    icon: Icons.tag,
-                    readOnly: _isEditing,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
+        contentMaxWidth: 900,
+        body: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
+            AppSpacing.md,
+            AppInsets.screenHorizontal(context),
+            112,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                AppCard(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                  padding: AppInsets.card,
+                  surfaceLevel: AppSurfaceLevel.elevated,
+                  child: Row(
                     children: [
-                      if (!_isEditing) ...[
-                        Expanded(
-                          flex: 1,
-                          child: _buildCompactField(
-                            controller: _quantityController,
-                            label: 'Qty',
-                            icon: Icons.numbers,
-                            keyboardType: TextInputType.number,
-                            validator: (v) {
-                              if (v!.isEmpty) return 'Req';
-                              if (int.tryParse(v) == null) return 'Inv';
-                              return null;
-                            },
-                          ),
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: const BoxDecoration(
+                          color: _equipmentIconSurface,
+                          borderRadius: AppRadius.md,
                         ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(flex: 2, child: _buildStoragePlaceDropdown()),
+                        child: Icon(
+                          _isEditing
+                              ? Icons.edit_outlined
+                              : Icons.add_box_outlined,
+                          color: _equipmentStrong,
+                          size: AppIcons.large,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isEditing ? 'Update Details' : 'New Equipment',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(
+                              _isEditing
+                                  ? 'Modify the existing inventory record.'
+                                  : 'Add clean inventory records with a reusable equipment profile.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
 
-              const SizedBox(height: 16),
+                // Main Info Card
+                _buildSection(
+                  title: 'Basic Information',
+                  children: [
+                    _buildNameFieldWithAutocomplete(),
+                    const SizedBox(height: 12),
+                    if (_isEditing) ...[
+                      _buildCompactField(
+                        controller: _uniqueIdController,
+                        label: 'Unique ID',
+                        icon: Icons.qr_code,
+                        readOnly: true,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    _buildCompactField(
+                      controller: _serialNoPrefixController,
+                      label: 'Serial No Prefix (Optional)',
+                      icon: Icons.tag,
+                      readOnly: _isEditing,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (!_isEditing) ...[
+                          Expanded(
+                            flex: 1,
+                            child: _buildCompactField(
+                              controller: _quantityController,
+                              label: 'Qty',
+                              icon: Icons.numbers,
+                              keyboardType: TextInputType.number,
+                              validator: (v) {
+                                if (v!.isEmpty) return 'Req';
+                                if (int.tryParse(v) == null) return 'Inv';
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(flex: 2, child: _buildStoragePlaceDropdown()),
+                      ],
+                    ),
+                  ],
+                ),
 
-              // Purchase Info Card
-              _buildSection(
-                title: 'Purchase & Contact',
-                children: [
-                  _buildCompactField(
-                    controller: _purchasedFromController,
-                    label: 'Purchased From',
-                    icon: Icons.store_outlined,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDateField(),
-                  const SizedBox(height: 12),
-                  _buildCompactField(
-                    controller: _purchasePlaceController,
-                    label: 'Place',
-                    icon: Icons.location_on_outlined,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCompactField(
-                    controller: _phoneController,
-                    label: 'Contact Phone',
-                    icon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(height: 16),
+
+                // Purchase Info Card
+                _buildSection(
+                  title: 'Purchase & Contact',
+                  children: [
+                    _buildCompactField(
+                      controller: _purchasedFromController,
+                      label: 'Purchased From',
+                      icon: Icons.store_outlined,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDateField(),
+                    const SizedBox(height: 12),
+                    _buildCompactField(
+                      controller: _purchasePlaceController,
+                      label: 'Place',
+                      icon: Icons.location_on_outlined,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCompactField(
+                      controller: _phoneController,
+                      label: 'Contact Phone',
+                      icon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1671,28 +1761,14 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
     required String title,
     required List<Widget> children,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      padding: const EdgeInsets.all(16),
+    return AppCard(
+      padding: AppInsets.card,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12, left: 4),
-            child: Text(
-              title.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-                color: Colors.grey[500],
-              ),
-            ),
-          ),
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.lg),
           ...children,
         ],
       ),
@@ -1705,43 +1781,20 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
       readOnly: true,
       onTap: _isSubmitting ? null : _pickPurchaseDate,
       validator: (value) => value == null || value.isEmpty ? 'Required' : null,
-      style: const TextStyle(
-        fontSize: 14,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: AppColors.text,
         fontWeight: FontWeight.w500,
-        color: Colors.black,
       ),
-      decoration: InputDecoration(
-        labelText: 'Purchase Date',
-        prefixIcon: Icon(
-          Icons.calendar_today_outlined,
-          size: 20,
-          color: Colors.grey[400],
-        ),
-        suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.grey[500]),
-        filled: true,
-        fillColor: Colors.grey[50],
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 14,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _equipmentPrimary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.red, width: 1),
-        ),
-      ),
+      decoration:
+          _formInputDecoration(
+            'Purchase Date',
+            Icons.calendar_today_outlined,
+          ).copyWith(
+            suffixIcon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: AppColors.textSecondary,
+            ),
+          ),
     );
   }
 
@@ -1759,71 +1812,20 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
       validator: validator,
       readOnly: readOnly,
       style: TextStyle(
-        fontSize: 14,
         fontWeight: FontWeight.w500,
-        color: readOnly ? Colors.grey[700] : Colors.black,
+        color: readOnly ? AppColors.textSecondary : AppColors.text,
       ),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, size: 20, color: Colors.grey[400]),
-        filled: true,
-        fillColor: readOnly
-            ? Colors.grey[200]
-            : Colors.grey[50], // Very subtle background
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 14,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _equipmentPrimary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.red, width: 1),
-        ),
-      ),
+      decoration: _formInputDecoration(label, icon, readOnly: readOnly),
     );
   }
 
   Widget _buildStoragePlaceDropdown() {
     return DropdownButtonFormField<String>(
       initialValue: _selectedStoragePlace,
-      decoration: InputDecoration(
-        labelText: 'Storage Place',
-        prefixIcon: Icon(
-          Icons.warehouse_outlined,
-          size: 20,
-          color: Colors.grey[400],
-        ),
-        filled: true,
-        fillColor: Colors.grey[50],
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 14,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _equipmentPrimary, width: 1.5),
-        ),
+      style: AppTypography.dropdownTextStyle(context),
+      decoration: _formInputDecoration(
+        'Storage Place',
+        Icons.warehouse_outlined,
       ),
       items: const [DropdownMenuItem(value: 'Store', child: Text('Store'))],
       onChanged: (value) {
@@ -1834,6 +1836,137 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
       validator: (v) => v == null ? 'Required' : null,
     );
   }
+
+  InputDecoration _formInputDecoration(
+    String label,
+    IconData icon, {
+    bool readOnly = false,
+  }) {
+    return InputDecoration(
+      isDense: true,
+      hintText: label,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactFormPrefixIcon(icon),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      floatingLabelBehavior: FloatingLabelBehavior.never,
+      filled: true,
+      fillColor: readOnly ? AppColors.surface2 : AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _equipmentStrong, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+    );
+  }
+
+  Widget _compactFormPrefixIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
+        color: _equipmentIconSurface,
+        borderRadius: AppRadius.sm,
+      ),
+      child: Icon(icon, color: _equipmentStrong, size: AppIcons.normal),
+    );
+  }
 }
 
 // (EquipmentEditPage removed and merged into EquipmentFormPage)
+
+class _EquipmentIconButton extends StatelessWidget {
+  const _EquipmentIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(
+            icon,
+            color: onPressed == null ? AppColors.textMuted : AppColors.text,
+            size: AppIcons.large,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 5,
+      decoration: BoxDecoration(
+        color: AppColors.borderStrong,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _EquipmentDialogHeader extends StatelessWidget {
+  const _EquipmentDialogHeader({
+    required this.icon,
+    required this.title,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: color, size: AppIcons.large),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+      ],
+    );
+  }
+}

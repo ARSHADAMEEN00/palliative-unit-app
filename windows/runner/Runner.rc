@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "oruma_app" "\0"
+            VALUE "FileDescription", "Palliative App" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "oruma_app" "\0"
+            VALUE "InternalName", "Palliative App" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "oruma_app.exe" "\0"
-            VALUE "ProductName", "oruma_app" "\0"
+            VALUE "OriginalFilename", "Palliative App.exe" "\0"
+            VALUE "ProductName", "Palliative App" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

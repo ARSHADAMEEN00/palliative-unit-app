@@ -52,6 +52,17 @@ class MedicineService {
     throw Exception(result.error ?? 'Failed to fetch medicine');
   }
 
+  static Future<String> getNextMedicineCode() async {
+    final result = await ApiService.get<Map<String, dynamic>>(
+      '${ApiConfig.v2MedicinesEndpoint}/next-code',
+    );
+    final code = result.data?['code']?.toString().trim();
+    if (result.isSuccess && code != null && code.isNotEmpty) {
+      return code;
+    }
+    throw Exception(result.error ?? 'Failed to generate medicine code');
+  }
+
   /// Create a medicine and invalidate the medicines cache.
   static Future<Medicine> createMedicine(Medicine medicine) async {
     final result = await ApiService.post<Map<String, dynamic>>(

@@ -13,4 +13,4 @@ export 'medicine_supply_service.dart';
 export 'medicine_service.dart';
 export 'config_service.dart';
 export 'social_support_service.dart';
-
+export 'staff_service.dart';

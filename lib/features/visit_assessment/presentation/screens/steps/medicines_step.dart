@@ -595,7 +595,7 @@ class _MedicinesStepState extends State<MedicinesStep> {
           style: const TextStyle(
             color: assessmentText,
             fontSize: 10,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.normal,
           ),
           items: options
               .map(

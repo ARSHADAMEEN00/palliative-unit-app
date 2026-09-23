@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/home_visit.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:intl/intl.dart';
 
-const _homeVisitCardBackground = Color(0xFFEAF3DE);
-const _homeVisitIconBackground = Color(0xFFC0DD97);
-const _homeVisitPrimary = Color(0xFF3B6D11);
+const _homeVisitIconBackground = Color(0xFFDCFCE7);
+const _homeVisitPrimary = AppColors.success;
 
 class Homevisit extends StatefulWidget {
   final HomeVisit? visit;
@@ -37,7 +38,7 @@ class _HomevisitState extends State<Homevisit> {
   String _selectedVisitMode = 'new';
   final List<Map<String, String>> _visitModeOptions = [
     {'value': 'new', 'label': 'New'},
-    {'value': 'monthly', 'label': 'Monthly'},
+    {'value': 'monthly', 'label': 'Planned NHC'},
     {'value': 'emergency', 'label': 'Emergency'},
     {'value': 'dhc_visit', 'label': 'DHC'},
     {'value': 'vhc_visit', 'label': 'VHC'},
@@ -116,7 +117,7 @@ class _HomevisitState extends State<Homevisit> {
             colorScheme: const ColorScheme.light(
               primary: _homeVisitPrimary,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: AppColors.text,
             ),
           ),
           child: child!,
@@ -133,7 +134,7 @@ class _HomevisitState extends State<Homevisit> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select or create a patient'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -145,7 +146,7 @@ class _HomevisitState extends State<Homevisit> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a visit date'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -180,8 +181,8 @@ class _HomevisitState extends State<Homevisit> {
           SnackBar(
             content: Text(
               isEditing
-                  ? '✅ Visit updated successfully'
-                  : '✅ Visit scheduled successfully',
+                  ? 'Visit updated successfully'
+                  : 'Visit scheduled successfully',
             ),
             backgroundColor: _homeVisitPrimary,
             behavior: SnackBarBehavior.floating,
@@ -193,8 +194,8 @@ class _HomevisitState extends State<Homevisit> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppColors.danger,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -208,519 +209,481 @@ class _HomevisitState extends State<Homevisit> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = _homeVisitPrimary;
-
     return AdaptiveAppScaffold(
-      backgroundColor: _homeVisitCardBackground,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Home Visit' : 'Schedule Home Visit'),
+        toolbarHeight: 72,
+        titleSpacing: AppSpacing.md,
+        title: Text(
+          isEditing ? 'Edit Home Visit' : 'Schedule Visit',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         elevation: 0,
-        backgroundColor: _homeVisitPrimary,
-        foregroundColor: Colors.white,
+        scrolledUnderElevation: 0,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
       ),
       body: _isLoadingPatients
-          ? const Center(
-              child: CircularProgressIndicator(color: _homeVisitPrimary),
-            )
+          ? const AppListSkeleton(itemCount: 4)
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
+                AppSpacing.md,
+                AppInsets.screenHorizontal(context),
+                112,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildSectionTitle('Patient Information'),
-                    const SizedBox(height: 16),
-
-                    // Patient Autocomplete Search
-                    Autocomplete<Patient>(
-                      initialValue: _selectedPatient != null
-                          ? TextEditingValue(text: _selectedPatient!.name)
-                          : null,
-                      optionsBuilder:
-                          (TextEditingValue textEditingValue) async {
-                            if (textEditingValue.text.isEmpty) {
-                              // Return initial patients if nothing typed
-                              return _patients;
-                            }
-                            try {
-                              // Search from backend
-                              final searchResults =
-                                  await PatientService.searchPatients(
-                                    textEditingValue.text,
-                                    isDead: false,
-                                  );
-                              return searchResults;
-                            } catch (e) {
-                              return _patients.where((patient) {
-                                return patient.name.toLowerCase().contains(
-                                  textEditingValue.text.toLowerCase(),
-                                );
-                              });
-                            }
-                          },
-                      displayStringForOption: (Patient patient) => patient.name,
-                      onSelected: (Patient patient) {
-                        setState(() {
-                          _selectedPatient = patient;
-                          addressController.text = patient.address;
-                        });
-                      },
-                      fieldViewBuilder:
-                          (
-                            BuildContext context,
-                            TextEditingController textEditingController,
-                            FocusNode focusNode,
-                            VoidCallback onFieldSubmitted,
-                          ) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.02),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: TextFormField(
-                                controller: textEditingController,
-                                focusNode: focusNode,
-                                decoration: InputDecoration(
-                                  labelText: 'Search Patient',
-                                  hintText: 'Type to search...',
-                                  prefixIcon: _themedPrefixIcon(
-                                    Icons.person_search,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: _homeVisitPrimary,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                ),
-                                onFieldSubmitted: (String value) {
-                                  onFieldSubmitted();
-                                },
-                              ),
-                            );
-                          },
-                      optionsViewBuilder:
-                          (
-                            BuildContext context,
-                            AutocompleteOnSelected<Patient> onSelected,
-                            Iterable<Patient> options,
-                          ) {
-                            return Align(
-                              alignment: Alignment.topLeft,
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Material(
-                                  elevation: 4.0,
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 200,
-                                      maxWidth: 400,
-                                    ),
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.zero,
-                                      shrinkWrap: true,
-                                      itemCount: options.length,
-                                      itemBuilder: (BuildContext context, int index) {
-                                        final Patient patient = options
-                                            .elementAt(index);
-                                        return InkWell(
-                                          onTap: () {
-                                            onSelected(patient);
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              border: Border(
-                                                bottom: BorderSide(
-                                                  color: Colors.grey.shade200,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.person,
-                                                  size: 18,
-                                                  color: _homeVisitPrimary,
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Row(
-                                                        children: [
-                                                          Expanded(
-                                                            child: Text(
-                                                              patient.name,
-                                                              style: const TextStyle(
-                                                                fontSize: 15,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          if (patient
-                                                                  .registerId !=
-                                                              null)
-                                                            Container(
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        8,
-                                                                    vertical: 2,
-                                                                  ),
-                                                              decoration: BoxDecoration(
-                                                                color:
-                                                                    _homeVisitIconBackground,
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      6,
-                                                                    ),
-                                                              ),
-                                                              child: Text(
-                                                                '#${patient.registerId}',
-                                                                style: TextStyle(
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  color:
-                                                                      _homeVisitPrimary,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                        ],
-                                                      ),
-                                                      if (patient
-                                                          .phone
-                                                          .isNotEmpty)
-                                                        Text(
-                                                          patient.phone,
-                                                          style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Colors
-                                                                .grey
-                                                                .shade600,
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
+                    _buildSectionCard(
+                      title: 'Patient Information',
+                      icon: Icons.person_search_outlined,
+                      children: [
+                        _buildPatientAutocomplete(),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildTextField(
+                          controller: addressController,
+                          label: 'Address',
+                          icon: Icons.location_on_outlined,
+                          minLines: 1,
+                          maxLines: 3,
+                          validator: (val) => val == null || val.isEmpty
+                              ? 'Please enter address'
+                              : null,
+                        ),
+                      ],
                     ),
-
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      controller: addressController,
-                      label: 'Address',
-                      icon: Icons.location_on_outlined,
-                      maxLines: 2,
-                      validator: (val) => val == null || val.isEmpty
-                          ? 'Please enter address'
-                          : null,
-                    ),
-                    const SizedBox(height: 32),
-                    _buildSectionTitle('Visit Details'),
-                    const SizedBox(height: 16),
-
-                    // Visit Mode Dropdown
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _selectedVisitMode,
-                        decoration: InputDecoration(
-                          labelText: 'Visit Mode',
-                          prefixIcon: _themedPrefixIcon(
+                    const SizedBox(height: AppSpacing.lg),
+                    _buildSectionCard(
+                      title: 'Visit Details',
+                      icon: Icons.home_work_outlined,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedVisitMode,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          decoration: _buildInputDecoration(
+                            'Visit Mode',
                             Icons.medical_services_outlined,
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: primaryColor,
-                              width: 1.5,
-                            ),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        items: _visitModeOptions
-                            .map(
-                              (option) => DropdownMenuItem(
-                                value: option['value'],
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      option['value'] == 'emergency'
-                                          ? Icons.emergency
-                                          : option['value'] == 'monthly'
-                                          ? Icons.calendar_month_outlined
-                                          : option['value'] == 'dhc_visit'
-                                          ? Icons.home_work_outlined
-                                          : option['value'] == 'vhc_visit'
-                                          ? Icons.local_hospital_outlined
-                                          : Icons.add_circle_outline,
-                                      size: 18,
-                                      color: option['value'] == 'emergency'
-                                          ? Colors.red
-                                          : _homeVisitPrimary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(option['label']!),
-                                  ],
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedVisitMode = val;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    InkWell(
-                      onTap: _pickDate,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _homeVisitIconBackground),
-                        ),
-                        child: Row(
-                          children: [
-                            _themedPrefixIcon(Icons.calendar_today_outlined),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                visitDate == null
-                                    ? 'Select Visit Date'
-                                    : DateFormat(
-                                        'EEEE, d MMMM yyyy',
-                                      ).format(visitDate!),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: visitDate == null
-                                      ? Colors.grey.shade600
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_drop_down,
-                              color: Colors.grey.shade600,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      controller: teamController,
-                      label: 'Team',
-                      icon: Icons.group_outlined,
-                      required: false,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      controller: notesController,
-                      label: 'Notes / Special Requests',
-                      icon: Icons.notes_outlined,
-                      maxLines: 3,
-                      required: false,
-                    ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveVisit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
+                          items: _visitModeOptions
+                              .map(
+                                (option) => DropdownMenuItem(
+                                  value: option['value'],
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _visitModeIcon(option['value']!),
+                                        size: AppIcons.normal,
+                                        color: _visitModeColor(
+                                          option['value']!,
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Text(option['label']!),
+                                    ],
                                   ),
                                 ),
                               )
-                            : Text(
-                                isEditing ? 'UPDATE VISIT' : 'SCHEDULE VISIT',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
-                                ),
-                              ),
-                      ),
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedVisitMode = val;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildVisitDateField(),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildTextField(
+                          controller: teamController,
+                          label: 'Team',
+                          icon: Icons.group_outlined,
+                          required: false,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildTextField(
+                          controller: notesController,
+                          label: 'Notes / Special Requests',
+                          icon: Icons.notes_outlined,
+                          minLines: 1,
+                          maxLines: 3,
+                          required: false,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
+      bottomSheet: Container(
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.sm,
+          AppInsets.screenHorizontal(context),
+          AppSpacing.md,
+        ),
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceFloating,
+          border: Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: AppShadow.medium,
+        ),
+        child: SafeArea(
+          top: false,
+          child: AppPrimaryButton(
+            label: isEditing ? 'Update Visit' : 'Schedule Visit',
+            icon: isEditing ? Icons.save_outlined : Icons.add_home_outlined,
+            fullWidth: true,
+            loading: _isLoading,
+            onPressed: _isLoading ? null : _saveVisit,
+          ),
+        ),
+      ),
       contentMaxWidth: 900,
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: _homeVisitCardBackground,
-        borderRadius: BorderRadius.circular(12),
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return AppCard(
+      padding: AppInsets.card,
+      surfaceLevel: AppSurfaceLevel.elevated,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: _homeVisitIconBackground,
+                  borderRadius: AppRadius.sm,
+                ),
+                child: Icon(
+                  icon,
+                  color: _homeVisitPrimary,
+                  size: AppIcons.normal,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          ...children,
+        ],
       ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: _homeVisitPrimary,
-          letterSpacing: 0.5,
+    );
+  }
+
+  Widget _buildPatientAutocomplete() {
+    return Autocomplete<Patient>(
+      initialValue: _selectedPatient != null
+          ? TextEditingValue(text: _selectedPatient!.name)
+          : null,
+      optionsBuilder: (TextEditingValue textEditingValue) async {
+        if (textEditingValue.text.isEmpty) {
+          return _patients;
+        }
+        try {
+          return PatientService.searchPatients(
+            textEditingValue.text,
+            isDead: false,
+          );
+        } catch (e) {
+          return _patients.where((patient) {
+            return patient.name.toLowerCase().contains(
+              textEditingValue.text.toLowerCase(),
+            );
+          });
+        }
+      },
+      displayStringForOption: (Patient patient) => patient.name,
+      onSelected: (Patient patient) {
+        setState(() {
+          _selectedPatient = patient;
+          addressController.text = patient.address;
+        });
+      },
+      fieldViewBuilder:
+          (
+            BuildContext context,
+            TextEditingController textEditingController,
+            FocusNode focusNode,
+            VoidCallback onFieldSubmitted,
+          ) {
+            return TextFormField(
+              controller: textEditingController,
+              focusNode: focusNode,
+              decoration: _buildInputDecoration(
+                'Search Patient',
+                Icons.person_search_outlined,
+              ),
+              onFieldSubmitted: (String value) {
+                onFieldSubmitted();
+              },
+            );
+          },
+      optionsViewBuilder:
+          (
+            BuildContext context,
+            AutocompleteOnSelected<Patient> onSelected,
+            Iterable<Patient> options,
+          ) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Material(
+                  color: AppColors.surface,
+                  elevation: 0,
+                  borderRadius: AppRadius.card,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      maxHeight: 240,
+                      maxWidth: 420,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: AppRadius.card,
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: AppShadow.medium,
+                    ),
+                    child: ListView.separated(
+                      padding: AppInsets.xs,
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      separatorBuilder: (_, _) =>
+                          const Divider(height: 1, color: AppColors.borderSoft),
+                      itemBuilder: (BuildContext context, int index) {
+                        final Patient patient = options.elementAt(index);
+                        return InkWell(
+                          onTap: () => onSelected(patient),
+                          borderRadius: AppRadius.md,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: const BoxDecoration(
+                                    color: _homeVisitIconBackground,
+                                    borderRadius: AppRadius.sm,
+                                  ),
+                                  child: const Icon(
+                                    Icons.person_outline,
+                                    size: AppIcons.small,
+                                    color: _homeVisitPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              patient.name,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleSmall,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (patient.registerId != null)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primaryLight,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                '#${patient.registerId}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: AppColors.primary,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      if (patient.phone.isNotEmpty)
+                                        Text(
+                                          patient.phone,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: AppColors.textSecondary,
+                                              ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+    );
+  }
+
+  Widget _buildVisitDateField() {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.input,
+      child: InkWell(
+        borderRadius: AppRadius.input,
+        onTap: _pickDate,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surface1,
+            borderRadius: AppRadius.input,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              _themedPrefixIcon(Icons.calendar_today_outlined),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  visitDate == null
+                      ? 'Select Visit Date'
+                      : DateFormat('EEEE, d MMMM yyyy').format(visitDate!),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: visitDate == null
+                        ? AppColors.textSecondary
+                        : AppColors.text,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  InputDecoration _buildInputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      isDense: true,
+      hintText: label,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _themedPrefixIcon(icon),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      floatingLabelBehavior: FloatingLabelBehavior.never,
+      filled: true,
+      fillColor: AppColors.surface1,
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _homeVisitPrimary, width: 1.4),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+    );
+  }
+
+  IconData _visitModeIcon(String value) {
+    return switch (value) {
+      'emergency' => Icons.emergency_outlined,
+      'monthly' => Icons.calendar_month_outlined,
+      'dhc_visit' => Icons.home_work_outlined,
+      'vhc_visit' => Icons.local_hospital_outlined,
+      _ => Icons.add_circle_outline,
+    };
+  }
+
+  Color _visitModeColor(String value) {
+    return switch (value) {
+      'emergency' => AppColors.danger,
+      'monthly' => AppColors.primary,
+      'dhc_visit' => AppColors.warning,
+      'vhc_visit' => AppColors.scheduled,
+      _ => AppColors.success,
+    };
   }
 
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    int minLines = 1,
     int maxLines = 1,
     String? Function(String?)? validator,
     bool required = true,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        validator: validator,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: _themedPrefixIcon(icon),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: _homeVisitPrimary, width: 1.5),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-        ),
-      ),
+    return TextFormField(
+      controller: controller,
+      minLines: minLines,
+      maxLines: maxLines,
+      validator: validator,
+      decoration: _buildInputDecoration(label, icon),
     );
   }
 
   Widget _themedPrefixIcon(IconData icon) {
     return Container(
-      width: 40,
-      height: 40,
-      margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
         color: _homeVisitIconBackground,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.sm,
       ),
-      child: Icon(icon, size: 20, color: _homeVisitPrimary),
+      child: Icon(icon, size: AppIcons.normal, color: _homeVisitPrimary),
     );
   }
 }

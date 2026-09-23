@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_motion.dart';
 
 /// Builds the smooth horizontal slide + parallax + fade transition.
 /// Called by both [SlidePageRoute] and the global [PageTransitionsTheme].
@@ -12,18 +13,13 @@ Widget buildSlideTransition(
   final slideIn = Tween<Offset>(
     begin: const Offset(1.0, 0.0),
     end: Offset.zero,
-  ).animate(
-    CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-  );
+  ).animate(CurvedAnimation(parent: animation, curve: AppMotion.easeOutCubic));
 
   // Outgoing page slides center → slightly left (parallax depth effect)
-  final slideOut = Tween<Offset>(
-    begin: Offset.zero,
-    end: const Offset(-0.25, 0.0),
-  ).animate(
-    CurvedAnimation(
-        parent: secondaryAnimation, curve: Curves.easeInOutCubic),
-  );
+  final slideOut =
+      Tween<Offset>(begin: Offset.zero, end: const Offset(-0.25, 0.0)).animate(
+        CurvedAnimation(parent: secondaryAnimation, curve: AppMotion.easeInOut),
+      );
 
   // Fade in the incoming page slightly for a polished feel
   final fadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -58,11 +54,10 @@ class SlidePageRoute<T> extends PageRouteBuilder<T> {
     super.settings,
     super.fullscreenDialog,
   }) : super(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              builder(context),
-          transitionDuration: const Duration(milliseconds: 320),
-          reverseTransitionDuration: const Duration(milliseconds: 280),
-          transitionsBuilder: buildSlideTransition,
-        );
+         pageBuilder: (context, animation, secondaryAnimation) =>
+             builder(context),
+         transitionDuration: AppMotion.slow,
+         reverseTransitionDuration: AppMotion.page,
+         transitionsBuilder: buildSlideTransition,
+       );
 }
-

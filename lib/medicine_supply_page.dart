@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/models/medicine.dart';
@@ -134,7 +135,18 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
 
       final totalQty = items.fold<int>(0, (sum, item) => sum + item.qtyGiven);
       final supply = MedicineSupply(
-        patientId: _selectedPatient!.id,
+        patientId: {
+          'id': _selectedPatient!.id,
+          '_id': _selectedPatient!.id,
+          'name': _selectedPatient!.name,
+          'registerId': _selectedPatient!.registerId,
+          'phone': _selectedPatient!.phone,
+          'address': _selectedPatient!.address,
+          'place': _selectedPatient!.place,
+          'gender': _selectedPatient!.gender,
+          'age': _selectedPatient!.age,
+          'disease': _selectedPatient!.disease,
+        },
         medicineId: items.first.medicineId,
         givenByStaff: staffId,
         givenAt: _givenAt,
@@ -189,32 +201,52 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
       if (row.isBlank) continue;
 
       final medicine = row.selectedMedicine;
-      final batch = row.selectedBatch;
-      final quantity = int.tryParse(row.qtyController.text.trim());
 
       if (medicine?.id == null) {
         row.error = 'Select a medicine';
-      } else if (batch == null) {
-        row.error = 'Select a batch';
-      } else if (quantity == null || quantity <= 0) {
-        row.error = 'Enter a quantity greater than zero';
       } else {
         final medicineId = medicine!.id!;
-        final batchId = batch.id ?? 'legacy:$medicineId';
-        final alreadyUsed = usedByBatch[batchId] ?? 0;
-        final available = batch.quantity.floor();
-        if (alreadyUsed + quantity > available) {
-          row.error =
-              'Only ${available - alreadyUsed} ${_unitLabel(batch.qtyUnit)} left in this batch';
-        } else {
+        var addedFromRow = false;
+
+        final availableBatches = _availableBatches(medicine);
+
+        if (availableBatches.isEmpty) {
+          row.error = 'No stock batches available';
+        }
+
+        for (final batch in availableBatches) {
+          final rawQuantity = row.batchQtyController(batch).text.trim();
+          if (rawQuantity.isEmpty) continue;
+
+          final quantity = int.tryParse(rawQuantity);
+          if (quantity == null || quantity <= 0) {
+            row.error = 'Enter a quantity greater than zero';
+            break;
+          }
+
+          final batchId = batch.id ?? 'legacy:$medicineId';
+          final alreadyUsed = usedByBatch[batchId] ?? 0;
+          final available = batch.quantity.floor();
+          if (alreadyUsed + quantity > available) {
+            row.error =
+                'Only ${available - alreadyUsed} ${_unitLabel(batch.qtyUnit)} left in this batch';
+            break;
+          }
+
           usedByBatch[batchId] = alreadyUsed + quantity;
+          addedFromRow = true;
           items.add(
             MedicineSupplyItem(
               medicineId: medicineId,
               stockEntryId: batch.id,
               qtyGiven: quantity,
+              givenAt: _givenAt,
             ),
           );
+        }
+
+        if (row.error == null && !addedFromRow) {
+          row.error = 'Enter quantity for at least one batch';
         }
       }
 
@@ -413,7 +445,9 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
         appBar: AppBar(
           backgroundColor: _medicineDarkGreen,
           foregroundColor: Colors.white,
-          title: const Text('New Supply', style: TextStyle(fontSize: 18)),
+          iconTheme: const IconThemeData(color: Colors.white),
+          titleTextStyle: const TextStyle(color: Colors.white, fontSize: 18),
+          title: const Text('New Supply'),
         ),
         body: const Center(
           child: CircularProgressIndicator(color: _medicineGreen),
@@ -427,7 +461,9 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
       appBar: AppBar(
         backgroundColor: _medicineDarkGreen,
         foregroundColor: Colors.white,
-        title: const Text('New Supply', style: TextStyle(fontSize: 18)),
+        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 18),
+        title: const Text('New Supply'),
       ),
       body: Form(
         key: _formKey,
@@ -739,19 +775,6 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
             _selectedMedicineSummary(row),
             const SizedBox(height: 12),
             _batchPicker(row),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: row.qtyController,
-              keyboardType: TextInputType.number,
-              decoration: _inputDecoration(
-                'Quantity from selected batch',
-                Icons.inventory_2_outlined,
-                hint: 'e.g. 10',
-              ),
-              onChanged: (_) {
-                if (row.error != null) setState(() => row.error = null);
-              },
-            ),
           ],
           if (row.error != null) ...[
             const SizedBox(height: 10),
@@ -778,7 +801,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
       onSelected: (selection) {
         setState(() {
           row.selectedMedicine = selection;
-          row.selectedBatch = null;
+          row.clearBatchQuantities();
           row.medicineController.text = _medicineOptionLabel(selection);
           row.error = null;
         });
@@ -795,7 +818,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
                 value.trim() != _medicineOptionLabel(selected)) {
               setState(() {
                 row.selectedMedicine = null;
-                row.selectedBatch = null;
+                row.clearBatchQuantities();
               });
             }
           },
@@ -870,6 +893,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
 
   Widget _selectedMedicineSummary(_SupplyItemRow row) {
     final medicine = row.selectedMedicine!;
+    final batchCount = _availableBatches(medicine).length;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -892,7 +916,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Stock ${_stockText(medicine)} • ${medicine.batches.length} batches',
+                  'Stock ${_stockText(medicine)} • $batchCount batches',
                   style: TextStyle(
                     color: _medicineDarkGreen.withValues(alpha: 0.8),
                     fontSize: 12,
@@ -906,7 +930,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
             onPressed: () {
               setState(() {
                 row.selectedMedicine = null;
-                row.selectedBatch = null;
+                row.clearBatchQuantities();
                 row.medicineController.clear();
               });
             },
@@ -918,7 +942,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
   }
 
   Widget _batchPicker(_SupplyItemRow row) {
-    final batches = row.selectedMedicine!.batches;
+    final batches = _availableBatches(row.selectedMedicine!);
     if (batches.isEmpty) {
       return Container(
         width: double.infinity,
@@ -951,12 +975,15 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
         ),
         const SizedBox(height: 8),
         ...batches.map((batch) => _batchOption(row, batch)),
+        const SizedBox(height: 4),
+        _batchTotal(row),
       ],
     );
   }
 
   Widget _batchOption(_SupplyItemRow row, MedicineBatch batch) {
-    final selected = row.selectedBatch?.id == batch.id;
+    final controller = row.batchQtyController(batch);
+    final hasQuantity = (int.tryParse(controller.text.trim()) ?? 0) > 0;
     final isEmpty = batch.isEmpty;
     final warning = !isEmpty && batch.expiresWithin60Days;
     final color = isEmpty
@@ -968,87 +995,174 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
         ? Colors.grey.shade100
         : warning
         ? Colors.red.shade50
-        : selected
+        : hasQuantity
         ? _cardBg
         : Colors.white;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: isEmpty
-            ? null
-            : () {
-                setState(() {
-                  row.selectedBatch = batch;
-                  row.error = null;
-                });
-              },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected
-                  ? _medicineGreen
-                  : warning
-                  ? Colors.red.shade300
-                  : Colors.grey.shade200,
-              width: selected ? 1.5 : 1,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasQuantity
+                ? _medicineGreen
+                : warning
+                ? Colors.red.shade300
+                : Colors.grey.shade200,
+            width: hasQuantity ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasQuantity ? Icons.check_circle : Icons.inventory_2_outlined,
+              color: color,
+              size: 20,
             ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                selected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    batch.batchNumber?.trim().isNotEmpty == true
+                        ? batch.batchNumber!.trim()
+                        : 'No batch number',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Exp ${_formatDate(batch.expiryDate)}',
+                    style: TextStyle(
+                      color: color.withValues(alpha: 0.78),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _batchSourceText(batch),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color.withValues(alpha: 0.72),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${_number(batch.quantity)} ${_unitLabel(batch.qtyUnit)}',
+              style: TextStyle(
                 color: color,
-                size: 20,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      batch.batchNumber?.trim().isNotEmpty == true
-                          ? batch.batchNumber!.trim()
-                          : 'No batch number',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w900,
-                      ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 56,
+              child: TextFormField(
+                controller: controller,
+                enabled: !isEmpty,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                textInputAction: TextInputAction.next,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                ],
+                decoration: InputDecoration(
+                  hintText: 'Qty',
+                  isDense: true,
+                  counterText: '',
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
+                  filled: true,
+                  fillColor: isEmpty ? Colors.grey.shade100 : Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: _medicineGreen,
+                      width: 1.5,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Exp ${_formatDate(batch.expiryDate)}',
-                      style: TextStyle(
-                        color: color.withValues(alpha: 0.78),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+                onChanged: (_) {
+                  setState(() => row.error = null);
+                },
               ),
-              const SizedBox(width: 8),
-              Text(
-                '${_number(batch.quantity)} ${_unitLabel(batch.qtyUnit)}',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _batchTotal(_SupplyItemRow row) {
+    final total = _batchTotalQuantity(row);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.inventory_2_outlined,
+            color: _medicineGreen,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Total quantity: $total',
+            style: const TextStyle(
+              color: _medicineDarkGreen,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _batchTotalQuantity(_SupplyItemRow row) {
+    final medicine = row.selectedMedicine;
+    final batches = medicine == null
+        ? const <MedicineBatch>[]
+        : _availableBatches(medicine);
+    return batches.fold<int>(
+      0,
+      (sum, batch) =>
+          sum + (int.tryParse(row.batchQtyController(batch).text.trim()) ?? 0),
+    );
+  }
+
+  List<MedicineBatch> _availableBatches(Medicine medicine) {
+    return medicine.batches
+        .where((batch) => !batch.isEmpty)
+        .toList(growable: false);
   }
 
   String _patientOptionLabel(Patient patient) {
@@ -1086,6 +1200,23 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
     };
   }
 
+  String _batchSourceText(MedicineBatch batch) {
+    final label = batch.sourceLabel.trim().isEmpty
+        ? 'Main Stock'
+        : batch.sourceLabel.trim();
+    final patientName = batch.sourcePatientName?.trim();
+    final registerId = batch.sourcePatientRegisterId?.trim();
+    if (batch.sourceType == 'return' &&
+        patientName != null &&
+        patientName.isNotEmpty) {
+      final patientText = registerId != null && registerId.isNotEmpty
+          ? '$patientName ($registerId)'
+          : patientName;
+      return '$label • $patientText';
+    }
+    return label;
+  }
+
   String _formatDate(DateTime? date) {
     if (date == null) return 'Not recorded';
     return DateFormat('dd MMM yyyy').format(date.toLocal());
@@ -1098,30 +1229,46 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
 
 class _SupplyItemRow {
   final TextEditingController medicineController = TextEditingController();
-  final TextEditingController qtyController = TextEditingController();
+  final Map<String, TextEditingController> batchQtyControllers = {};
   final FocusNode medicineFocusNode = FocusNode();
 
   Medicine? selectedMedicine;
-  MedicineBatch? selectedBatch;
   String? error;
 
   bool get isBlank =>
       selectedMedicine == null &&
-      selectedBatch == null &&
       medicineController.text.trim().isEmpty &&
-      qtyController.text.trim().isEmpty;
+      batchQtyControllers.values.every(
+        (controller) => controller.text.trim().isEmpty,
+      );
+
+  TextEditingController batchQtyController(MedicineBatch batch) {
+    final key = [
+      batch.id,
+      batch.batchNumber,
+      batch.expiryDate?.toIso8601String(),
+      batch.quantity,
+    ].whereType<Object>().join(':');
+    return batchQtyControllers.putIfAbsent(key, TextEditingController.new);
+  }
+
+  void clearBatchQuantities() {
+    for (final controller in batchQtyControllers.values) {
+      controller.dispose();
+    }
+    batchQtyControllers.clear();
+  }
 
   void clear() {
     medicineController.clear();
-    qtyController.clear();
+    clearBatchQuantities();
     selectedMedicine = null;
-    selectedBatch = null;
     error = null;
   }
 
   void dispose() {
     medicineController.dispose();
-    qtyController.dispose();
+    clearBatchQuantities();
     medicineFocusNode.dispose();
   }
 }

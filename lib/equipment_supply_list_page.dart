@@ -2,20 +2,25 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:provider/provider.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/eq_supply_edit.dart';
 import 'package:oruma_app/equipment_list_page.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
+import 'package:oruma_app/services/feature_permissions.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
-import 'package:oruma_app/widgets/module_theme.dart';
+import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/module_switch_tabs.dart';
+import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:provider/provider.dart';
 
-const _equipmentSupplyPrimary = Color(0xFF854F0B);
-const _equipmentSupplySurface = Color(0xFFFAEEDA);
+const _equipmentSupplyStrong = Color(0xFFB45309);
+const _equipmentSupplySurface = Color(0xFFFFFBEB);
+const _equipmentSupplyIconSurface = Color(0xFFFEF3C7);
 
 class EquipmentSupplyListPage extends StatefulWidget {
   const EquipmentSupplyListPage({super.key});
@@ -112,8 +117,9 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       if (!mounted || search != _searchQuery.trim()) return;
       setState(() => _errorActive = e.toString());
     } finally {
-      if (!mounted || search != _searchQuery.trim()) return;
-      setState(() => _loadingActive = false);
+      if (mounted && search == _searchQuery.trim()) {
+        setState(() => _loadingActive = false);
+      }
     }
   }
 
@@ -140,8 +146,9 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       if (!mounted || search != _searchQuery.trim()) return;
       setState(() => _errorAll = e.toString());
     } finally {
-      if (!mounted || search != _searchQuery.trim()) return;
-      setState(() => _loadingAll = false);
+      if (mounted && search == _searchQuery.trim()) {
+        setState(() => _loadingAll = false);
+      }
     }
   }
 
@@ -175,15 +182,12 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.assignment_return, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Confirm Return'),
-            ],
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+          title: const _EquipmentSupplyDialogHeader(
+            icon: Icons.assignment_return_outlined,
+            title: 'Confirm return',
+            color: _equipmentSupplyStrong,
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -192,20 +196,20 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
               children: [
                 Text(
                   'Mark "${supply.equipmentUniqueId}" as returned from ${supply.patientName}?',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 20),
-
-                // Date Picker Field
-                const Text(
-                  'Return Date',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.45,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Return Date',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 InkWell(
                   onTap: () async {
                     final picked = await showDatePicker(
@@ -218,72 +222,63 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                       setState(() => selectedDate = picked);
                     }
                   },
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.input,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
+                    constraints: const BoxConstraints(minHeight: 50),
+                    padding: const EdgeInsets.only(
+                      left: 6,
+                      right: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.surface1,
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: AppRadius.input,
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: _equipmentSupplyPrimary,
-                        ),
-                        const SizedBox(width: 8),
+                        _compactPrefixIcon(Icons.calendar_today_outlined),
+                        const SizedBox(width: AppSpacing.xs),
                         Text(
                           '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                          style: const TextStyle(fontSize: 14),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Note Field
+                const SizedBox(height: AppSpacing.md),
                 TextField(
                   controller: noteController,
-                  style: const TextStyle(fontSize: 13),
-                  decoration: InputDecoration(
-                    labelText: 'Return Note (Optional)',
-                    labelStyle: const TextStyle(fontSize: 13),
-                    hintText: 'Condition of equipment, etc.',
-                    hintStyle: const TextStyle(fontSize: 13),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
+                  decoration: _compactInputDecoration(
+                    'Condition of equipment, etc.',
+                    Icons.notes_outlined,
                   ),
+                  minLines: 1,
                   maxLines: 2,
                 ),
               ],
             ),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
           actions: [
-            TextButton(
+            AppSecondaryButton(
+              label: 'Cancel',
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
             ),
-            ElevatedButton(
+            AppPrimaryButton(
+              label: 'Mark Returned',
+              icon: Icons.assignment_return_outlined,
               onPressed: () => Navigator.pop(context, {
                 'confirmed': true,
                 'date': selectedDate,
                 'note': noteController.text.trim(),
               }),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Mark Returned'),
             ),
           ],
         ),
@@ -300,8 +295,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Equipment marked as returned'),
-              backgroundColor: Colors.green,
+              content: Text('Equipment marked as returned'),
+              backgroundColor: AppColors.success,
             ),
           );
           _loadData();
@@ -309,7 +304,10 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.danger,
+            ),
           );
         }
       }
@@ -318,121 +316,140 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveAppScaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: _equipmentSupplySurface,
-        surfaceTintColor: _equipmentSupplySurface,
-        foregroundColor: _equipmentSupplyPrimary,
-        elevation: 1,
-        title: ModuleSwitchTabs(
-          labels: const ['Supplies', 'Equipment'],
-          icons: const [
-            Icons.assignment_turned_in_outlined,
-            Icons.medical_services_outlined,
+    final auth = context.watch<AuthService>();
+
+    return ModuleTheme(
+      palette: ModulePalettes.equipmentSupply,
+      child: AdaptiveAppScaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          toolbarHeight: 76,
+          titleSpacing: AppSpacing.md,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: ModuleSwitchTabs(
+            labels: const ['Supplies', 'Equipment'],
+            icons: const [
+              Icons.assignment_turned_in_outlined,
+              Icons.medical_services_outlined,
+            ],
+            selectedIndex: 0,
+            color: _equipmentSupplyStrong,
+            onSelected: (index) {
+              if (index == 1) {
+                if (!FeaturePermissionMiddleware.ensure(
+                  context,
+                  AppFeature.equipment,
+                  moduleName: 'Equipment Inventory',
+                )) {
+                  return;
+                }
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ModuleTheme(
+                      palette: ModulePalettes.equipmentSupply,
+                      child: EquipmentListPage(),
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
+          centerTitle: true,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
+                0,
+                AppInsets.screenHorizontal(context),
+                AppSpacing.sm,
+              ),
+              child: _buildSupplyTabs(),
+            ),
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: _EquipmentSupplyIconButton(
+                icon: Icons.refresh,
+                onPressed: _loadData,
+              ),
+            ),
           ],
-          selectedIndex: 0,
-          color: _equipmentSupplyPrimary,
-          onSelected: (index) {
-            if (index == 1) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ModuleTheme(
-                    palette: ModulePalettes.equipmentSupply,
-                    child: EquipmentListPage(),
-                  ),
-                ),
-              );
-            }
-          },
         ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              labelColor: _equipmentSupplyPrimary,
-              unselectedLabelColor: Colors.grey[600],
-              indicatorColor: _equipmentSupplyPrimary,
-              indicatorWeight: 3,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
+        floatingActionButton:
+            auth.canCreate && auth.canAccessEquipmentDistribution
+            ? RevealActionFab(
+                onPressed: _navigateToCreateSupply,
+                backgroundColor: _equipmentSupplyStrong,
+                foregroundColor: AppColors.textInverse,
+                icon: Icons.add,
+                label: 'New Supply',
+              )
+            : null,
+        contentMaxWidth: 860,
+        body: Column(
+          children: [
+            _buildSearchBar(),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [_buildActiveList(), _buildHistoryList()],
               ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.normal,
-                fontSize: 14,
-              ),
-              tabs: [
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.pending_actions, size: 18),
-                      const SizedBox(width: 6),
-                      const Text('Active'),
-                      if (_activeSupplies.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _equipmentSupplyPrimary,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${_activeSupplies.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.history, size: 18),
-                      SizedBox(width: 6),
-                      Text('History'),
-                    ],
-                  ),
-                ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupplyTabs() {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.button,
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadow.small,
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: _equipmentSupplyStrong,
+        unselectedLabelColor: AppColors.textSecondary,
+        indicator: const BoxDecoration(
+          color: _equipmentSupplySurface,
+          borderRadius: AppRadius.md,
+        ),
+        tabs: [
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.pending_actions, size: 18),
+                const SizedBox(width: AppSpacing.xs),
+                const Text('Active'),
+                if (_activeSupplies.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  _countBadge(_activeSupplies.length),
+                ],
               ],
             ),
           ),
-        ),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
-        ],
-      ),
-      floatingActionButton: Provider.of<AuthService>(context).canCreate
-          ? RevealActionFab(
-              onPressed: _navigateToCreateSupply,
-              backgroundColor: _equipmentSupplyPrimary,
-              foregroundColor: Colors.white,
-              icon: Icons.add,
-              label: 'New Supply',
-            )
-          : null,
-      contentMaxWidth: 860,
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildActiveList(), _buildHistoryList()],
+          const Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.history, size: 18),
+                SizedBox(width: AppSpacing.xs),
+                Text('History'),
+              ],
             ),
           ),
         ],
@@ -441,15 +458,21 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+    return AppCard(
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+      ),
+      padding: AppInsets.md,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: TextField(
         controller: _searchController,
         textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Search by patient, care of, or equipment',
-          prefixIcon: const Icon(Icons.search, size: 20),
+        decoration: _compactInputDecoration(
+          'Search patient, care of, or equipment',
+          Icons.search,
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.close, size: 20),
@@ -459,27 +482,6 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                   },
                 )
               : null,
-          filled: true,
-          fillColor: Colors.grey.shade50,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(
-              color: _equipmentSupplyPrimary,
-              width: 1.5,
-            ),
-          ),
         ),
       ),
     );
@@ -500,7 +502,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
   // --- Active Supplies Tab ---
   Widget _buildActiveList() {
     if (_loadingActive) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 5);
     }
     if (_errorActive != null) {
       return _buildErrorWidget(_errorActive!, _fetchActiveSupplies);
@@ -525,9 +527,15 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     return RefreshIndicator(
       onRefresh: _fetchActiveSupplies,
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.xs,
+          AppInsets.screenHorizontal(context),
+          112,
+        ),
         itemCount: filteredList.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) =>
+            const SizedBox(height: AppSpacing.sm),
         itemBuilder: (context, index) {
           final supply = filteredList[index];
           return _buildSupplyCard(supply, isActive: true);
@@ -539,7 +547,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
   // --- History Tab (All Supplies) ---
   Widget _buildHistoryList() {
     if (_loadingAll) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 5);
     }
     if (_errorAll != null) {
       return _buildErrorWidget(_errorAll!, _fetchAllSupplies);
@@ -564,9 +572,15 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     return RefreshIndicator(
       onRefresh: _fetchAllSupplies,
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.xs,
+          AppInsets.screenHorizontal(context),
+          112,
+        ),
         itemCount: filteredList.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) =>
+            const SizedBox(height: AppSpacing.sm),
         itemBuilder: (context, index) {
           final supply = filteredList[index];
           return _buildSupplyCard(supply, isActive: supply.status == 'active');
@@ -579,18 +593,35 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Supply'),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const _EquipmentSupplyDialogHeader(
+          icon: Icons.delete_outline,
+          title: 'Delete supply?',
+          color: AppColors.danger,
+        ),
         content: Text(
           'Are you sure you want to delete the supply record for ${supply.equipmentName}?',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
         ),
         actions: [
-          TextButton(
+          AppSecondaryButton(
+            label: 'Cancel',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          TextButton(
+          AppDangerButton(
+            label: 'Delete',
+            icon: Icons.delete_outline,
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -602,8 +633,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Supply deleted successfully'),
-              backgroundColor: Colors.green,
+              content: Text('Supply deleted successfully'),
+              backgroundColor: AppColors.success,
             ),
           );
           _loadData();
@@ -612,8 +643,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ Error deleting supply: $e'),
-              backgroundColor: Colors.red,
+              content: Text('Error deleting supply: $e'),
+              backgroundColor: AppColors.danger,
             ),
           );
         }
@@ -629,24 +660,25 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     final recipientName = _supplyRecipientName(supply);
     final placeLabel = _supplyPlaceLabel(supply);
 
-    // Return button visibility (Using canEdit as it modifies the state)
     Widget buildReturnButton() {
       if (isActive && canEdit) {
         return InkWell(
           onTap: () => _returnSupply(supply),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(999),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
+              color: _equipmentSupplySurface,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: _equipmentSupplyIconSurface),
             ),
             child: const Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Return',
                   style: TextStyle(
-                    color: Colors.orange,
+                    color: _equipmentSupplyStrong,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -655,7 +687,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 10,
-                  color: Colors.orange,
+                  color: _equipmentSupplyStrong,
                 ),
               ],
             ),
@@ -665,139 +697,67 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       return const SizedBox.shrink();
     }
 
-    Widget cardContent = Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _showSupplyDetails(supply),
+    Widget cardContent = AppCard(
+      padding: EdgeInsets.zero,
+      surfaceLevel: AppSurfaceLevel.elevated,
+      onTap: () => _showSupplyDetails(supply),
+      child: ClipRRect(
+        borderRadius: AppRadius.card,
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Status Strip
               Container(width: 6, color: statusColor),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header: Equipment ID & Date
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Text(
-                              supply.equipmentUniqueId,
-                              style: TextStyle(
-                                color: Colors.grey.shade700,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                          _idBadge(supply.equipmentUniqueId),
                           Text(
                             _formatDate(supply.supplyDate),
-                            style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: AppColors.textMuted,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-
-                      // Patient Name
+                      const SizedBox(height: AppSpacing.xs),
                       Text(
-                        recipientName.toUpperCase(),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: Color(0xFF2D3142),
-                          letterSpacing: 0.3,
-                        ),
+                        recipientName,
+                        style: Theme.of(context).textTheme.titleSmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-
-                      // Equipment Name
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpacing.xxs),
                       Text(
                         supply.equipmentName,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (placeLabel != null) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.place_outlined,
-                              size: 14,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                placeLabel,
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        _inlineDetail(Icons.place_outlined, placeLabel),
                       ],
-
-                      // Footer: Phone & Action
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
-                          Icon(
-                            Icons.phone_rounded,
-                            size: 14,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _supplyPhone(supply),
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                          Expanded(
+                            child: _inlineDetail(
+                              Icons.phone_rounded,
+                              _supplyPhone(supply),
                             ),
                           ),
-                          const Spacer(),
                           buildReturnButton(),
                         ],
                       ),
@@ -818,7 +778,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         actions.add(
           SlidableAction(
             onPressed: (_) => _navigateToEditSupply(supply),
-            backgroundColor: const Color(0xFF21B7CA),
+            backgroundColor: AppColors.info,
             foregroundColor: Colors.white,
             icon: Icons.edit_rounded,
             label: 'Edit',
@@ -830,7 +790,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         actions.add(
           SlidableAction(
             onPressed: (_) => _deleteSupply(supply),
-            backgroundColor: const Color(0xFFFE4A49),
+            backgroundColor: AppColors.danger,
             foregroundColor: Colors.white,
             icon: Icons.delete_rounded,
             label: 'Delete',
@@ -839,9 +799,9 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       }
 
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+        padding: EdgeInsets.zero,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppRadius.card,
           child: Slidable(
             key: ValueKey(supply.id),
             endActionPane: ActionPane(
@@ -857,10 +817,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-      child: cardContent,
-    );
+    return Padding(padding: EdgeInsets.zero, child: cardContent);
   }
 
   String _supplyRecipientName(EquipmentSupply supply) {
@@ -893,71 +850,33 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     return null;
   }
 
-  Widget _buildDetailItem({required IconData icon, required String label}) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Colors.grey[500]),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-      ],
-    );
-  }
-
   Widget _buildEmptyWidget({
     required IconData icon,
     required String title,
     required String subtitle,
   }) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: constraints.maxHeight,
+            child: AppEmptyState(icon: icon, title: title, message: subtitle),
           ),
-          const SizedBox(height: 8),
-          Text(subtitle, style: TextStyle(color: Colors.grey[500])),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildErrorWidget(String error, VoidCallback retry) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-          const SizedBox(height: 16),
-          Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error,
-            style: TextStyle(color: Colors.grey[500]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: retry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-          ),
-        ],
+    return AppEmptyState(
+      icon: Icons.cloud_off_outlined,
+      title: 'Something went wrong',
+      message: error.replaceFirst(RegExp(r'^Exception:\s*'), ''),
+      action: AppPrimaryButton(
+        label: 'Retry',
+        icon: Icons.refresh,
+        onPressed: retry,
       ),
     );
   }
@@ -966,72 +885,52 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.sheet,
+        ),
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
+              const Center(child: _SheetHandle()),
+              const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.orange.shade50,
-                    child: Icon(
-                      Icons.medical_services,
-                      color: Colors.orange.shade400,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+                  _supplyAvatar(Icons.medical_services_outlined, size: 48),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          supply.equipmentName.toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                          supply.equipmentName,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                         Text(
                           supply.equipmentUniqueId,
-                          style: TextStyle(color: Colors.grey[600]),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: _equipmentSupplyStrong,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(supply.status).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      supply.status.toUpperCase(),
-                      style: TextStyle(
-                        color: _getStatusColor(supply.status),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
+                  _statusBadge(supply.status),
                 ],
               ),
-              const SizedBox(height: 24),
-              const Divider(),
-              const SizedBox(height: 16),
-              // Patient / Receiver Details
+              const SizedBox(height: AppSpacing.lg),
               if (supply.patientName != null &&
                   supply.patientName!.isNotEmpty) ...[
                 _buildDetailRow(
@@ -1096,9 +995,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                     supply.careOf!,
                   ),
               ],
-              const SizedBox(height: 16),
-              Divider(color: Colors.grey.shade200),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
               _buildDetailRow(
                 Icons.calendar_today,
                 'Supply Date',
@@ -1119,9 +1016,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                 ),
               ],
               if (supply.notes != null && supply.notes!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Divider(color: Colors.grey.shade200),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.md),
                 _buildDetailRow(Icons.note, 'Notes', supply.notes!),
               ],
               if (supply.returnNote != null &&
@@ -1134,9 +1029,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                 ),
               ],
               if (supply.createdBy != null) ...[
-                const SizedBox(height: 24),
-                Divider(color: Colors.grey.shade200),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.lg),
                 Padding(
                   padding: const EdgeInsets.only(top: 0),
                   child: Column(
@@ -1144,10 +1037,9 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                     children: [
                       Text(
                         'Created by: ${supply.createdBy}',
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       if (supply.createdAt != null)
@@ -1155,18 +1047,17 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             'Created on: ${_formatDate(supply.createdAt!)}',
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: AppColors.textMuted,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ),
                     ],
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -1176,32 +1067,44 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: _equipmentSupplyPrimary),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: _equipmentSupplyIconSurface,
+              borderRadius: AppRadius.sm,
+            ),
+            child: Icon(
+              icon,
+              size: AppIcons.normal,
+              color: _equipmentSupplyStrong,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-                color: Colors.grey.shade900,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1212,17 +1115,237 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'active':
-        return Colors.orange;
+        return _equipmentSupplyStrong;
       case 'returned':
-        return Colors.green;
+        return AppColors.success;
       case 'lost':
-        return Colors.red;
+        return AppColors.danger;
       default:
-        return Colors.grey;
+        return AppColors.offline;
     }
+  }
+
+  Widget _statusBadge(String status) {
+    final color = _getStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _countBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: _equipmentSupplyStrong,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$count',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: AppColors.textInverse,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _idBadge(String id) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: _equipmentSupplySurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _equipmentSupplyIconSurface),
+      ),
+      child: Text(
+        id,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: _equipmentSupplyStrong,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _supplyAvatar(IconData icon, {double size = 44}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        color: _equipmentSupplyIconSurface,
+        borderRadius: AppRadius.md,
+      ),
+      child: Icon(icon, color: _equipmentSupplyStrong, size: size * 0.52),
+    );
+  }
+
+  Widget _inlineDetail(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: AppIcons.small, color: AppColors.textMuted),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _compactPrefixIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
+        color: _equipmentSupplyIconSurface,
+        borderRadius: AppRadius.sm,
+      ),
+      child: Icon(icon, color: _equipmentSupplyStrong, size: AppIcons.normal),
+    );
+  }
+
+  InputDecoration _compactInputDecoration(
+    String hint,
+    IconData icon, {
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      isDense: true,
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactPrefixIcon(icon),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _equipmentSupplyStrong, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+}
+
+class _EquipmentSupplyIconButton extends StatelessWidget {
+  const _EquipmentSupplyIconButton({
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(
+            icon,
+            color: onPressed == null ? AppColors.textMuted : AppColors.text,
+            size: AppIcons.large,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 5,
+      decoration: BoxDecoration(
+        color: AppColors.borderStrong,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _EquipmentSupplyDialogHeader extends StatelessWidget {
+  const _EquipmentSupplyDialogHeader({
+    required this.icon,
+    required this.title,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: color, size: AppIcons.large),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+      ],
+    );
   }
 }

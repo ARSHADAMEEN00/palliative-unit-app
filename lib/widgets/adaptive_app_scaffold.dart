@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_breakpoints.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_icons.dart';
+import 'package:oruma_app/core/theme/app_motion.dart';
+import 'package:oruma_app/core/theme/app_radius.dart';
+import 'package:oruma_app/core/theme/app_shadow.dart';
+import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
+import 'package:oruma_app/widgets/unit_brand_avatar.dart';
 
 class AdaptiveAppScaffold extends StatelessWidget {
   const AdaptiveAppScaffold({
@@ -16,8 +24,8 @@ class AdaptiveAppScaffold extends StatelessWidget {
     this.currentSection,
     this.onNavigationSelected,
     this.centerBodyOnTablet = true,
-    this.contentMaxWidth = 860,
-    this.tabletBreakpoint = 600,
+    this.contentMaxWidth = 920,
+    this.tabletBreakpoint = AppBreakpoints.tablet,
     this.extendBody = false,
     this.resizeToAvoidBottomInset,
   });
@@ -57,14 +65,30 @@ class AdaptiveAppScaffold extends StatelessWidget {
             : _TabletWidthFrame(
                 enabled: isTablet && centerBodyOnTablet,
                 maxWidth: contentMaxWidth,
-                child: bottomSheet!,
+                child: Builder(
+                  builder: (sheetContext) {
+                    final mediaQuery = MediaQuery.of(sheetContext);
+                    final viewPadding = MediaQuery.viewPaddingOf(sheetContext);
+                    final bottomInset = mediaQuery.viewInsets.bottom > 0
+                        ? 0.0
+                        : viewPadding.bottom;
+                    return MediaQuery(
+                      data: mediaQuery.copyWith(
+                        padding: mediaQuery.padding.copyWith(
+                          bottom: bottomInset,
+                        ),
+                      ),
+                      child: bottomSheet!,
+                    );
+                  },
+                ),
               );
 
         return Scaffold(
           key: scaffoldKey,
           appBar: appBar,
           drawer: drawer,
-          backgroundColor: backgroundColor,
+          backgroundColor: backgroundColor ?? AppColors.background,
           bottomSheet: customBottomSheet,
           floatingActionButton: floatingActionButton,
           floatingActionButtonLocation: floatingActionButtonLocation,
@@ -89,7 +113,7 @@ class AdaptiveAppScaffold extends StatelessWidget {
                     VerticalDivider(
                       width: 1,
                       thickness: 1,
-                      color: Colors.grey.shade200,
+                      color: AppColors.border,
                     ),
                     Expanded(
                       child: _TabletBodyFrame(
@@ -192,24 +216,27 @@ class _TabletNavigationRail extends StatelessWidget {
       CompactAppBottomBar.maybeAuth(context),
     );
 
-    return Material(
-      color: Colors.white,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        boxShadow: AppShadow.small,
+      ),
       child: SizedBox(
-        width: extended ? 188 : 94,
+        width: extended ? 204 : 96,
         child: SafeArea(
           bottom: false,
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 22),
+                padding: const EdgeInsets.only(top: AppSpacing.lg),
                 child: _RailBrand(extended: extended),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: AppSpacing.md),
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.symmetric(
-                    horizontal: extended ? 12 : 0,
-                    vertical: 4,
+                    horizontal: extended ? AppSpacing.sm : AppSpacing.xs,
+                    vertical: AppSpacing.xs,
                   ),
                   child: Column(
                     children: [
@@ -224,7 +251,8 @@ class _TabletNavigationRail extends StatelessWidget {
                             }
                           },
                         ),
-                        if (item != items.last) const SizedBox(height: 12),
+                        if (item != items.last)
+                          const SizedBox(height: AppSpacing.sm),
                       ],
                     ],
                   ),
@@ -254,11 +282,11 @@ class _RailDestinationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedColor = Theme.of(context).colorScheme.primary;
-    final inactiveColor = const Color(0xFF4D544B);
-    final selectedBackground = selectedColor.withValues(alpha: 0.16);
+    const inactiveColor = AppColors.textSecondary;
+    final selectedBackground = selectedColor.withValues(alpha: 0.12);
     final iconColor = selected ? selectedColor : inactiveColor;
     const compactIndicatorWidth = 56.0;
-    const compactIndicatorHeight = 32.0;
+    const compactIndicatorHeight = 40.0;
 
     return Semantics(
       selected: selected,
@@ -267,19 +295,20 @@ class _RailDestinationItem extends StatelessWidget {
       child: extended
           ? InkWell(
               onTap: onTap,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: AppRadius.button,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                duration: AppMotion.normal,
+                curve: AppMotion.easeOutCubic,
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 decoration: BoxDecoration(
                   color: selected ? selectedBackground : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: AppRadius.button,
                 ),
                 child: Row(
                   children: [
-                    Icon(item.icon, size: 25, color: iconColor),
-                    const SizedBox(width: 12),
+                    Icon(item.icon, size: AppIcons.large, color: iconColor),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         item.label,
@@ -305,16 +334,17 @@ class _RailDestinationItem extends StatelessWidget {
                 children: [
                   Material(
                     color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: AppRadius.button,
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: onTap,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: AppRadius.button,
                       hoverColor: selectedBackground,
                       highlightColor: selectedBackground,
                       splashColor: selectedColor.withValues(alpha: 0.12),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
+                        duration: AppMotion.normal,
+                        curve: AppMotion.easeOutCubic,
                         width: compactIndicatorWidth,
                         height: compactIndicatorHeight,
                         alignment: Alignment.center,
@@ -322,9 +352,13 @@ class _RailDestinationItem extends StatelessWidget {
                           color: selected
                               ? selectedBackground
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: AppRadius.button,
                         ),
-                        child: Icon(item.icon, size: 25, color: iconColor),
+                        child: Icon(
+                          item.icon,
+                          size: AppIcons.large,
+                          color: iconColor,
+                        ),
                       ),
                     ),
                   ),
@@ -332,11 +366,13 @@ class _RailDestinationItem extends StatelessWidget {
                     behavior: HitTestBehavior.opaque,
                     onTap: onTap,
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 140),
+                      duration: AppMotion.fast,
                       child: selected
                           ? Padding(
                               key: ValueKey(item.section),
-                              padding: const EdgeInsets.only(top: 6),
+                              padding: const EdgeInsets.only(
+                                top: AppSpacing.xs,
+                              ),
                               child: Text(
                                 item.label,
                                 maxLines: 1,
@@ -367,41 +403,42 @@ class _RailBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logo = ClipOval(
-      child: Image.asset(
-        'assets/logo/logo.png',
-        width: 38,
-        height: 38,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(
-          Icons.local_hospital_outlined,
-          color: Color(0xFF185FA5),
-          size: 28,
-        ),
-      ),
+    final auth = CompactAppBottomBar.maybeAuth(context);
+    const logo = UnitBrandAvatar(
+      size: 38,
+      preferAppIcon: true,
+      fallbackIcon: Icons.local_hospital_outlined,
     );
 
     if (!extended) {
-      return Padding(padding: const EdgeInsets.only(bottom: 18), child: logo);
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.md),
+        child: logo,
+      );
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 4, 12, 22),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.sm,
+        AppSpacing.lg,
+      ),
       child: SizedBox(
-        width: 162,
+        width: 172,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             logo,
-            const SizedBox(width: 10),
-            const Flexible(
+            const SizedBox(width: AppSpacing.sm),
+            Flexible(
               fit: FlexFit.loose,
               child: Text(
-                'Team Oruma',
+                auth?.unitName ?? 'Palliative App',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Color(0xFF1A237E),
+                style: const TextStyle(
+                  color: AppColors.text,
                   fontWeight: FontWeight.w800,
                   fontSize: 14,
                 ),

@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/social_support.dart';
 import 'package:oruma_app/models/volunteer.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/social_support_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 
-const _supportPrimary = Color(0xFF8A2454);
-const _supportDark = Color(0xFF64143A);
-const _supportCard = Color(0xFFF7E5EE);
-const _supportIcon = Color(0xFFE8AEC9);
+const _supportPrimary = Color(0xFFBE185D);
+const _supportCard = Color(0xFFFDF2F8);
+const _supportIcon = Color(0xFFFCE7F3);
 
 class SocialSupportPage extends StatefulWidget {
   final Patient? initialPatient;
@@ -95,6 +96,18 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       initialDate: _givenAt,
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: _supportPrimary,
+              onPrimary: AppColors.textInverse,
+              onSurface: AppColors.text,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(
@@ -107,15 +120,21 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedPatient?.id == null || _selectedPatient!.id!.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please select a patient')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a patient'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
       return;
     }
 
     if (_selectedVolunteer?.id == null || _selectedVolunteer!.id!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a volunteer')),
+        const SnackBar(
+          content: Text('Please select a volunteer'),
+          backgroundColor: AppColors.warning,
+        ),
       );
       return;
     }
@@ -124,6 +143,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select at least one support type'),
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -147,7 +167,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Social support recorded successfully'),
-          backgroundColor: _supportPrimary,
+          backgroundColor: AppColors.success,
         ),
       );
       Navigator.pop(context, true);
@@ -156,7 +176,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_friendlyError(error)),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.danger,
         ),
       );
     } finally {
@@ -168,62 +188,64 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return AdaptiveAppScaffold(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: _supportDark,
-          foregroundColor: Colors.white,
-          title: const Text(
+          toolbarHeight: 72,
+          titleSpacing: AppSpacing.md,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(
             'New Social Support',
-            style: TextStyle(fontSize: 18),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
         ),
-        body: const Center(
-          child: CircularProgressIndicator(color: _supportPrimary),
-        ),
+        body: const AppListSkeleton(itemCount: 4),
         contentMaxWidth: 900,
       );
     }
 
     return AdaptiveAppScaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: _supportDark,
-        foregroundColor: Colors.white,
-        title: const Text('New Social Support', style: TextStyle(fontSize: 18)),
+        toolbarHeight: 72,
+        titleSpacing: AppSpacing.md,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'New Social Support',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 110),
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
+            AppSpacing.md,
+            AppInsets.screenHorizontal(context),
+            112,
+          ),
           children: [
-            _formHeader(),
-            const SizedBox(height: 16),
             _formCard(
               title: 'Patient and date',
               icon: Icons.person_search_outlined,
               children: [
                 _patientAutocomplete(),
                 if (_selectedPatient != null) _selectedPatientCard(),
-                InkWell(
-                  onTap: _pickDate,
-                  borderRadius: BorderRadius.circular(14),
-                  child: InputDecorator(
-                    decoration: _inputDecoration('Date', Icons.event_outlined),
-                    child: Text(
-                      DateFormat('dd MMM yyyy').format(_givenAt),
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                  ),
-                ),
+                _dateField(),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.lg),
             _formCard(
               title: 'Support type',
               icon: Icons.volunteer_activism_outlined,
               children: [_supportTypeSelector()],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.lg),
             _formCard(
               title: 'Volunteer details',
               icon: Icons.badge_outlined,
@@ -243,66 +265,28 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
         ),
       ),
       contentMaxWidth: 900,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: FilledButton(
+      bottomSheet: Container(
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.sm,
+          AppInsets.screenHorizontal(context),
+          AppSpacing.md,
+        ),
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceFloating,
+          border: Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: AppShadow.medium,
+        ),
+        child: SafeArea(
+          top: false,
+          child: AppPrimaryButton(
+            label: 'Save Social Support',
+            icon: Icons.save_outlined,
+            fullWidth: true,
+            loading: _saving,
             onPressed: _saving ? null : _save,
-            style: FilledButton.styleFrom(
-              backgroundColor: _supportPrimary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: _saving
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Text(
-                    'Save Social Support',
-                    style: TextStyle(fontSize: 16),
-                  ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _formHeader() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _supportPrimary,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: const Row(
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.volunteer_activism_outlined, color: Colors.white),
-          ),
-          SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              'Social Support',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -312,40 +296,35 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: _supportDark.withValues(alpha: 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 7),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: AppInsets.card,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: _supportPrimary),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: _supportIcon,
+                  borderRadius: AppRadius.sm,
+                ),
+                child: Icon(
+                  icon,
+                  color: _supportPrimary,
+                  size: AppIcons.normal,
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: AppSpacing.lg),
           ...children.expand(
             (child) => [
               child,
-              if (child != children.last) const SizedBox(height: 13),
+              if (child != children.last) const SizedBox(height: AppSpacing.md),
             ],
           ),
         ],
@@ -390,11 +369,11 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
   Widget _selectedPatientCard() {
     final patient = _selectedPatient!;
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+      padding: AppInsets.sm,
+      decoration: const BoxDecoration(
         color: _supportCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _supportIcon),
+        borderRadius: AppRadius.md,
+        border: Border.fromBorderSide(BorderSide(color: _supportIcon)),
       ),
       child: Row(
         children: [
@@ -406,10 +385,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
               children: [
                 Text(
                   patient.name,
-                  style: const TextStyle(
-                    color: _supportDark,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
                 Text(
                   [
@@ -418,7 +394,9 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
                     if (patient.place.isNotEmpty) 'Place: ${patient.place}',
                     if (patient.phone.isNotEmpty) 'Ph: ${patient.phone}',
                   ].whereType<String>().join(' • '),
-                  style: const TextStyle(color: _supportDark, fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -426,7 +404,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
           IconButton(
             tooltip: 'Clear patient',
             onPressed: () => setState(() => _selectedPatient = null),
-            icon: const Icon(Icons.close, color: _supportPrimary),
+            icon: const Icon(Icons.close, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -480,11 +458,11 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
   Widget _volunteerAutocomplete() {
     if (_volunteers.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(14),
+        padding: AppInsets.md,
         decoration: BoxDecoration(
-          color: const Color(0xFFFCF8FA),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
+          color: AppColors.surface1,
+          borderRadius: AppRadius.input,
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -496,7 +474,9 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
             Expanded(
               child: Text(
                 'No volunteers added yet',
-                style: TextStyle(color: Colors.grey.shade700),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           ],
@@ -536,11 +516,11 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
   Widget _selectedVolunteerCard() {
     final volunteer = _selectedVolunteer!;
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+      padding: AppInsets.sm,
+      decoration: const BoxDecoration(
         color: _supportCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _supportIcon),
+        borderRadius: AppRadius.md,
+        border: Border.fromBorderSide(BorderSide(color: _supportIcon)),
       ),
       child: Row(
         children: [
@@ -552,10 +532,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
               children: [
                 Text(
                   volunteer.name,
-                  style: const TextStyle(
-                    color: _supportDark,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
                 Text(
                   [
@@ -565,7 +542,9 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
                   ].join(' - '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: _supportDark, fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -573,7 +552,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
           IconButton(
             tooltip: 'Clear volunteer',
             onPressed: () => setState(() => _selectedVolunteer = null),
-            icon: const Icon(Icons.close, color: _supportPrimary),
+            icon: const Icon(Icons.close, color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -582,16 +561,29 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
 
   Widget _supportTypeSelector() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
       children: _supportTypes.map((type) {
         final selected = _selectedTypes.contains(type);
         return FilterChip(
           selected: selected,
           label: Text(socialSupportTypeLabels[type] ?? type),
-          avatar: Icon(_supportTypeIcon(type), size: 18),
-          selectedColor: _supportIcon,
-          checkmarkColor: _supportDark,
+          avatar: Icon(
+            _supportTypeIcon(type),
+            size: AppIcons.small,
+            color: selected ? AppColors.textInverse : _supportPrimary,
+          ),
+          selectedColor: _supportPrimary,
+          backgroundColor: AppColors.surface1,
+          checkmarkColor: AppColors.textInverse,
+          side: BorderSide(
+            color: selected ? _supportPrimary : AppColors.border,
+          ),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.button),
+          labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: selected ? AppColors.textInverse : AppColors.text,
+            fontWeight: FontWeight.w600,
+          ),
           onSelected: (value) {
             setState(() {
               if (value) {
@@ -618,6 +610,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      minLines: 1,
       maxLines: maxLines,
       textCapitalization: TextCapitalization.sentences,
       decoration: _inputDecoration(label, icon, hint: hint),
@@ -628,29 +621,95 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
     );
   }
 
+  Widget _dateField() {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.input,
+      child: InkWell(
+        onTap: _pickDate,
+        borderRadius: AppRadius.input,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: const EdgeInsets.only(left: 6, right: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.surface1,
+            borderRadius: AppRadius.input,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              _compactPrefixIcon(Icons.event_outlined),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  DateFormat('dd MMM yyyy').format(_givenAt),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: AppColors.text),
+                ),
+              ),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   InputDecoration _inputDecoration(
     String label,
     IconData icon, {
     String? hint,
   }) {
     return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, color: _supportPrimary, size: 20),
+      isDense: true,
+      hintText: hint ?? label,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactPrefixIcon(icon),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      floatingLabelBehavior: FloatingLabelBehavior.never,
       filled: true,
-      fillColor: const Color(0xFFFCF8FA),
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade200),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade200),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.input,
         borderSide: const BorderSide(color: _supportPrimary, width: 1.5),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+    );
+  }
+
+  Widget _compactPrefixIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
+        color: _supportIcon,
+        borderRadius: AppRadius.sm,
+      ),
+      child: Icon(icon, color: _supportPrimary, size: AppIcons.normal),
     );
   }
 
@@ -675,7 +734,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
       if (volunteer.phone.isNotEmpty) volunteer.phone,
       if (volunteer.phone2.isNotEmpty) volunteer.phone2,
       if (volunteer.place.isNotEmpty) volunteer.place,
-      if (volunteer.ward.isNotEmpty) 'Ward ${volunteer.ward}',
+      if (volunteer.ward.isNotEmpty) 'Ward\u00A0${volunteer.ward}',
     ].join(' - ');
     return details.isEmpty ? volunteer.name : '${volunteer.name} - $details';
   }

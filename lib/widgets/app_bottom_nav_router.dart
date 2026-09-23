@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_motion.dart';
 import 'package:oruma_app/patient_list_page.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_visit_picker_screen.dart';
 import 'package:oruma_app/home_visit_list_page.dart';
 import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
-import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
+import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
-import 'package:provider/provider.dart';
 
 class AppBottomNavRouter {
   AppBottomNavRouter._();
 
   static bool _transitionInProgress = false;
-  static const _transitionDuration = Duration(milliseconds: 360);
+  static const _transitionDuration = AppMotion.page;
 
   static void handle(
     BuildContext context, {
@@ -21,11 +23,14 @@ class AppBottomNavRouter {
     required AppBottomSection target,
   }) {
     if (current == target || _transitionInProgress) return;
-    final auth = context.read<AuthService>();
-    if (target == AppBottomSection.medicine && !auth.canAccessMedicine) {
-      return;
-    }
-    if (target == AppBottomSection.nhc && !auth.canAccessNHC) {
+
+    final featureId = _featureForSection(target);
+    if (featureId != null &&
+        !FeaturePermissionMiddleware.ensure(
+          context,
+          featureId,
+          moduleName: _moduleNameForSection(target),
+        )) {
       return;
     }
 
@@ -49,6 +54,26 @@ class AppBottomNavRouter {
     _open(context, page, forward: target.index > current.index);
   }
 
+  static String? _featureForSection(AppBottomSection section) {
+    return switch (section) {
+      AppBottomSection.home => null,
+      AppBottomSection.medicine => AppFeature.medicineSupply,
+      AppBottomSection.patients => AppFeature.patients,
+      AppBottomSection.homeVisit => AppFeature.homeVisits,
+      AppBottomSection.nhc => AppFeature.nhcAssessment,
+    };
+  }
+
+  static String _moduleNameForSection(AppBottomSection section) {
+    return switch (section) {
+      AppBottomSection.home => 'Home',
+      AppBottomSection.medicine => 'Medicine Supply',
+      AppBottomSection.patients => 'Patients',
+      AppBottomSection.homeVisit => 'Home Visits',
+      AppBottomSection.nhc => 'Visit Assessment',
+    };
+  }
+
   static void _open(
     BuildContext context,
     Widget page, {
@@ -59,14 +84,15 @@ class AppBottomNavRouter {
       opaque: true,
       transitionDuration: _transitionDuration,
       reverseTransitionDuration: _transitionDuration,
-      pageBuilder: (_, _, _) => ColoredBox(color: Colors.white, child: page),
+      pageBuilder: (_, _, _) =>
+          ColoredBox(color: AppColors.background, child: page),
       transitionsBuilder: (_, animation, _, child) {
         final slideAnimation =
             Tween<Offset>(
               begin: Offset(forward ? 1 : -1, 0),
               end: Offset.zero,
             ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
+              CurvedAnimation(parent: animation, curve: AppMotion.easeInOut),
             );
         return ClipRect(
           child: SlideTransition(position: slideAnimation, child: child),

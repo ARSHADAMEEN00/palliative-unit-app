@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_icons.dart';
+import 'package:oruma_app/core/theme/app_motion.dart';
+import 'package:oruma_app/core/theme/app_radius.dart';
+import 'package:oruma_app/core/theme/app_spacing.dart';
 
 class ModuleSwitchTabs extends StatelessWidget {
   const ModuleSwitchTabs({
@@ -19,11 +23,11 @@ class ModuleSwitchTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 34,
-      padding: const EdgeInsets.all(3),
+      height: 40,
+      padding: const EdgeInsets.all(AppSpacing.xxs),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: AppRadius.md,
         border: Border.all(color: color.withValues(alpha: 0.14)),
       ),
       child: Row(
@@ -32,15 +36,16 @@ class ModuleSwitchTabs extends StatelessWidget {
           final selected = selectedIndex == index;
           return InkWell(
             onTap: selected ? null : () => onSelected(index),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: AppRadius.sm,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              height: 28,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              duration: AppMotion.fast,
+              curve: AppMotion.easeOutCubic,
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: selected ? color : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.sm,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -48,10 +53,10 @@ class ModuleSwitchTabs extends StatelessWidget {
                   if (icons != null) ...[
                     Icon(
                       icons![index],
-                      size: 15,
+                      size: AppIcons.small,
                       color: selected ? Colors.white : color,
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: AppSpacing.xs),
                   ],
                   Text(
                     labels[index],
@@ -59,8 +64,8 @@ class ModuleSwitchTabs extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: selected ? Colors.white : color,
-                      fontSize: 12,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                     ),
                   ),
                 ],

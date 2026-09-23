@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_icons.dart';
+import 'package:oruma_app/core/theme/app_motion.dart';
+import 'package:oruma_app/core/theme/app_radius.dart';
+import 'package:oruma_app/core/theme/app_shadow.dart';
+import 'package:oruma_app/core/theme/app_spacing.dart';
 
 class RevealActionFab extends StatefulWidget {
   final VoidCallback? onPressed;
@@ -62,77 +68,92 @@ class _RevealActionFabState extends State<RevealActionFab> {
 
     return Tooltip(
       message: widget.tooltip ?? widget.label,
-      child: Material(
-        color: enabled ? backgroundColor : theme.disabledColor,
-        elevation: enabled ? 6 : 0,
-        shadowColor: Colors.black.withValues(alpha: 0.24),
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: enabled ? _handleTap : null,
-          child: AnimatedContainer(
-            width: width,
-            height: _collapsedSize,
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.center,
-            padding: EdgeInsets.symmetric(horizontal: _expanded ? 18 : 0),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
-                );
-              },
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SizeTransition(
-                    axis: Axis.horizontal,
-                    axisAlignment: -1,
-                    sizeFactor: animation,
-                    child: child,
-                  ),
-                );
-              },
-              child: _expanded
-                  ? SizedBox(
-                      key: const ValueKey('expanded'),
-                      height: _collapsedSize,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(widget.icon, color: foregroundColor, size: 24),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            child: Text(
-                              widget.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: foregroundColor,
-                                fontSize: 16,
-                                height: 1,
-                                fontWeight: FontWeight.w700,
+      child: AnimatedContainer(
+        width: width,
+        height: _collapsedSize,
+        duration: AppMotion.normal,
+        curve: AppMotion.easeOutCubic,
+        decoration: BoxDecoration(
+          color: enabled ? backgroundColor : AppColors.surface2,
+          borderRadius: AppRadius.fab,
+          boxShadow: enabled ? AppShadow.medium : AppShadow.none,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: AppRadius.fab,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: enabled ? _handleTap : null,
+            borderRadius: AppRadius.fab,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: _expanded ? AppSpacing.md : 0,
+              ),
+              child: AnimatedSwitcher(
+                duration: AppMotion.fast,
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                switchInCurve: AppMotion.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(
+                      axis: Axis.horizontal,
+                      axisAlignment: -1,
+                      sizeFactor: animation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: _expanded
+                    ? SizedBox(
+                        key: const ValueKey('expanded'),
+                        height: _collapsedSize,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.icon,
+                              color: foregroundColor,
+                              size: AppIcons.large,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Flexible(
+                              child: Text(
+                                widget.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: foregroundColor,
+                                  fontSize: 16,
+                                  height: 1,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      )
+                    : Center(
+                        key: const ValueKey('collapsed'),
+                        child: Icon(
+                          Icons.add,
+                          color: foregroundColor,
+                          size: AppIcons.large,
+                        ),
                       ),
-                    )
-                  : Center(
-                      key: const ValueKey('collapsed'),
-                      child: Icon(Icons.add, color: foregroundColor, size: 28),
-                    ),
+              ),
             ),
           ),
         ),

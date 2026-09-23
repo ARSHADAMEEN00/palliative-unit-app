@@ -84,7 +84,12 @@ class _MedicineStockHistoryPageState extends State<MedicineStockHistoryPage> {
       appBar: AppBar(
         backgroundColor: _medicineDarkGreen,
         foregroundColor: Colors.white,
-        title: const Text('Stock History', style: TextStyle(fontSize: 18)),
+        iconTheme: const IconThemeData(color: Colors.white),
+        actionsIconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          'Stock History',
+          style: TextStyle(fontSize: 18, color: Colors.white),
+        ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -283,6 +288,7 @@ class _MedicineStockHistoryPageState extends State<MedicineStockHistoryPage> {
                         Icons.confirmation_number_outlined,
                         entry.batchNumber!.trim(),
                       ),
+                    _detailChip(Icons.label_outline, _sourceText(entry)),
                   ],
                 ),
                 if (footer.isNotEmpty) ...[
@@ -326,6 +332,23 @@ class _MedicineStockHistoryPageState extends State<MedicineStockHistoryPage> {
         ],
       ),
     );
+  }
+
+  String _sourceText(MedicineStockEntry entry) {
+    final label = entry.sourceLabel.trim().isEmpty
+        ? 'Main Stock'
+        : entry.sourceLabel.trim();
+    final patientName = entry.sourcePatientName?.trim();
+    final registerId = entry.sourcePatientRegisterId?.trim();
+    if (entry.sourceType == 'return' &&
+        patientName != null &&
+        patientName.isNotEmpty) {
+      final patientText = registerId != null && registerId.isNotEmpty
+          ? '$patientName ($registerId)'
+          : patientName;
+      return '$label • $patientText';
+    }
+    return label;
   }
 
   Widget _messageState(

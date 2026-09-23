@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_radius.dart';
 
 class ModulePalette {
   final Color cardBackground;
@@ -16,39 +18,39 @@ class ModulePalettes {
   ModulePalettes._();
 
   static const patients = ModulePalette(
-    cardBackground: Color(0xFFE6F1FB),
-    iconBackground: Color(0xFFB5D4F4),
-    primary: Color(0xFF185FA5),
+    cardBackground: Color(0xFFF2F7FF),
+    iconBackground: Color(0xFFDBEAFE),
+    primary: Color(0xFF2563EB),
   );
 
   static const homeVisits = ModulePalette(
-    cardBackground: Color(0xFFEAF3DE),
-    iconBackground: Color(0xFFC0DD97),
-    primary: Color(0xFF3B6D11),
+    cardBackground: Color(0xFFF0FDF4),
+    iconBackground: Color(0xFFDCFCE7),
+    primary: Color(0xFF16A34A),
   );
 
   static const equipmentSupply = ModulePalette(
-    cardBackground: Color(0xFFFAEEDA),
-    iconBackground: Color(0xFFFAC775),
-    primary: Color(0xFF854F0B),
+    cardBackground: Color(0xFFFFFBEB),
+    iconBackground: Color(0xFFFEF3C7),
+    primary: Color(0xFFF59E0B),
   );
 
   static const medicineSupply = ModulePalette(
-    cardBackground: Color(0xFFE1F5EE),
-    iconBackground: Color(0xFF9FE1CB),
-    primary: Color(0xFF0F6E56),
+    cardBackground: Color(0xFFF0FDFA),
+    iconBackground: Color(0xFFCCFBF1),
+    primary: Color(0xFF0F766E),
   );
 
   static const socialSupport = ModulePalette(
-    cardBackground: Color(0xFFF7E5EE),
-    iconBackground: Color(0xFFE8AEC9),
-    primary: Color(0xFF8A2454),
+    cardBackground: Color(0xFFFDF2F8),
+    iconBackground: Color(0xFFFCE7F3),
+    primary: Color(0xFFBE185D),
   );
 
   static const volunteers = ModulePalette(
-    cardBackground: Color(0xFFE3F4F3),
-    iconBackground: Color(0xFFACDDDA),
-    primary: Color(0xFF2F6F73),
+    cardBackground: Color(0xFFF0FDFA),
+    iconBackground: Color(0xFFCCFBF1),
+    primary: Color(0xFF0F766E),
   );
 }
 
@@ -63,18 +65,23 @@ class ModuleTheme extends StatelessWidget {
     final base = Theme.of(context);
     return Theme(
       data: base.copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: palette.primary,
+        colorScheme: base.colorScheme.copyWith(
           primary: palette.primary,
-          surface: Colors.white,
-          brightness: Brightness.light,
+          secondary: palette.primary,
+          surface: AppColors.surface,
+          onSurface: AppColors.text,
         ),
         progressIndicatorTheme: ProgressIndicatorThemeData(
           color: palette.primary,
         ),
         floatingActionButtonTheme: FloatingActionButtonThemeData(
+          elevation: 0,
+          focusElevation: 0,
+          hoverElevation: 0,
+          highlightElevation: 0,
           backgroundColor: palette.primary,
           foregroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.fab),
         ),
       ),
       child: child,

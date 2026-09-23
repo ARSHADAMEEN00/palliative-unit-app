@@ -1,10 +1,10 @@
-# Kodur PCC - Palliative Care Management System
+# Palliative App - Palliative Care Management System
 
-**Kodur PCC** is a comprehensive digital solution designed to support palliative care services with compassion and efficiency. This Flutter application empowers healthcare providers to deliver dignified, person-centered care to patients and families facing serious illness.
+**Palliative App** is a comprehensive digital solution designed to support palliative care services with compassion and efficiency. This Flutter application empowers healthcare providers to deliver dignified, person-centered care to patients and families facing serious illness.
 
-## About Kodur PCC
+## About Palliative App
 
-Kodur PCC (Palliative Care Center) is a complete management system that streamlines:
+Palliative App is a complete management system that streamlines:
 - **Patient Care Management**: Comprehensive patient records and care coordination
 - **Home Visit Scheduling**: Efficient planning and tracking of home-based care visits
 - **Equipment Tracking**: Medical equipment inventory and supply management
@@ -117,15 +117,15 @@ Create a `.env` file in the `server` directory:
 
 ```env
 PORT=3000
-MONGO_URI=mongodb://localhost:27017/oruma
+MONGO_URI=mongodb://localhost:27017/carenest
 ```
 
 ### App Icons & Branding
 
-The app uses **Kodur PCC** branding with custom icons generated from `assets/logo/logo.jpg`.
+The app uses **Palliative App** branding with custom icons generated from `assets/logo/app_icon.png`.
 
-**App Name**: Kodur PCC  
-**Logo Location**: `assets/logo/logo.jpg`
+**App Name**: Palliative App
+**Logo Location**: `assets/logo/app_icon.png`
 
 Icons are automatically generated for all platforms using `flutter_launcher_icons`. To regenerate icons after updating the logo:
 

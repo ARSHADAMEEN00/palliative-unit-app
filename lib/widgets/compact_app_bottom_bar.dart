@@ -1,4 +1,12 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_icons.dart';
+import 'package:oruma_app/core/theme/app_motion.dart';
+import 'package:oruma_app/core/theme/app_radius.dart';
+import 'package:oruma_app/core/theme/app_shadow.dart';
+import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
@@ -37,19 +45,23 @@ class CompactAppBottomBar extends StatelessWidget {
     AppBottomNavItem(
       AppBottomSection.homeVisit,
       Icons.home_work_outlined,
-      'Home Visit',
+      'Visits',
     ),
-    AppBottomNavItem(
-      AppBottomSection.nhc,
-      Icons.assignment_outlined,
-      'Visit (NHC)',
-    ),
+    AppBottomNavItem(AppBottomSection.nhc, Icons.assignment_outlined, 'NHC'),
   ];
 
   static List<AppBottomNavItem> visibleItems(AuthService auth) {
     return items.where((item) {
       if (item.section == AppBottomSection.medicine &&
-          !auth.canAccessMedicine) {
+          !auth.canAccessMedicineSupply) {
+        return false;
+      }
+      if (item.section == AppBottomSection.patients &&
+          !auth.canAccessPatients) {
+        return false;
+      }
+      if (item.section == AppBottomSection.homeVisit &&
+          !auth.canAccessHomeVisits) {
         return false;
       }
       if (item.section == AppBottomSection.nhc && !auth.canAccessNHC) {
@@ -75,71 +87,130 @@ class CompactAppBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = visibleItemsFor(maybeAuth(context));
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE8ECEF))),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 10,
-            offset: Offset(0, -2),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.surface.withValues(alpha: 0.92),
+            border: const Border(top: BorderSide(color: AppColors.border)),
+            boxShadow: AppShadow.small,
           ),
-        ],
+          child: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.only(
+              left: AppSpacing.sm,
+              right: AppSpacing.sm,
+              bottom: AppSpacing.xs,
+            ),
+            child: SizedBox(
+              height: 72,
+              child: Row(
+                children: items.map((item) {
+                  final selected = current == item.section;
+                  return Expanded(
+                    child: _BottomNavTile(
+                      item: item,
+                      selected: selected,
+                      onTap: () => onSelected(item.section),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
       ),
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: 2),
-        child: SizedBox(
-          height: 54,
-          child: Row(
-            children: items.map((item) {
-              final selected = current == item.section;
-              return Expanded(
-                child: Semantics(
-                  selected: selected,
-                  button: true,
-                  label: item.label,
+    );
+  }
+}
+
+class _BottomNavTile extends StatelessWidget {
+  const _BottomNavTile({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppBottomNavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.textSecondary;
+
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: item.label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 96),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxs),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: AppRadius.card,
+                  clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () => onSelected(item.section),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                    onTap: onTap,
+                    borderRadius: AppRadius.card,
+                    hoverColor: AppColors.surface2.withValues(alpha: 0.78),
+                    highlightColor: AppColors.primary.withValues(alpha: 0.06),
+                    splashColor: AppColors.primary.withValues(alpha: 0.08),
+                    child: AnimatedContainer(
+                      duration: AppMotion.normal,
+                      curve: AppMotion.easeOutCubic,
+                      width: double.infinity,
+                      height: 58,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: AppSpacing.xxs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primaryLight.withValues(alpha: 0.72)
+                            : Colors.transparent,
+                        borderRadius: AppRadius.card,
+                        border: selected
+                            ? Border.all(
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.08,
+                                ),
+                              )
+                            : null,
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            width: 34,
-                            height: 27,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? const Color(0xFFE7F5EF)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              item.icon,
-                              size: 19,
-                              color: selected
-                                  ? const Color(0xFF0F7A55)
-                                  : const Color(0xFF687582),
-                            ),
+                          Icon(
+                            item.icon,
+                            size: AppIcons.large,
+                            color: color,
                           ),
-                          const SizedBox(height: 1),
-                          Text(
-                            item.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: selected
-                                  ? const Color(0xFF0F7A55)
-                                  : const Color(0xFF687582),
-                              fontSize: 8.5,
-                              height: 1.1,
-                              fontWeight: selected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                          const SizedBox(height: 2),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              item.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 11,
+                                height: 1.05,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -147,8 +218,8 @@ class CompactAppBottomBar extends StatelessWidget {
                     ),
                   ),
                 ),
-              );
-            }).toList(),
+              ),
+            ),
           ),
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/homevisit.dart';
 import 'package:oruma_app/home_visit_search_page.dart';
 import 'package:oruma_app/models/home_visit.dart';
@@ -6,6 +7,7 @@ import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/config_service.dart';
+import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
@@ -14,7 +16,12 @@ import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_a
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/app_bottom_nav_router.dart';
+import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
+
+const _homeVisitPrimary = AppColors.success;
+const _homeVisitIconBackground = Color(0xFFDCFCE7);
 
 class HomeVisitListPage extends StatefulWidget {
   const HomeVisitListPage({super.key});
@@ -98,8 +105,8 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     });
     _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+      duration: AppMotion.page,
+      curve: AppMotion.easeOutCubic,
     );
   }
 
@@ -177,40 +184,50 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    const primaryColor = _homeVisitPrimary;
     final now = DateTime.now();
     final isToday = _isSameDay(_selectedDate, now);
 
     return AdaptiveAppScaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("Home Visits", style: TextStyle(fontSize: 18)),
+        toolbarHeight: 72,
+        titleSpacing: AppSpacing.md,
+        title: Text(
+          "Home Visits",
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        scrolledUnderElevation: 0,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
         actions: [
           if (!isToday)
-            TextButton.icon(
-              onPressed: _goToToday,
-              icon: const Icon(Icons.today, size: 18),
-              label: const Text("Today"),
-              style: TextButton.styleFrom(foregroundColor: primaryColor),
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: _HomeVisitTodayButton(onPressed: _goToToday),
             ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const HomeVisitSearchPage(),
-                ),
-              );
-              _refreshVisits();
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.xs),
+            child: _HomeVisitIconButton(
+              icon: Icons.search,
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HomeVisitSearchPage(),
+                  ),
+                );
+                _refreshVisits();
+              },
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshVisits,
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.md),
+            child: _HomeVisitIconButton(
+              icon: Icons.refresh,
+              onPressed: _refreshVisits,
+            ),
           ),
         ],
       ),
@@ -222,7 +239,7 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
         future: _visitsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppListSkeleton(itemCount: 5);
           } else if (snapshot.hasError) {
             return _buildErrorState(snapshot.error.toString());
           }
@@ -234,9 +251,6 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
 
               // Date Tabs
               _buildDateTabs(primaryColor),
-
-              // Selected Date Header
-              _buildSelectedDateHeader(),
 
               // Visits for Selected Date (PageView for swipe)
               Expanded(
@@ -285,45 +299,76 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
 
   Widget _buildWeekNavigationHeader(Color primaryColor) {
     final monthYear = DateFormat('MMMM yyyy').format(_selectedDate);
+    final visitCount = _getVisitCountForDate(_selectedDate);
+    final selectedDateLabel = _getSelectedDateLabel();
+    final selectedDate = DateFormat('d MMM yyyy').format(_selectedDate);
 
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            onPressed: _goToPreviousWeek,
-            icon: const Icon(Icons.chevron_left),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.grey.shade100,
-              foregroundColor: Colors.grey.shade700,
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xxs,
+      ),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        surfaceLevel: AppSurfaceLevel.elevated,
+        child: Row(
+          children: [
+            _HomeVisitIconButton(
+              icon: Icons.chevron_left,
+              onPressed: _goToPreviousWeek,
             ),
-          ),
-          Text(
-            monthYear,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          IconButton(
-            onPressed: _goToNextWeek,
-            icon: const Icon(Icons.chevron_right),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.grey.shade100,
-              foregroundColor: Colors.grey.shade700,
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    monthYear,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xxs,
+                    children: [
+                      Text(
+                        '$selectedDateLabel, $selectedDate',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      _buildVisitCountChip(visitCount),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            _HomeVisitIconButton(
+              icon: Icons.chevron_right,
+              onPressed: _goToNextWeek,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildDateTabs(Color primaryColor) {
-    return Container(
-      height: 90,
-      color: Colors.white,
+    return SizedBox(
+      height: 84,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xxs,
+        ),
         itemCount: _weekDates.length,
         itemBuilder: (context, index) {
           final date = _weekDates[index];
@@ -332,79 +377,83 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
           final visitCount = _getVisitCountForDate(date);
           final hasVisits = visitCount > 0;
 
-          return GestureDetector(
-            onTap: () => _onDateSelected(index),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 60,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? primaryColor
-                    : isToday
-                    ? primaryColor.withOpacity(0.1)
-                    : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(16),
-                border: isToday && !isSelected
-                    ? Border.all(color: primaryColor, width: 2)
-                    : null,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    DateFormat('EEE').format(date).toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected
-                          ? Colors.white.withOpacity(0.8)
-                          : Colors.grey.shade600,
-                    ),
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxs),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: AppRadius.card,
+              child: InkWell(
+                borderRadius: AppRadius.card,
+                onTap: () => _onDateSelected(index),
+                child: AnimatedContainer(
+                  duration: AppMotion.normal,
+                  curve: AppMotion.easeOutCubic,
+                  width: 58,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? primaryColor
+                        : isToday
+                        ? primaryColor.withValues(alpha: 0.1)
+                        : AppColors.surface,
+                    borderRadius: AppRadius.card,
+                    border: isToday && !isSelected
+                        ? Border.all(color: primaryColor, width: 2)
+                        : Border.all(color: AppColors.border),
+                    boxShadow: isSelected ? AppShadow.medium : AppShadow.small,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    DateFormat('d').format(date),
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  if (hasVisits)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.white.withOpacity(0.25)
-                            : primaryColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$visitCount',
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        DateFormat('EEE').format(date).toUpperCase(),
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : primaryColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? AppColors.textInverse.withValues(alpha: 0.82)
+                              : AppColors.textSecondary,
                         ),
                       ),
-                    )
-                  else
-                    const SizedBox(height: 12),
-                ],
+                      const SizedBox(height: 2),
+                      Text(
+                        DateFormat('d').format(date),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected
+                              ? AppColors.textInverse
+                              : AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      if (hasVisits)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.textInverse.withValues(alpha: 0.22)
+                                : primaryColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$visitCount',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected
+                                  ? AppColors.textInverse
+                                  : primaryColor,
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 10),
+                    ],
+                  ),
+                ),
               ),
             ),
           );
@@ -413,8 +462,7 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     );
   }
 
-  Widget _buildSelectedDateHeader() {
-    final visitCount = _getVisitCountForDate(_selectedDate);
+  String _getSelectedDateLabel() {
     final isToday = _isSameDay(_selectedDate, DateTime.now());
     final isTomorrow = _isSameDay(
       _selectedDate,
@@ -425,76 +473,46 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
       DateTime.now().subtract(const Duration(days: 1)),
     );
 
-    String dateLabel;
     if (isToday) {
-      dateLabel = "Today";
-    } else if (isTomorrow) {
-      dateLabel = "Tomorrow";
-    } else if (isYesterday) {
-      dateLabel = "Yesterday";
-    } else {
-      dateLabel = DateFormat('EEEE').format(_selectedDate);
+      return "Today";
     }
+    if (isTomorrow) {
+      return "Tomorrow";
+    }
+    if (isYesterday) {
+      return "Yesterday";
+    }
+    return DateFormat('EEEE').format(_selectedDate);
+  }
 
-    final fullDate = DateFormat('d MMMM yyyy').format(_selectedDate);
+  Widget _buildVisitCountChip(int visitCount) {
+    final hasVisits = visitCount > 0;
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 3,
+      ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: hasVisits
+            ? _homeVisitPrimary.withValues(alpha: 0.1)
+            : AppColors.surface1,
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  dateLabel,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  fullDate,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
+          Icon(
+            Icons.home_work_outlined,
+            size: AppIcons.small,
+            color: hasVisits ? _homeVisitPrimary : AppColors.textMuted,
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: visitCount > 0
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                  : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.home_work_outlined,
-                  size: 18,
-                  color: visitCount > 0
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey.shade500,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$visitCount ${visitCount == 1 ? 'visit' : 'visits'}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: visitCount > 0
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey.shade500,
-                  ),
-                ),
-              ],
+          const SizedBox(width: AppSpacing.xxs),
+          Text(
+            '$visitCount ${visitCount == 1 ? 'visit' : 'visits'}',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: hasVisits ? _homeVisitPrimary : AppColors.textMuted,
             ),
           ),
         ],
@@ -508,9 +526,15 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+        AppInsets.screenHorizontal(context),
+        112,
+      ),
       itemCount: visits.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppSpacing.sm),
       itemBuilder: (context, index) {
         final visit = visits[index];
         return _buildVisitCard(context, visit, index + 1);
@@ -523,176 +547,156 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     HomeVisit visit,
     int visitNumber,
   ) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
     final patient = visit.patientDetails;
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        onTap: () => _showVisitDetails(context, visit),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Visit Number Badge
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    '#$visitNumber',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      surfaceLevel: AppSurfaceLevel.elevated,
+      onTap: () => _showVisitDetails(context, visit),
+      child: Row(
+        children: [
+          // Visit Number Badge
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: _homeVisitIconBackground,
+              borderRadius: AppRadius.md,
+            ),
+            child: Center(
+              child: Text(
+                '#$visitNumber',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: _homeVisitPrimary,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 16),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
 
-              // Visit Details
-              Expanded(
-                child: Stack(
+          // Visit Details
+          Expanded(
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Text(
+                      visit.patientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Row(
                       children: [
-                        Text(
-                          visit.patientName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: AppIcons.small,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(width: AppSpacing.xxs),
+                        Expanded(
+                          child: Text(
+                            visit.address,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppColors.textSecondary),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on_outlined,
-                              size: 14,
-                              color: Colors.grey.shade500,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                visit.address,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (patient != null && patient.registerId != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.badge_outlined,
-                                size: 14,
-                                color: Colors.grey.shade500,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  "Register Id : ${patient.registerId}",
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        if (patient != null && patient.plan.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.assignment_outlined,
-                                size: 14,
-                                color: Colors.grey.shade500,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  "Plan : ${patient.plan}",
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        if (visit.notes != null && visit.notes!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.notes_outlined,
-                                size: 14,
-                                color: Colors.grey.shade500,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  visit.notes!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 12,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        // Small extra spacing to make room for badge if needed
-                        const SizedBox(height: 4),
                       ],
                     ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: _buildVisitModeBadge(visit.visitMode),
-                    ),
+                    if (patient != null && patient.registerId != null) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.badge_outlined,
+                            size: AppIcons.small,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: AppSpacing.xxs),
+                          Expanded(
+                            child: Text(
+                              "ID ${patient.registerId}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (patient != null && patient.plan.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.assignment_outlined,
+                            size: AppIcons.small,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: AppSpacing.xxs),
+                          Expanded(
+                            child: Text(
+                              "Plan ${patient.plan}",
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (visit.notes != null && visit.notes!.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.notes_outlined,
+                            size: AppIcons.small,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: AppSpacing.xxs),
+                          Expanded(
+                            child: Text(
+                              visit.notes!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    // Small extra spacing to make room for badge if needed
+                    const SizedBox(height: AppSpacing.xxs),
                   ],
                 ),
-              ),
-
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-            ],
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: _buildVisitModeBadge(visit.visitMode),
+                ),
+              ],
+            ),
           ),
-        ),
+
+          const SizedBox(width: AppSpacing.xs),
+          const Icon(
+            Icons.chevron_right,
+            size: AppIcons.large,
+            color: AppColors.textMuted,
+          ),
+        ],
       ),
     );
   }
@@ -705,41 +709,41 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     switch (mode) {
       case 'new':
         icon = Icons.add_circle_outline;
-        color = Colors.green;
+        color = AppColors.success;
         label = 'New';
         break;
       case 'monthly':
         icon = Icons.calendar_month_outlined;
-        color = Colors.blue;
-        label = 'Monthly';
+        color = AppColors.primary;
+        label = 'Planned NHC';
         break;
       case 'emergency':
-        icon = Icons.emergency;
-        color = Colors.red;
+        icon = Icons.emergency_outlined;
+        color = AppColors.danger;
         label = 'Emergency';
         break;
       case 'dhc_visit':
         icon = Icons.home_work_outlined;
-        color = Colors.orange;
+        color = AppColors.warning;
         label = 'DHC';
         break;
       case 'vhc_visit':
         icon = Icons.local_hospital_outlined;
-        color = Colors.purple;
+        color = AppColors.scheduled;
         label = 'VHC';
         break;
       default:
         icon = Icons.help_outline;
-        color = Colors.grey;
+        color = AppColors.textSecondary;
         label = mode.toUpperCase();
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.2), width: 0.5),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -773,73 +777,39 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade500,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getVisitModeLabel(String visitMode) {
-    switch (visitMode) {
-      case 'new':
-        return 'New';
-      case 'monthly':
-        return 'Monthly';
-      case 'emergency':
-        return 'Emergency';
-      case 'dhc_visit':
-        return 'DHC';
-      case 'vhc_visit':
-        return 'VHC';
-      default:
-        return visitMode.toUpperCase();
-    }
-  }
-
   Future<void> _deleteVisit(HomeVisit visit) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete Visit?"),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: _HomeVisitDialogHeader(
+          icon: Icons.delete_outline,
+          title: 'Delete visit?',
+          color: AppColors.danger,
+        ),
         content: Text(
           "Are you sure you want to delete the visit for ${visit.patientName}?",
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
         ),
         actions: [
-          TextButton(
+          AppSecondaryButton(
+            label: 'Cancel',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
           ),
-          TextButton(
+          AppDangerButton(
+            label: 'Delete',
+            icon: Icons.delete_outline,
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -855,14 +825,17 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Visit deleted successfully"),
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.success,
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text("Error: $e"),
+              backgroundColor: AppColors.danger,
+            ),
           );
         }
       }
@@ -878,71 +851,138 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
   }
 
   Widget _buildEmptyDayState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.event_available_outlined,
-              size: 48,
-              color: Colors.grey.shade400,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "No visits scheduled",
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "This day is free!",
-            style: TextStyle(color: Colors.grey.shade400),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.event_available_outlined,
+      title: 'No visits scheduled',
+      message: 'This day is free. Scheduled visits will appear here.',
     );
   }
 
   Widget _buildErrorState(String error) {
-    // Log the error for debugging
-    print('HomeVisitListPage Error: $error');
+    return AppEmptyState(
+      icon: Icons.error_outline_rounded,
+      title: 'Could not load visits',
+      message: error,
+      action: AppPrimaryButton(
+        label: 'Try Again',
+        icon: Icons.refresh,
+        onPressed: _refreshVisits,
+      ),
+    );
+  }
+}
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 64,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "Oops! Something went wrong",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _refreshVisits,
-              child: const Text("Try Again"),
-            ),
-          ],
+class _HomeVisitIconButton extends StatelessWidget {
+  const _HomeVisitIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, color: AppColors.text, size: AppIcons.large),
         ),
       ),
+    );
+  }
+}
+
+class _HomeVisitTodayButton extends StatelessWidget {
+  const _HomeVisitTodayButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          height: 48,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.today_outlined,
+                  color: AppColors.primary,
+                  size: AppIcons.normal,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'Today',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 5,
+      decoration: BoxDecoration(
+        color: AppColors.borderStrong,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _HomeVisitDialogHeader extends StatelessWidget {
+  const _HomeVisitDialogHeader({
+    required this.icon,
+    required this.title,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: color, size: AppIcons.large),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+      ],
     );
   }
 }
@@ -967,17 +1007,22 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
   @override
   Widget build(BuildContext context) {
     final date = DateTime.tryParse(widget.visit.visitDate);
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    const primaryColor = _homeVisitPrimary;
     final patient = widget.visit.patientDetails;
     final mediaQuery = MediaQuery.of(context);
     final bottomSafePadding = mediaQuery.viewPadding.bottom;
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: AppColors.surface,
+        borderRadius: AppRadius.sheet,
       ),
-      padding: EdgeInsets.fromLTRB(16, 20, 16, 16 + bottomSafePadding),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.lg + bottomSafePadding,
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: mediaQuery.size.height * 0.85),
         child: SingleChildScrollView(
@@ -985,6 +1030,8 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Center(child: _SheetHandle()),
+              const SizedBox(height: AppSpacing.lg),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -992,33 +1039,30 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           "Home Visit Details",
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           widget.visit.patientName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                         if (patient != null &&
                             patient.registerId != null &&
                             patient.registerId!.isNotEmpty) ...[
                           const SizedBox(height: 3),
                           Text(
-                            "ID: ${patient!.registerId}",
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: primaryColor,
-                            ),
+                            "ID: ${patient.registerId}",
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryColor,
+                                ),
                           ),
                         ],
                       ],
@@ -1026,10 +1070,10 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                   ),
                   Container(
                     decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      color: primaryColor.withValues(alpha: 0.1),
+                      borderRadius: AppRadius.md,
                     ),
-                    padding: const EdgeInsets.all(10),
+                    padding: AppInsets.sm,
                     child: Icon(
                       Icons.home_work_rounded,
                       color: primaryColor,
@@ -1038,20 +1082,18 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
 
               // Patient Information Section
               if (patient != null) ...[
-                const Text(
+                Text(
                   "Patient Information",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                    letterSpacing: 0.5,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: 8,
                   runSpacing: 12,
@@ -1092,7 +1134,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.sm),
                 if (patient.disease.isNotEmpty)
                   _buildDetailRow(
                     Icons.medical_services,
@@ -1105,17 +1147,15 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                     "Diseases",
                     "No diseases recorded",
                   ),
-                const SizedBox(height: 20),
-                const Text(
+                const SizedBox(height: AppSpacing.lg),
+                Text(
                   "Visit Information",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                    letterSpacing: 0.5,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
               ],
 
               _buildDetailRow(
@@ -1125,7 +1165,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                     ? DateFormat('EEEE, d MMMM yyyy').format(date)
                     : "Invalid date",
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.sm),
 
               if (patient != null)
                 _buildEditableDetailRow(
@@ -1142,13 +1182,13 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                   "Care Plan",
                   "No plan assigned",
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.sm),
               _buildDetailRow(
                 Icons.medical_services_outlined,
                 "Visit Mode",
                 _getVisitModeLabel(widget.visit.visitMode),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.sm),
               _buildDetailRow(
                 Icons.location_on,
                 "Address",
@@ -1156,7 +1196,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                     ? widget.visit.address
                     : "No address provided",
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.sm),
 
               _buildDetailRow(
                 Icons.group,
@@ -1165,7 +1205,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                     ? widget.visit.team!
                     : "No team assigned",
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.sm),
               if (widget.visit.notes != null && widget.visit.notes!.isNotEmpty)
                 _buildDetailRow(Icons.notes, "Notes", widget.visit.notes!)
               else
@@ -1175,37 +1215,40 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                   padding: const EdgeInsets.only(top: 16),
                   child: Text(
                     "Created by: ${widget.visit.createdBy}",
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                   ),
                 ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: widget.visit.id == null
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VisitAssessmentModuleScreen(
-                              visit: widget.visit,
-                              patient: patient,
+              const SizedBox(height: AppSpacing.lg),
+              if (context.read<AuthService>().canAccessNHC)
+                AppPrimaryButton(
+                  label: 'NHC / Visit Assessment',
+                  icon: Icons.assignment_outlined,
+                  fullWidth: true,
+                  onPressed: widget.visit.id == null
+                      ? null
+                      : () {
+                          if (!FeaturePermissionMiddleware.ensure(
+                            context,
+                            AppFeature.nhcAssessment,
+                            moduleName: 'Visit Assessment',
+                          )) {
+                            return;
+                          }
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VisitAssessmentModuleScreen(
+                                visit: widget.visit,
+                                patient: patient,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                icon: const Icon(Icons.assignment_outlined),
-                label: const Text('NHC / Visit Assessment'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF14865D),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                          );
+                        },
                 ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
                   if (context.read<AuthService>().canDelete) ...[
@@ -1215,26 +1258,21 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                           Navigator.pop(context);
                           widget.onDelete();
                         },
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.red,
-                        ),
-                        label: const Text(
-                          "Delete",
-                          style: TextStyle(color: Colors.red),
-                        ),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text("Delete"),
                         style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
                           minimumSize: const Size.fromHeight(52),
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Colors.red),
+                          side: const BorderSide(color: AppColors.danger),
                           tapTargetSize: MaterialTapTargetSize.padded,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: AppRadius.button,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: AppSpacing.md),
                   ],
                   if (context.read<AuthService>().canEdit)
                     Expanded(
@@ -1256,13 +1294,13 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                         label: const Text("Edit Details"),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppColors.textInverse,
                           minimumSize: const Size.fromHeight(52),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           elevation: 0,
                           tapTargetSize: MaterialTapTargetSize.padded,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: AppRadius.button,
                           ),
                         ),
                       ),
@@ -1280,27 +1318,33 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF3B6D11)),
-        const SizedBox(width: 10),
+        Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: _homeVisitIconBackground,
+            borderRadius: AppRadius.sm,
+          ),
+          child: Icon(icon, size: AppIcons.small, color: _homeVisitPrimary),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade500,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 value,
-                style: const TextStyle(
-                  fontSize: 15,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+                  color: AppColors.text,
                 ),
               ),
             ],
@@ -1315,7 +1359,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
       case 'new':
         return 'New';
       case 'monthly':
-        return 'Monthly';
+        return 'Planned NHC';
       case 'emergency':
         return 'Emergency';
       case 'dhc_visit':
@@ -1336,45 +1380,53 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF3B6D11)),
-        const SizedBox(width: 10),
+        Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: _homeVisitIconBackground,
+            borderRadius: AppRadius.sm,
+          ),
+          child: Icon(icon, size: AppIcons.small, color: _homeVisitPrimary),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade500,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 value,
-                style: const TextStyle(
-                  fontSize: 15,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+                  color: AppColors.text,
                 ),
               ),
             ],
           ),
         ),
         if (onEdit != null)
-          GestureDetector(
-            onTap: onEdit,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.edit_outlined,
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
+          Material(
+            color: _homeVisitPrimary.withValues(alpha: 0.1),
+            borderRadius: AppRadius.sm,
+            child: InkWell(
+              borderRadius: AppRadius.sm,
+              onTap: onEdit,
+              child: const SizedBox(
+                width: 36,
+                height: 36,
+                child: Icon(
+                  Icons.edit_outlined,
+                  size: AppIcons.small,
+                  color: _homeVisitPrimary,
+                ),
               ),
             ),
           ),
@@ -1407,7 +1459,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Patient information updated successfully"),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
       // Refresh visits data to get updated patient information
@@ -1420,7 +1472,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Error updating patient: $e"),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.danger,
         ),
       );
     }
@@ -1485,19 +1537,21 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    const primaryColor = _homeVisitPrimary;
 
     if (_isLoadingConfig) {
       return Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(16),
         child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: AppRadius.dialog,
           ),
-          padding: const EdgeInsets.all(40),
-          child: const Center(child: CircularProgressIndicator()),
+          padding: AppInsets.xl,
+          child: const Center(
+            child: CircularProgressIndicator(color: _homeVisitPrimary),
+          ),
         ),
       );
     }
@@ -1507,35 +1561,23 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(16),
         child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: AppRadius.dialog,
           ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              const Text(
-                'Failed to load configuration',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _configError!,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() => _isLoadingConfig = true);
-                  _loadConfig();
-                },
-                child: const Text('Retry'),
-              ),
-            ],
+          padding: AppInsets.lg,
+          child: AppEmptyState(
+            icon: Icons.error_outline,
+            title: 'Failed to load configuration',
+            message: _configError!,
+            action: AppPrimaryButton(
+              label: 'Retry',
+              icon: Icons.refresh,
+              onPressed: () {
+                setState(() => _isLoadingConfig = true);
+                _loadConfig();
+              },
+            ),
           ),
         ),
       );
@@ -1545,13 +1587,13 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(16),
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.dialog,
         ),
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: AppInsets.lg,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1560,40 +1602,42 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Edit Patient Info",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Edit Patient Info",
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.patient.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
+                          const SizedBox(height: AppSpacing.xxs),
+                          Text(
+                            widget.patient.name,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppColors.textSecondary),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(10),
+                    Material(
+                      color: AppColors.surface1,
+                      borderRadius: AppRadius.md,
+                      child: InkWell(
+                        borderRadius: AppRadius.md,
+                        onTap: () => Navigator.pop(context),
+                        child: const SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Icon(
+                            Icons.close,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                        child: Icon(Icons.close, color: Colors.grey.shade600),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.lg),
 
                 // Care Plan Section
                 Column(
@@ -1606,37 +1650,25 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
                           color: primaryColor,
                           size: 18,
                         ),
-                        const SizedBox(width: 8),
-                        const Text(
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
                           "Care Plan",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.sm),
                     DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        hintText: "Select care plan...",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: primaryColor, width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
-                      value: _selectedPlan,
+                      decoration: _dialogInputDecoration(
+                        'Care Plan',
+                        Icons.assignment_outlined,
+                      ).copyWith(hintText: "Select care plan..."),
+                      initialValue: _selectedPlan,
+                      style: AppTypography.dropdownTextStyle(context),
                       items: _availablePlans
                           .map(
                             (plan) => DropdownMenuItem(
@@ -1656,7 +1688,7 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.lg),
 
                 // Diseases Section
                 Column(
@@ -1669,24 +1701,43 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
                           color: primaryColor,
                           size: 18,
                         ),
-                        const SizedBox(width: 8),
-                        const Text(
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
                           "Diseases",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.sm),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
                       children: _availableDiseases.map((disease) {
                         final isSelected = _selectedDiseases.contains(disease);
-                        return GestureDetector(
-                          onTap: () {
+                        return FilterChip(
+                          label: Text(disease),
+                          selected: isSelected,
+                          selectedColor: primaryColor,
+                          backgroundColor: AppColors.surface1,
+                          checkmarkColor: AppColors.textInverse,
+                          side: BorderSide(
+                            color: isSelected ? primaryColor : AppColors.border,
+                          ),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: AppRadius.button,
+                          ),
+                          labelStyle: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: isSelected
+                                    ? AppColors.textInverse
+                                    : AppColors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
+                          onSelected: (_) {
                             setState(() {
                               if (isSelected) {
                                 _selectedDiseases.remove(disease);
@@ -1695,107 +1746,31 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
                               }
                             });
                           },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? primaryColor
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                              border: isSelected
-                                  ? null
-                                  : Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  disease,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey.shade700,
-                                  ),
-                                ),
-                                if (isSelected) ...[
-                                  const SizedBox(width: 6),
-                                  const Icon(
-                                    Icons.check,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
                         );
                       }).toList(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: AppSpacing.xl),
 
                 // Action Buttons
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
+                      child: AppSecondaryButton(
+                        label: 'Cancel',
                         onPressed: _isSaving
                             ? null
                             : () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: BorderSide(
-                            color: _isSaving
-                                ? Colors.grey.shade300
-                                : Colors.grey.shade300,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          "Cancel",
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: ElevatedButton(
+                      child: AppPrimaryButton(
+                        label: 'Save Changes',
+                        icon: Icons.save_outlined,
+                        loading: _isSaving,
                         onPressed: _isSaving ? null : _saveChanges,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          disabledBackgroundColor: primaryColor.withOpacity(
-                            0.5,
-                          ),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Text(
-                                "Save Changes",
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
                       ),
                     ),
                   ],
@@ -1808,13 +1783,58 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
     );
   }
 
+  InputDecoration _dialogInputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      isDense: true,
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: Container(
+        width: 36,
+        height: 36,
+        margin: const EdgeInsets.all(6),
+        decoration: const BoxDecoration(
+          color: _homeVisitIconBackground,
+          borderRadius: AppRadius.sm,
+        ),
+        child: Icon(icon, size: AppIcons.normal, color: _homeVisitPrimary),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      filled: true,
+      fillColor: AppColors.surface1,
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _homeVisitPrimary, width: 1.4),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+    );
+  }
+
   Future<void> _saveChanges() async {
     // Validate selections
     if (_selectedDiseases.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Please select at least one disease"),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -1824,7 +1844,7 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Please select a care plan"),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -1860,7 +1880,10 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text("Error: $e"),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     }

@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_theme.dart';
 import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/loginscreen.dart';
 import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/trial_ended_screen.dart';
 import 'package:oruma_app/widgets/slide_page_route.dart';
 import 'package:provider/provider.dart';
 
@@ -37,57 +40,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lightTheme = ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.indigo,
-        brightness: Brightness.light,
-      ),
-      scaffoldBackgroundColor: Colors.grey.shade50,
-      appBarTheme: const AppBarTheme(
-        elevation: 0,
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black87,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-      ),
-      cardTheme: CardThemeData(
-        color: Colors.white,
-        elevation: 1,
-        surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 14,
-          horizontal: 12,
-        ),
-      ),
-      // Apply smooth slide transitions globally to every MaterialPageRoute
-      pageTransitionsTheme: PageTransitionsTheme(
-        builders: {
-          for (final platform in TargetPlatform.values)
-            platform: _OrumaPageTransitionsBuilder(),
-        },
-      ),
+    final pageTransitionsTheme = PageTransitionsTheme(
+      builders: {
+        for (final platform in TargetPlatform.values)
+          platform: _PalliativeAppPageTransitionsBuilder(),
+      },
     );
+    final lightTheme = AppTheme.light(
+      pageTransitionsTheme: pageTransitionsTheme,
+    );
+    final darkTheme = AppTheme.dark(pageTransitionsTheme: pageTransitionsTheme);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Oruma App',
+      title: 'Palliative App',
       themeMode: ThemeMode.light,
       builder: (context, child) {
         final content = child ?? const SizedBox.shrink();
@@ -99,16 +65,20 @@ class MyApp extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 900),
             child: Container(
               width: double.infinity,
-              color: Colors.grey.shade50,
+              color: AppColors.background,
               child: content,
             ),
           ),
         );
       },
       theme: lightTheme,
-      darkTheme: lightTheme,
+      darkTheme: darkTheme,
       home: Consumer<AuthService>(
         builder: (context, auth, _) {
+          if (auth.isAccessBlocked) {
+            return const TrialEndedScreen();
+          }
+
           return auth.isAuthenticated
               ? const Homescreen()
               : const Loginscreen();
@@ -121,7 +91,7 @@ class MyApp extends StatelessWidget {
 /// Hooks Flutter's [PageTransitionsTheme] system so that every
 /// [MaterialPageRoute] automatically uses the smooth slide transition
 /// defined in [buildSlideTransition].
-class _OrumaPageTransitionsBuilder extends PageTransitionsBuilder {
+class _PalliativeAppPageTransitionsBuilder extends PageTransitionsBuilder {
   @override
   Widget buildTransitions<T>(
     PageRoute<T> route,
@@ -130,12 +100,6 @@ class _OrumaPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return buildSlideTransition(
-      context,
-      animation,
-      secondaryAnimation,
-      child,
-    );
+    return buildSlideTransition(context, animation, secondaryAnimation, child);
   }
 }
-

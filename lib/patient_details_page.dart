@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/features/visit_assessment/domain/visit_assessment.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_list_screen.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/models/home_visit.dart';
-import 'package:oruma_app/models/medicine_supply.dart';
+import 'package:oruma_app/models/medicine_supply_activity.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/patient_details.dart';
 import 'package:oruma_app/models/social_support.dart';
@@ -13,6 +14,7 @@ import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/patient_details_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/patient_pdf_generator.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/deceased_icon.dart';
 import 'package:oruma_app/features/visit_assessment/data/visit_assessment_pdf_generator.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
@@ -22,9 +24,19 @@ import 'package:printing/printing.dart';
 
 enum _PatientAction { markDeceased, delete }
 
-const _patientCardBackground = Color(0xFFE6F1FB);
-const _patientIconBackground = Color(0xFFB5D4F4);
-const _patientPrimary = Color(0xFF185FA5);
+enum _PatientDetailsTab {
+  overview,
+  medical,
+  homeVisits,
+  equipment,
+  assessments,
+  medicines,
+  socialSupport,
+}
+
+const _patientCardBackground = AppColors.surface;
+const _patientIconBackground = AppColors.primaryLight;
+const _patientPrimary = AppColors.primary;
 
 class PatientDetailsPage extends StatefulWidget {
   final Patient patient;
@@ -35,11 +47,9 @@ class PatientDetailsPage extends StatefulWidget {
   State<PatientDetailsPage> createState() => _PatientDetailsPageState();
 }
 
-class _PatientDetailsPageState extends State<PatientDetailsPage>
-    with SingleTickerProviderStateMixin {
+class _PatientDetailsPageState extends State<PatientDetailsPage> {
   late Patient _currentPatient;
   late PatientDetails _details;
-  late final TabController _tabController;
 
   bool _detailsLoading = true;
   bool _isMutating = false;
@@ -51,14 +61,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     super.initState();
     _currentPatient = widget.patient;
     _details = PatientDetails(patient: widget.patient);
-    _tabController = TabController(length: 7, vsync: this);
     _loadDetails();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadDetails({bool showLoader = true}) async {
@@ -125,20 +128,36 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete patient?'),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: _PatientDialogHeader(
+          icon: Icons.delete_outline,
+          title: 'Delete patient?',
+          color: AppColors.danger,
+        ),
         content: Text(
           'Delete ${_displayName(_currentPatient.name)} permanently? '
           'This action cannot be undone.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md,
         ),
         actions: [
-          TextButton(
+          AppSecondaryButton(
+            label: 'Cancel',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          FilledButton(
+          AppDangerButton(
+            label: 'Delete',
+            icon: Icons.delete_outline,
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -151,7 +170,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       await PatientService.deletePatient(patientId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patient deleted successfully')),
+        const SnackBar(
+          content: Text('Patient deleted successfully'),
+          backgroundColor: AppColors.success,
+        ),
       );
       Navigator.pop(context, true);
     } catch (error) {
@@ -176,20 +198,36 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Mark as passed away?'),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: _PatientDialogHeader(
+          icon: Icons.person_off_outlined,
+          title: 'Mark as passed away?',
+          color: AppColors.danger,
+        ),
         content: Text(
           '${_displayName(_currentPatient.name)} will be marked as passed '
           'away on ${DateFormat('dd MMM yyyy').format(selectedDate)}.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md,
         ),
         actions: [
-          TextButton(
+          AppSecondaryButton(
+            label: 'Cancel',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          FilledButton(
+          AppDangerButton(
+            label: 'Confirm',
+            icon: Icons.check,
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -211,7 +249,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       await _loadDetails(showLoader: false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patient marked as passed away')),
+        const SnackBar(
+          content: Text('Patient marked as passed away'),
+          backgroundColor: AppColors.success,
+        ),
       );
     } catch (error) {
       if (!mounted) return;
@@ -251,6 +292,15 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   }
 
   Future<void> _openVisitAssessments() async {
+    if (!context.read<AuthService>().canAccessNHC) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('NHC Visit Assessment is not enabled for this unit.'),
+        ),
+      );
+      return;
+    }
+
     final patientId = _currentPatient.id;
     if (patientId == null || patientId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -286,50 +336,74 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     final auth = context.watch<AuthService>();
     final canShowMenu =
         auth.canDelete || (auth.canEdit && !_currentPatient.isDead);
+    final visibleTabs = _visiblePatientTabs(auth);
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              _buildCollapsibleAppBar(auth, canShowMenu),
-              if (_detailsLoading)
-                const SliverToBoxAdapter(
-                  child: LinearProgressIndicator(
-                    minHeight: 2,
-                    color: _patientPrimary,
-                    backgroundColor: _patientIconBackground,
+    return DefaultTabController(
+      length: visibleTabs.length,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(
+          children: [
+            NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                _buildCollapsibleAppBar(auth, canShowMenu),
+                if (_detailsLoading)
+                  const SliverToBoxAdapter(
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      color: AppColors.primary,
+                      backgroundColor: AppColors.primaryLight,
+                    ),
+                  ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _PatientTabsHeaderDelegate(
+                    child: _buildTabs(visibleTabs),
                   ),
                 ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _PatientTabsHeaderDelegate(child: _buildTabs()),
-              ),
-            ],
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(),
-                _buildMedicalTab(),
-                _buildHomeVisitsTab(),
-                _buildEquipmentTab(),
-                _buildAssessmentsTab(),
-                _buildMedicineSuppliesTab(),
-                _buildSocialSupportTab(),
               ],
-            ),
-          ),
-          if (_isMutating)
-            Positioned.fill(
-              child: ColoredBox(
-                color: Colors.white.withValues(alpha: 0.72),
-                child: const Center(child: CircularProgressIndicator()),
+              body: TabBarView(
+                children: visibleTabs.map(_buildTabView).toList(),
               ),
             ),
-        ],
+            if (_isMutating)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: AppColors.surface.withValues(alpha: 0.72),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  List<_PatientDetailsTab> _visiblePatientTabs(AuthService auth) {
+    return [
+      if (auth.canAccessPatients) _PatientDetailsTab.overview,
+      if (auth.canAccessPatients) _PatientDetailsTab.medical,
+      if (auth.canAccessHomeVisits) _PatientDetailsTab.homeVisits,
+      if (auth.canAccessEquipment || auth.canAccessEquipmentDistribution)
+        _PatientDetailsTab.equipment,
+      if (auth.canAccessNHC) _PatientDetailsTab.assessments,
+      if (auth.canAccessMedicineSupply) _PatientDetailsTab.medicines,
+      if (auth.canAccessSocialSupport) _PatientDetailsTab.socialSupport,
+    ];
+  }
+
+  Widget _buildTabView(_PatientDetailsTab tab) {
+    return switch (tab) {
+      _PatientDetailsTab.overview => _buildOverviewTab(),
+      _PatientDetailsTab.medical => _buildMedicalTab(),
+      _PatientDetailsTab.homeVisits => _buildHomeVisitsTab(),
+      _PatientDetailsTab.equipment => _buildEquipmentTab(),
+      _PatientDetailsTab.assessments => _buildAssessmentsTab(),
+      _PatientDetailsTab.medicines => _buildMedicineSuppliesTab(),
+      _PatientDetailsTab.socialSupport => _buildSocialSupportTab(),
+    };
   }
 
   SliverAppBar _buildCollapsibleAppBar(AuthService auth, bool canShowMenu) {
@@ -345,12 +419,19 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       toolbarHeight: kToolbarHeight,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: _patientPrimary,
-      foregroundColor: Colors.white,
-      leading: IconButton(
-        tooltip: 'Back',
-        onPressed: () => Navigator.maybePop(context),
-        icon: const Icon(Icons.arrow_back),
+      backgroundColor: AppColors.background,
+      foregroundColor: AppColors.text,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: AppSpacing.xs),
+        child: IconButton(
+          tooltip: 'Back',
+          onPressed: () => Navigator.maybePop(context),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.surface1,
+            foregroundColor: AppColors.text,
+          ),
+          icon: const Icon(Icons.arrow_back),
+        ),
       ),
       actions: _buildHeaderActions(auth, canShowMenu),
       flexibleSpace: LayoutBuilder(
@@ -365,7 +446,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
             fit: StackFit.expand,
             children: [
               const DecoratedBox(
-                decoration: BoxDecoration(color: _patientPrimary),
+                decoration: BoxDecoration(color: AppColors.background),
               ),
               Positioned(
                 top: topPadding + 17,
@@ -374,13 +455,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
                 child: IgnorePointer(
                   child: Opacity(
                     opacity: expandedProgress,
-                    child: const Text(
+                    child: Text(
                       'Patient Details',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -388,8 +467,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
               ),
               Positioned(
                 top: collapsedHeight + 12,
-                left: 0,
-                right: 0,
+                left: AppSpacing.md,
+                right: AppSpacing.md,
                 child: IgnorePointer(
                   child: Opacity(
                     opacity: expandedProgress,
@@ -418,81 +497,89 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   List<Widget> _buildHeaderActions(AuthService auth, bool canShowMenu) {
     return [
-      // PDF download button
-      Padding(
-        padding: const EdgeInsets.only(right: 4),
-        child: _isPdfGenerating
-            ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.5,
+      if (auth.canAccessPatientPdf)
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.xs),
+          child: _isPdfGenerating
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 2.5,
+                    ),
                   ),
+                )
+              : IconButton(
+                  tooltip: 'Download patient report (PDF)',
+                  onPressed: _isMutating ? null : _downloadPatientPdf,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.surface1,
+                    foregroundColor: AppColors.primary,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
                 ),
-              )
-            : IconButton(
-                tooltip: 'Download patient report (PDF)',
-                onPressed: _isMutating ? null : _downloadPatientPdf,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.14),
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
-              ),
-      ),
+        ),
       if (auth.canEdit)
         Padding(
-          padding: const EdgeInsets.only(right: 4),
+          padding: const EdgeInsets.only(right: AppSpacing.xs),
           child: IconButton(
             tooltip: 'Edit patient',
             onPressed: _isMutating ? null : _editPatient,
             style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.14),
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.surface1,
+              foregroundColor: AppColors.primary,
             ),
             icon: const Icon(Icons.edit_outlined, size: 20),
           ),
         ),
       if (canShowMenu)
-        PopupMenuButton<_PatientAction>(
-          tooltip: 'More actions',
-          enabled: !_isMutating,
-          icon: const Icon(Icons.more_horiz, color: Colors.white),
-          onSelected: _handlePatientAction,
-          itemBuilder: (context) => [
-            if (auth.canEdit && !_currentPatient.isDead)
-              const PopupMenuItem(
-                value: _PatientAction.markDeceased,
-                child: Row(
-                  children: [
-                    DeceasedIcon(size: 20, color: Colors.red),
-                    SizedBox(width: 12),
-                    Text('Mark as passed away'),
-                  ],
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.md),
+          child: PopupMenuButton<_PatientAction>(
+            tooltip: 'More actions',
+            enabled: !_isMutating,
+            icon: const Icon(Icons.more_horiz, color: AppColors.text),
+            color: AppColors.surface,
+            shape: const RoundedRectangleBorder(borderRadius: AppRadius.card),
+            onSelected: _handlePatientAction,
+            itemBuilder: (context) => [
+              if (auth.canEdit && !_currentPatient.isDead)
+                const PopupMenuItem(
+                  value: _PatientAction.markDeceased,
+                  child: Row(
+                    children: [
+                      DeceasedIcon(size: 20, color: AppColors.danger),
+                      SizedBox(width: 12),
+                      Text('Mark as passed away'),
+                    ],
+                  ),
                 ),
-              ),
-            if (auth.canDelete)
-              const PopupMenuItem(
-                value: _PatientAction.delete,
-                child: Row(
-                  children: [
-                    Icon(Icons.delete_outline, color: Colors.red),
-                    SizedBox(width: 12),
-                    Text('Delete patient', style: TextStyle(color: Colors.red)),
-                  ],
+              if (auth.canDelete)
+                const PopupMenuItem(
+                  value: _PatientAction.delete,
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: AppColors.danger),
+                      SizedBox(width: 12),
+                      Text(
+                        'Delete patient',
+                        style: TextStyle(color: AppColors.danger),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
     ];
   }
 
   double _headerActionWidth(AuthService auth, bool canShowMenu) {
     var width = 16.0;
-    width += 52; // PDF download button (always visible)
+    if (auth.canAccessPatientPdf) width += 52;
     if (auth.canEdit) width += 52;
     if (canShowMenu) width += 48;
     return width;
@@ -513,8 +600,16 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: const BoxDecoration(color: _patientPrimary),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.card,
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadow.medium,
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -523,33 +618,23 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
             height: 78,
             decoration: BoxDecoration(
               color: _currentPatient.isDead
-                  ? Colors.white.withValues(alpha: 0.2)
+                  ? AppColors.surface2
                   : _patientIconBackground,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.75),
-                width: 3,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              borderRadius: AppRadius.card,
+              border: Border.all(color: AppColors.border),
+              boxShadow: AppShadow.small,
             ),
             alignment: Alignment.center,
             child: _currentPatient.isDead
                 ? const Icon(
                     Icons.person_off_outlined,
-                    color: Colors.white,
+                    color: AppColors.textMuted,
                     size: 32,
                   )
                 : Text(
                     initial,
-                    style: const TextStyle(
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       color: _patientPrimary,
-                      fontSize: 30,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -560,20 +645,17 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 20,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               height: 1.15,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             secondary.join('  •  '),
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.78),
-              fontSize: 13,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -612,21 +694,23 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
           height: 36,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.18),
-            shape: BoxShape.circle,
+            color: _currentPatient.isDead
+                ? AppColors.surface2
+                : AppColors.primaryLight,
+            borderRadius: AppRadius.sm,
           ),
           child: _currentPatient.isDead
               ? const Icon(
                   Icons.person_off_outlined,
-                  color: Colors.white,
+                  color: AppColors.textMuted,
                   size: 18,
                 )
               : Text(
                   initial,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.primary,
                     fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
         ),
@@ -640,18 +724,16 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               if (registerId?.isNotEmpty == true)
                 Text(
                   'ID $registerId',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    fontSize: 10,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -662,55 +744,58 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     );
   }
 
-  Widget _buildTabs() {
+  Widget _buildTabs(List<_PatientDetailsTab> visibleTabs) {
     final visitCount = _details.homeVisits.length;
     final equipmentCount = _details.equipmentSupplies.length;
     final assessmentCount = _details.visitAssessments.length;
-    final medicineSupplyCount = _details.medicineSupplies.length;
+    final medicineSupplyCount = _medicineActivityEntries().length;
     final socialSupportCount = _details.socialSupports.length;
 
     return Container(
       height: 52,
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 2),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: _patientPrimary.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 7),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: AppRadius.button,
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadow.small,
       ),
       child: TabBar(
-        controller: _tabController,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
         dividerColor: Colors.transparent,
         indicatorSize: TabBarIndicatorSize.tab,
         indicator: BoxDecoration(
           color: _patientPrimary,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppRadius.md,
         ),
-        labelColor: Colors.white,
-        unselectedLabelColor: _patientPrimary,
+        labelColor: AppColors.textInverse,
+        unselectedLabelColor: AppColors.textSecondary,
         labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         unselectedLabelStyle: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
         labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-        tabs: [
-          const Tab(text: 'Overview'),
-          const Tab(text: 'Medical'),
-          Tab(text: 'Home Visits ($visitCount)'),
-          Tab(text: 'Equipment ($equipmentCount)'),
-          Tab(text: 'Assessment ($assessmentCount)'),
-          Tab(text: 'Medicines ($medicineSupplyCount)'),
-          Tab(text: 'Social Support ($socialSupportCount)'),
-        ],
+        tabs: visibleTabs.map((tab) {
+          final label = switch (tab) {
+            _PatientDetailsTab.overview => 'Overview',
+            _PatientDetailsTab.medical => 'Medical',
+            _PatientDetailsTab.homeVisits => 'Home Visits ($visitCount)',
+            _PatientDetailsTab.equipment => 'Equipment ($equipmentCount)',
+            _PatientDetailsTab.assessments => 'Assessment ($assessmentCount)',
+            _PatientDetailsTab.medicines => 'Medicines ($medicineSupplyCount)',
+            _PatientDetailsTab.socialSupport =>
+              'Social Support ($socialSupportCount)',
+          };
+          return Tab(text: label);
+        }).toList(),
       ),
     );
   }
@@ -720,11 +805,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: AppInsets.page,
         children: [
           if (_detailsError != null) ...[
             _buildSyncError(),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
           ],
           _sectionCard(
             icon: Icons.person_outline,
@@ -782,7 +867,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
               ),
             ]),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md),
           _sectionCard(
             icon: Icons.location_on_outlined,
             title: 'Location & address',
@@ -821,11 +906,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: AppInsets.page,
         children: [
           if (_detailsError != null) ...[
             _buildSyncError(),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
           ],
           _sectionCard(
             icon: Icons.medical_services_outlined,
@@ -865,7 +950,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md),
           _sectionCard(
             icon: Icons.event_note_outlined,
             title: 'Record information',
@@ -900,7 +985,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   Widget _buildHomeVisitsTab() {
     if (_detailsLoading && _details.homeVisits.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 4);
     }
     if (_detailsError != null && _details.homeVisits.isEmpty) {
       return _recordsError('Could not load home visits');
@@ -917,9 +1002,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: AppInsets.page,
         itemCount: _details.homeVisits.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
           return _homeVisitCard(_details.homeVisits[index], index);
         },
@@ -929,7 +1014,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   Widget _buildEquipmentTab() {
     if (_detailsLoading && _details.equipmentSupplies.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 4);
     }
     if (_detailsError != null && _details.equipmentSupplies.isEmpty) {
       return _recordsError('Could not load equipment history');
@@ -946,9 +1031,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: AppInsets.page,
         itemCount: _details.equipmentSupplies.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
           return _equipmentCard(_details.equipmentSupplies[index]);
         },
@@ -958,7 +1043,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   Widget _buildAssessmentsTab() {
     if (_detailsLoading && _details.visitAssessments.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 4);
     }
     if (_detailsError != null && _details.visitAssessments.isEmpty) {
       return _recordsError('Could not load assessment history');
@@ -977,13 +1062,13 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: AppInsets.page,
         children: [
           _assessmentActionButton(),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           ..._details.visitAssessments.map(
             (assessment) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
               child: _assessmentCard(assessment),
             ),
           ),
@@ -993,13 +1078,15 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   }
 
   Widget _buildMedicineSuppliesTab() {
+    final activities = _medicineActivityEntries();
+
     if (_detailsLoading && _details.medicineSupplies.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 4);
     }
     if (_detailsError != null && _details.medicineSupplies.isEmpty) {
       return _recordsError('Could not load medicine supply history');
     }
-    if (_details.medicineSupplies.isEmpty) {
+    if (activities.isEmpty) {
       return _emptyState(
         icon: Icons.medication_outlined,
         title: 'No medicine supplies yet',
@@ -1011,11 +1098,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        itemCount: _details.medicineSupplies.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        padding: AppInsets.page,
+        itemCount: activities.length,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
-          return _medicineSupplyCard(_details.medicineSupplies[index]);
+          return _medicineActivityCard(activities[index]);
         },
       ),
     );
@@ -1023,7 +1110,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   Widget _buildSocialSupportTab() {
     if (_detailsLoading && _details.socialSupports.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppListSkeleton(itemCount: 4);
     }
     if (_detailsError != null && _details.socialSupports.isEmpty) {
       return _recordsError('Could not load social support history');
@@ -1040,9 +1127,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: AppInsets.page,
         itemCount: _details.socialSupports.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
           return _socialSupportCard(_details.socialSupports[index]);
         },
@@ -1228,8 +1315,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   Widget _assessmentCard(VisitAssessment assessment) {
     final statusColor = assessment.status == 'submitted'
-        ? Colors.green.shade700
-        : Colors.orange.shade700;
+        ? AppColors.success
+        : AppColors.warning;
     final vitalSummary = [
       if (assessment.vitals.pulse != null) 'P ${assessment.vitals.pulse}',
       if (assessment.vitals.bpSystolic != null &&
@@ -1327,21 +1414,30 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   }
 
   Widget _assessmentActionButton() {
-    return FilledButton.icon(
+    if (!context.watch<AuthService>().canAccessNHC) {
+      return const SizedBox.shrink();
+    }
+
+    return AppPrimaryButton(
+      label: 'New Assessment',
+      icon: Icons.add,
+      fullWidth: true,
       onPressed: _detailsLoading ? null : _openVisitAssessments,
-      icon: const Icon(Icons.add, size: 20),
-      label: const Text('New Assessment'),
-      style: FilledButton.styleFrom(
-        backgroundColor: _patientPrimary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      ),
     );
   }
 
-  Widget _medicineSupplyCard(MedicineSupply supply) {
-    final statusColor = _medicineSupplyStatusColor(supply.status);
+  Widget _medicineActivityCard(MedicineSupplyActivity activity) {
+    final statusColor = _medicineActivityColor(activity.type);
+    final title = _formatDate(activity.date);
+    final subtitle = switch (activity.type) {
+      MedicineSupplyActivityType.supplied => 'Medicine supplied',
+      MedicineSupplyActivityType.returned => 'Medicine returned',
+      MedicineSupplyActivityType.cancelled => 'Medicine cancelled',
+    };
+    final medicineParts = [
+      activity.medicineName,
+      if (activity.medicineCode.trim().isNotEmpty) activity.medicineCode.trim(),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1360,7 +1456,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
-                  Icons.medication_outlined,
+                  _medicineActivityIcon(activity.type),
                   color: statusColor,
                   size: 21,
                 ),
@@ -1371,7 +1467,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _value(supply.medicineName),
+                      title,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -1380,7 +1476,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Qty ${supply.qtyGiven} • ${_formatDate(supply.givenAt)}',
+                      subtitle,
                       style: TextStyle(
                         color: Colors.grey.shade500,
                         fontSize: 12,
@@ -1390,45 +1486,85 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
                   ],
                 ),
               ),
-              _statusPill(
-                _medicineSupplyStatusLabel(supply.status),
-                statusColor,
-              ),
+              _statusPill(activity.eventLabel, statusColor),
             ],
           ),
           const SizedBox(height: 15),
           _detailLine(
-            Icons.person_outline,
-            'Given by',
-            _value(supply.staffName),
+            Icons.medication_outlined,
+            'Medicine',
+            medicineParts.join(' • '),
           ),
-          if (supply.supplyDays != null) ...[
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.inventory_2_outlined,
+            'Quantity',
+            activity.quantityLabel,
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.confirmation_number_outlined,
+            'Batch',
+            _value(activity.batchNumber),
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.calendar_today_outlined,
+            'Supply date',
+            _formatDate(activity.supplyDate),
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.event_outlined,
+            'Expiry date',
+            _formatDate(activity.expiryDate),
+          ),
+          const SizedBox(height: 10),
+          _detailLine(
+            Icons.local_pharmacy_outlined,
+            'Stock',
+            _value(activity.stockLabel),
+          ),
+          if (activity.supply.staffName.trim().isNotEmpty &&
+              activity.supply.staffName != 'Unknown') ...[
+            const SizedBox(height: 10),
+            _detailLine(
+              Icons.person_outline,
+              activity.type == MedicineSupplyActivityType.returned
+                  ? 'Original supply by'
+                  : 'Given by',
+              activity.supply.staffName,
+            ),
+          ],
+          if (activity.supply.supplyDays != null &&
+              activity.type == MedicineSupplyActivityType.supplied) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.calendar_month_outlined,
               'Supply days',
-              '${supply.supplyDays}',
+              '${activity.supply.supplyDays}',
             ),
           ],
-          if (supply.prescribedBy?.trim().isNotEmpty == true) ...[
+          if (activity.supply.prescribedBy?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.badge_outlined,
               'Prescribed by',
-              supply.prescribedBy!,
+              activity.supply.prescribedBy!,
             ),
           ],
-          if (supply.doctorPrescription?.trim().isNotEmpty == true) ...[
+          if (activity.supply.doctorPrescription?.trim().isNotEmpty ==
+              true) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.description_outlined,
               'Prescription',
-              supply.doctorPrescription!,
+              activity.supply.doctorPrescription!,
             ),
           ],
-          if (supply.staffNote?.trim().isNotEmpty == true) ...[
+          if (activity.note?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
-            _detailLine(Icons.notes_outlined, 'Notes', supply.staffNote!),
+            _detailLine(Icons.notes_outlined, 'Notes', activity.note!),
           ],
         ],
       ),
@@ -1529,26 +1665,39 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     required List<Widget> children,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: AppInsets.card,
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: _patientPrimary, size: 22),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: AppRadius.md,
+                ),
+                child: Icon(
+                  icon,
                   color: _patientPrimary,
+                  size: AppIcons.normal,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: AppSpacing.lg),
           ...children,
         ],
       ),
@@ -1557,9 +1706,27 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
 
   Future<void> _downloadPatientPdf() async {
     if (_isPdfGenerating) return;
+    final auth = context.read<AuthService>();
+    if (!auth.canAccessPatientPdf) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Patient PDF Reports is not enabled for this unit.'),
+        ),
+      );
+      return;
+    }
     setState(() => _isPdfGenerating = true);
     try {
-      final bytes = await PatientPdfGenerator.generate(_details);
+      final bytes = await PatientPdfGenerator.generate(
+        _details,
+        brand: PatientReportBrand(
+          name: auth.unitName,
+          subtitle: auth.unitLocation,
+          supportPhone: auth.unitSupportPhone,
+          contactPhones: auth.unitContactPhones,
+          logoSource: auth.unitLogo ?? auth.unitAppIcon,
+        ),
+      );
       if (!mounted) return;
       await Printing.sharePdf(
         bytes: bytes,
@@ -1606,38 +1773,39 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
         Container(
           width: 42,
           height: 42,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: _patientIconBackground,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: AppRadius.md,
           ),
-          child: Icon(icon, color: _patientPrimary, size: 20),
+          child: Icon(icon, color: _patientPrimary, size: AppIcons.normal),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 value,
-                style: const TextStyle(
-                  color: Color(0xFF242533),
-                  fontSize: 15,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: AppColors.text,
                   height: 1.3,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 label,
-                style: const TextStyle(
-                  color: Color(0xFF9999A4),
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
-        if (trailing != null) ...[const SizedBox(width: 10), trailing],
+        if (trailing != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          trailing,
+        ],
       ],
     );
   }
@@ -1649,31 +1817,29 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
         Container(
           width: 34,
           height: 34,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: _patientIconBackground,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppRadius.sm,
           ),
-          child: Icon(icon, size: 17, color: _patientPrimary),
+          child: Icon(icon, size: AppIcons.small, color: _patientPrimary),
         ),
-        const SizedBox(width: 11),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 value,
-                style: const TextStyle(
-                  color: Color(0xFF343849),
-                  fontSize: 13,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.text,
                   height: 1.35,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 label,
-                style: const TextStyle(
-                  color: Color(0xFF9A9AA5),
-                  fontSize: 11,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1687,17 +1853,17 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   Widget _mapButton(String url) {
     return InkWell(
       onTap: () => _launchMap(url),
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: AppRadius.input,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
+        padding: AppInsets.md,
+        decoration: const BoxDecoration(
           color: _patientIconBackground,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: AppRadius.input,
         ),
         child: Row(
           children: [
             const Icon(Icons.map_outlined, size: 20, color: _patientPrimary),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.sm),
             const Expanded(
               child: Text(
                 'View location on map',
@@ -1727,7 +1893,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       onPressed: () => _callPhone(phone),
       style: IconButton.styleFrom(
         backgroundColor: _patientPrimary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.textInverse,
       ),
       icon: const Icon(Icons.call_outlined, size: 17),
       visualDensity: VisualDensity.compact,
@@ -1738,21 +1904,21 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
+        color: AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: Colors.white),
+            Icon(icon, size: 13, color: AppColors.primary),
             const SizedBox(width: 5),
           ],
           Text(
             label,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.primary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -1801,13 +1967,15 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     return status == 'submitted' ? 'Submitted' : 'Draft';
   }
 
-  String _medicineSupplyStatusLabel(String? status) {
-    return switch (status) {
-      'partially_given' => 'Partial',
-      'returned' => 'Returned',
-      'cancelled' => 'Cancelled',
-      'given' || null || '' => 'Given',
-      _ => status,
+  List<MedicineSupplyActivity> _medicineActivityEntries() {
+    return MedicineSupplyActivity.fromSupplies(_details.medicineSupplies);
+  }
+
+  IconData _medicineActivityIcon(MedicineSupplyActivityType type) {
+    return switch (type) {
+      MedicineSupplyActivityType.supplied => Icons.medication_outlined,
+      MedicineSupplyActivityType.returned => Icons.assignment_return_outlined,
+      MedicineSupplyActivityType.cancelled => Icons.cancel_outlined,
     };
   }
 
@@ -1819,12 +1987,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     };
   }
 
-  Color _medicineSupplyStatusColor(String? status) {
-    return switch (status) {
-      'returned' => Colors.blueGrey.shade700,
-      'cancelled' => Colors.red.shade700,
-      'partially_given' => Colors.orange.shade700,
-      _ => Colors.green.shade700,
+  Color _medicineActivityColor(MedicineSupplyActivityType type) {
+    return switch (type) {
+      MedicineSupplyActivityType.supplied => AppColors.success,
+      MedicineSupplyActivityType.returned => AppColors.warning,
+      MedicineSupplyActivityType.cancelled => AppColors.danger,
     };
   }
 
@@ -1832,14 +1999,18 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.22)),
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: AppRadius.md,
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.22)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_outlined, color: Colors.orange, size: 20),
-          const SizedBox(width: 10),
+          const Icon(
+            Icons.cloud_off_outlined,
+            color: AppColors.warning,
+            size: 20,
+          ),
+          const SizedBox(width: AppSpacing.sm),
           const Expanded(
             child: Text(
               'Extra history could not be refreshed. Patient information is '
@@ -1859,38 +2030,19 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   Widget _recordsError(String title) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      padding: AppInsets.page,
       children: [
-        Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.cloud_off_outlined,
-                size: 42,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                _detailsError ?? 'Please try again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: () => _loadDetails(),
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
-              ),
-            ],
+        SizedBox(
+          height: 360,
+          child: AppEmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: title,
+            message: _detailsError ?? 'Please try again.',
+            action: AppPrimaryButton(
+              label: 'Retry',
+              icon: Icons.refresh,
+              onPressed: () => _loadDetails(),
+            ),
           ),
         ),
       ],
@@ -1910,45 +2062,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
         children: [
           SizedBox(
             height: 360,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(icon, size: 30, color: Colors.grey.shade500),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      message,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (action != null) ...[
-                      const SizedBox(height: 18),
-                      SizedBox(width: double.infinity, child: action),
-                    ],
-                  ],
-                ),
-              ),
+            child: AppEmptyState(
+              icon: icon,
+              title: title,
+              message: message,
+              action: action,
             ),
           ),
         ],
@@ -1959,14 +2077,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: _patientCardBackground,
-      borderRadius: BorderRadius.circular(24),
-      boxShadow: [
-        BoxShadow(
-          color: _patientPrimary.withValues(alpha: 0.08),
-          blurRadius: 22,
-          offset: const Offset(0, 9),
-        ),
-      ],
+      borderRadius: AppRadius.card,
+      border: Border.all(color: AppColors.border),
+      boxShadow: AppShadow.medium,
     );
   }
 
@@ -2051,7 +2164,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
       case 'new':
         return 'New';
       case 'monthly':
-        return 'Monthly';
+        return 'Planned NHC';
       case 'emergency':
         return 'Emergency';
       case 'dhc_visit':
@@ -2066,15 +2179,15 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   Color _visitModeColor(String mode) {
     switch (mode) {
       case 'emergency':
-        return Colors.red;
+        return AppColors.danger;
       case 'monthly':
-        return Colors.blue;
+        return AppColors.primary;
       case 'dhc_visit':
-        return Colors.orange;
+        return AppColors.warning;
       case 'vhc_visit':
-        return Colors.purple;
+        return AppColors.scheduled;
       default:
-        return Colors.green;
+        return AppColors.success;
     }
   }
 
@@ -2094,13 +2207,13 @@ class _PatientDetailsPageState extends State<PatientDetailsPage>
   Color _equipmentStatusColor(String status) {
     switch (status) {
       case 'active':
-        return Colors.green;
+        return AppColors.success;
       case 'returned':
-        return Colors.blueGrey;
+        return AppColors.offline;
       case 'lost':
-        return Colors.red;
+        return AppColors.danger;
       default:
-        return Colors.grey;
+        return AppColors.textSecondary;
     }
   }
 }
@@ -2124,19 +2237,11 @@ class _PatientTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.background,
         borderRadius: shrinkOffset == 0
             ? const BorderRadius.vertical(top: Radius.circular(30))
             : BorderRadius.zero,
-        boxShadow: overlapsContent
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
+        boxShadow: overlapsContent ? AppShadow.small : null,
       ),
       child: child,
     );
@@ -2145,5 +2250,38 @@ class _PatientTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant _PatientTabsHeaderDelegate oldDelegate) {
     return oldDelegate.child != child;
+  }
+}
+
+class _PatientDialogHeader extends StatelessWidget {
+  const _PatientDialogHeader({
+    required this.icon,
+    required this.title,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: color, size: AppIcons.large),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+      ],
+    );
   }
 }

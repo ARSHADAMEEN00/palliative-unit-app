@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/pt_registration.dart';
 import 'package:oruma_app/patient_details_page.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/models/config.dart';
@@ -72,14 +74,13 @@ class _PatientListPageState extends State<PatientListPage> {
     if (_selectedVillage == 'All') {
       _filteredWardsList = ['All'];
     } else {
-      _filteredWardsList = ['All']
-        ..addAll(
+      final wardNumbers =
           _allWards
               .where((w) => w.village == _selectedVillage)
               .map((w) => w.number)
               .toList()
-            ..sort(compareWardNumbers),
-        );
+            ..sort(compareWardNumbers);
+      _filteredWardsList = ['All', ...wardNumbers];
     }
     // If current selected ward is not in the filtered list, reset it to 'All'
     if (!_filteredWardsList.contains(_selectedWard)) {
@@ -132,7 +133,7 @@ class _PatientListPageState extends State<PatientListPage> {
 
   @override
   Widget build(BuildContext context) {
-    void _handleBottomNavigation(AppBottomSection section) {
+    void handleBottomNavigation(AppBottomSection section) {
       AppBottomNavRouter.handle(
         context,
         current: AppBottomSection.patients,
@@ -142,42 +143,46 @@ class _PatientListPageState extends State<PatientListPage> {
 
     return AdaptiveAppScaffold(
       appBar: AppBar(
+        toolbarHeight: 72,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        titleSpacing: AppSpacing.md,
         title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search patients...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.grey),
-                ),
-                style: const TextStyle(color: Colors.black),
-              )
-            : const Text("Patients"),
+            ? _buildSearchField('Search patients...')
+            : Text("Patients", style: Theme.of(context).textTheme.titleLarge),
         actions: [
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                if (_isSearching) {
-                  _isSearching = false;
-                  _searchController.clear();
-                  _searchQuery = '';
-                } else {
-                  _isSearching = true;
-                }
-              });
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.xs),
+            child: _PatientIconButton(
+              icon: _isSearching ? Icons.close : Icons.search,
+              onPressed: () {
+                setState(() {
+                  if (_isSearching) {
+                    _isSearching = false;
+                    _searchController.clear();
+                    _searchQuery = '';
+                  } else {
+                    _isSearching = true;
+                  }
+                });
+              },
+            ),
           ),
           if (!_isSearching)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadPatients,
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: _PatientIconButton(
+                icon: Icons.refresh,
+                onPressed: _loadPatients,
+              ),
             ),
         ],
       ),
+      backgroundColor: AppColors.background,
       currentSection: AppBottomSection.patients,
-      onNavigationSelected: _handleBottomNavigation,
+      onNavigationSelected: handleBottomNavigation,
       contentMaxWidth: 820,
       body: Column(
         children: [
@@ -187,27 +192,18 @@ class _PatientListPageState extends State<PatientListPage> {
             child: Builder(
               builder: (context) {
                 if (_isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AppListSkeleton(itemCount: 6);
                 }
 
                 if (_error != null) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(height: 16),
-                        Text("Error: $_error"),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadPatients,
-                          child: const Text("Retry"),
-                        ),
-                      ],
+                  return AppEmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Could not load patients',
+                    message: _error!,
+                    action: AppPrimaryButton(
+                      label: 'Retry',
+                      icon: Icons.refresh,
+                      onPressed: _loadPatients,
                     ),
                   );
                 }
@@ -216,10 +212,12 @@ class _PatientListPageState extends State<PatientListPage> {
                 // We check if the API returned a mixed list despite the filter request.
                 final filteredPatients = _allPatients.where((p) {
                   if (_selectedVillage != 'All' &&
-                      p.village != _selectedVillage)
+                      p.village != _selectedVillage) {
                     return false;
-                  if (_selectedWard != 'All' && p.ward != _selectedWard)
+                  }
+                  if (_selectedWard != 'All' && p.ward != _selectedWard) {
                     return false;
+                  }
 
                   // Text search filter
                   if (_searchQuery.isNotEmpty) {
@@ -241,38 +239,42 @@ class _PatientListPageState extends State<PatientListPage> {
 
                 if (filteredPatients.isEmpty) {
                   if (_searchQuery.isNotEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: Colors.grey[300],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No matching patients found',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+                    return const AppEmptyState(
+                      icon: Icons.search_off,
+                      title: 'No matching patients',
+                      message:
+                          'Try a different name, register ID, village, or phone number.',
                     );
                   }
-                  return const Center(child: Text("No patients found."));
+                  return AppEmptyState(
+                    icon: Icons.groups_outlined,
+                    title: 'No patients yet',
+                    message:
+                        'Create the first patient record to begin managing home visits and care history.',
+                    action: Provider.of<AuthService>(context).canCreate
+                        ? AppPrimaryButton(
+                            label: 'Add Patient',
+                            icon: Icons.person_add_alt_1,
+                            onPressed: _navigateToCreatePatient,
+                          )
+                        : null,
+                  );
                 }
 
                 return RefreshIndicator(
                   onRefresh: _loadPatients,
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.surface,
                   child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.fromLTRB(
+                      AppInsets.screenHorizontal(context),
+                      AppSpacing.md,
+                      AppInsets.screenHorizontal(context),
+                      112,
+                    ),
                     itemCount: filteredPatients.length,
                     separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppSpacing.md),
                     itemBuilder: (context, index) {
                       final patient = filteredPatients[index];
                       return _buildPatientCard(context, patient);
@@ -286,20 +288,7 @@ class _PatientListPageState extends State<PatientListPage> {
       ),
       floatingActionButton: Provider.of<AuthService>(context).canCreate
           ? RevealActionFab(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ModuleTheme(
-                      palette: ModulePalettes.patients,
-                      child: patientrigister(),
-                    ),
-                  ),
-                );
-                if (result == true) {
-                  _loadPatients();
-                }
-              },
+              onPressed: _navigateToCreatePatient,
               label: 'Add Patient',
               icon: Icons.person_add,
             )
@@ -307,22 +296,72 @@ class _PatientListPageState extends State<PatientListPage> {
     );
   }
 
+  Widget _buildSearchField(String hintText) {
+    return SizedBox(
+      height: 48,
+      child: TextField(
+        controller: _searchController,
+        autofocus: true,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: InputDecoration(
+          hintText: hintText,
+          prefixIcon: const Icon(Icons.search, size: AppIcons.normal),
+          filled: true,
+          fillColor: AppColors.surface1,
+          contentPadding: AppInsets.input,
+          border: OutlineInputBorder(
+            borderRadius: AppRadius.input,
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: AppRadius.input,
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppRadius.input,
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _navigateToCreatePatient() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ModuleTheme(
+          palette: ModulePalettes.patients,
+          child: patientrigister(),
+        ),
+      ),
+    );
+    if (result == true) {
+      _loadPatients();
+    }
+  }
+
   Widget _buildFilterTabs() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+      ),
       child: Container(
-        height: 44,
-        padding: const EdgeInsets.all(4),
+        height: 52,
+        padding: const EdgeInsets.all(AppSpacing.xxs),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
+          color: AppColors.surface1,
+          borderRadius: AppRadius.card,
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             _buildTab("All", _counts?.allCount ?? 0, 'all'),
             _buildTab("Active", _counts?.aliveCount ?? 0, 'alive'),
-            _buildTab("Dead", _counts?.deadCount ?? 0, 'dead'),
+            _buildTab("Passed", _counts?.deadCount ?? 0, 'dead'),
           ],
         ),
       ),
@@ -331,79 +370,76 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Widget _buildTab(String label, int count, String filterKey) {
     final isSelected = _currentFilter == filterKey;
-
-    // Determine color based on filter type
-    Color activeColor;
-    if (filterKey == 'alive') {
-      activeColor = Colors.green.shade700;
-    } else if (filterKey == 'dead') {
-      activeColor = Colors.red.shade700;
-    } else {
-      activeColor = Colors.blue.shade700;
-    }
+    final activeColor = switch (filterKey) {
+      'alive' => AppColors.success,
+      'dead' => AppColors.danger,
+      _ => AppColors.primary,
+    };
 
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          if (_currentFilter != filterKey) {
-            setState(() {
-              _currentFilter = filterKey;
-            });
-            _loadPatients();
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 2,
-                      offset: const Offset(0, 1),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: AppRadius.md,
+        child: InkWell(
+          borderRadius: AppRadius.md,
+          onTap: () {
+            if (_currentFilter != filterKey) {
+              setState(() {
+                _currentFilter = filterKey;
+              });
+              _loadPatients();
+            }
+          },
+          child: AnimatedContainer(
+            duration: AppMotion.normal,
+            curve: AppMotion.easeOutCubic,
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.surface : Colors.transparent,
+              borderRadius: AppRadius.md,
+              boxShadow: isSelected ? AppShadow.small : AppShadow.none,
+            ),
+            alignment: Alignment.center,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: isSelected ? activeColor : AppColors.textSecondary,
                     ),
-                  ]
-                : null,
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  fontSize: 13,
-                  color: isSelected ? activeColor : Colors.grey.shade600,
-                ),
+                  ),
+                  if (count > 0) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? activeColor.withValues(alpha: 0.11)
+                            : AppColors.surface2,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        count > 99 ? '99+' : count.toString(),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isSelected
+                              ? activeColor
+                              : AppColors.textSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              if (count > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? activeColor.withOpacity(0.1)
-                        : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    count > 99 ? '99+' : count.toString(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? activeColor : Colors.grey.shade500,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -411,85 +447,47 @@ class _PatientListPageState extends State<PatientListPage> {
   }
 
   Widget _buildSecondaryFilters() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+      ),
       child: Row(
         children: [
           Expanded(
-            flex: 1,
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: _selectedVillage,
-                  icon: const Icon(Icons.arrow_drop_down, size: 20),
-                  style: const TextStyle(fontSize: 13, color: Colors.black87),
-                  items: _villagesList.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    if (newValue != null && newValue != _selectedVillage) {
-                      setState(() {
-                        _selectedVillage = newValue;
-                        _updateFilteredWardsList();
-                      });
-                      _loadPatients();
-                    }
-                  },
-                ),
-              ),
+            child: _PatientDropdown(
+              value: _selectedVillage,
+              icon: Icons.location_on_outlined,
+              items: _villagesList,
+              labelBuilder: (value) => value == 'All' ? 'All villages' : value,
+              onChanged: (newValue) {
+                if (newValue != null && newValue != _selectedVillage) {
+                  setState(() {
+                    _selectedVillage = newValue;
+                    _updateFilteredWardsList();
+                  });
+                  _loadPatients();
+                }
+              },
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            flex: 1,
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  value: _selectedWard,
-                  icon: const Icon(Icons.arrow_drop_down, size: 20),
-                  style: const TextStyle(fontSize: 13, color: Colors.black87),
-                  selectedItemBuilder: (context) {
-                    return _filteredWardsList.map((String value) {
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(_wardFilterLabel(value)),
-                      );
-                    }).toList();
-                  },
-                  items: _filteredWardsList.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(_wardFilterLabel(value)),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    if (newValue != null && newValue != _selectedWard) {
-                      setState(() {
-                        _selectedWard = newValue;
-                      });
-                      _loadPatients();
-                    }
-                  },
-                ),
-              ),
+            child: _PatientDropdown(
+              value: _selectedWard,
+              icon: Icons.map_outlined,
+              items: _filteredWardsList,
+              labelBuilder: _wardFilterLabel,
+              onChanged: (newValue) {
+                if (newValue != null && newValue != _selectedWard) {
+                  setState(() {
+                    _selectedWard = newValue;
+                  });
+                  _loadPatients();
+                }
+              },
             ),
           ),
         ],
@@ -516,18 +514,52 @@ class _PatientListPageState extends State<PatientListPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Patient'),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.1),
+                borderRadius: AppRadius.md,
+              ),
+              child: const Icon(Icons.delete_outline, color: AppColors.danger),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                'Delete patient',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ],
+        ),
         content: Text(
           'Are you sure you want to delete ${patient.name}? This cannot be undone.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+          AppSecondaryButton(
+            label: 'Cancel',
+            onPressed: () {
+              Navigator.pop(context, false);
+            },
           ),
-          TextButton(
+          AppDangerButton(
+            label: 'Delete',
+            icon: Icons.delete_outline,
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -539,8 +571,8 @@ class _PatientListPageState extends State<PatientListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Patient deleted successfully'),
-              backgroundColor: Colors.green,
+              content: Text('Patient deleted successfully'),
+              backgroundColor: AppColors.success,
             ),
           );
           _loadPatients();
@@ -549,8 +581,8 @@ class _PatientListPageState extends State<PatientListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('❌ Error deleting patient: $e'),
-              backgroundColor: Colors.red,
+              content: Text('Error deleting patient: $e'),
+              backgroundColor: AppColors.danger,
             ),
           );
         }
@@ -561,127 +593,133 @@ class _PatientListPageState extends State<PatientListPage> {
   Widget _buildPatientCard(BuildContext context, Patient patient) {
     final authService = Provider.of<AuthService>(context, listen: false);
     final isAdmin = authService.isAdmin;
+    final details = <String>[
+      '${patient.age} years',
+      patient.gender,
+      patient.plan,
+    ].where((item) => item.trim().isNotEmpty).join(' • ');
 
-    Widget cardContent = Card(
-      elevation: 0,
-      color: patient.isDead ? Colors.grey.shade100 : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Stack(
+    Widget cardContent = AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      surfaceLevel: patient.isDead
+          ? AppSurfaceLevel.surface
+          : AppSurfaceLevel.elevated,
+      borderColor: patient.isDead ? AppColors.borderStrong : AppColors.border,
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ModuleTheme(
+              palette: ModulePalettes.patients,
+              child: PatientDetailsPage(patient: patient),
+            ),
+          ),
+        );
+        if (result == true) {
+          _loadPatients();
+        }
+      },
+      child: Row(
         children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 8,
-            ),
-            leading: CircleAvatar(
-              backgroundColor: patient.isDead
-                  ? Colors.grey.shade300
-                  : Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              child: patient.isDead
-                  ? const Icon(Icons.person_off, color: Colors.grey)
-                  : Text(
-                      patient.name.isNotEmpty
-                          ? patient.name[0].toUpperCase()
-                          : "?",
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-            title: Text(
-              patient.name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Column(
+          _PatientAvatar(patient: patient),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 4),
-                if (patient.registerId != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(
-                            text: "REG ID: ",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                          TextSpan(
-                            text: patient.registerId,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        patient.name,
+                        style: Theme.of(context).textTheme.titleSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (patient.isDead) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      const _PatientStatusPill(
+                        label: 'Passed away',
+                        color: AppColors.danger,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    if (patient.registerId != null &&
+                        patient.registerId!.isNotEmpty)
+                      _PatientMetaPill(
+                        icon: Icons.badge_outlined,
+                        label: 'REG ${patient.registerId}',
+                        color: AppColors.primary,
+                      ),
+                    if (details.isNotEmpty)
+                      _PatientMetaPill(
+                        icon: Icons.person_outline,
+                        label: details,
+                        color: AppColors.textSecondary,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.place_outlined,
+                      size: AppIcons.small,
+                      color: AppColors.textMuted,
+                    ),
+                    const SizedBox(width: AppSpacing.xxs),
+                    Expanded(
+                      child: Text(
+                        patient.place.isNotEmpty
+                            ? patient.place
+                            : patient.village,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isAdmin && patient.phone.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.phone_outlined,
+                        size: AppIcons.small,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: AppSpacing.xxs),
+                      Expanded(
+                        child: Text(
+                          patient.phone,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
                 ],
-                Text(
-                  "${patient.age} years • ${patient.gender} • ${patient.plan}",
-                ),
-                Text(
-                  patient.place,
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
               ],
             ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ModuleTheme(
-                    palette: ModulePalettes.patients,
-                    child: PatientDetailsPage(patient: patient),
-                  ),
-                ),
-              );
-              if (result == true) {
-                _loadPatients();
-              }
-            },
           ),
-          if (patient.isDead)
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  "PASSED AWAY",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+          const SizedBox(width: AppSpacing.sm),
+          const Icon(
+            Icons.chevron_right,
+            color: AppColors.textMuted,
+            size: AppIcons.large,
+          ),
         ],
       ),
     );
@@ -690,19 +728,17 @@ class _PatientListPageState extends State<PatientListPage> {
     final canDelete = authService.canDelete;
 
     if (canEdit || canDelete) {
-      // Wrap in a container to provide margin if needed, but Card already provides some.
-      // However, for slidable to look good with rounded card, we might need ClipRRect.
-
-      List<Widget> actions = [];
+      final actions = <Widget>[];
 
       if (canEdit) {
         actions.add(
           SlidableAction(
             onPressed: (_) => _navigateToEditPatient(patient),
-            backgroundColor: const Color(0xFF21B7CA),
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
-            icon: Icons.edit,
+            icon: Icons.edit_outlined,
             label: 'Edit',
+            borderRadius: AppRadius.card,
           ),
         );
       }
@@ -711,31 +747,225 @@ class _PatientListPageState extends State<PatientListPage> {
         actions.add(
           SlidableAction(
             onPressed: (_) => _deletePatient(patient),
-            backgroundColor: const Color(0xFFFE4A49),
+            backgroundColor: AppColors.danger,
             foregroundColor: Colors.white,
-            icon: Icons.delete,
+            icon: Icons.delete_outline,
             label: 'Delete',
+            borderRadius: AppRadius.card,
           ),
         );
       }
 
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Slidable(
-            key: ValueKey(patient.id),
-            endActionPane: ActionPane(
-              motion: const ScrollMotion(),
-              extentRatio: actions.length * 0.25,
-              children: actions,
-            ),
-            child: cardContent,
+      return ClipRRect(
+        borderRadius: AppRadius.card,
+        child: Slidable(
+          key: ValueKey(patient.id),
+          endActionPane: ActionPane(
+            motion: const ScrollMotion(),
+            extentRatio: (actions.length * 0.24).clamp(0.24, 0.48),
+            children: actions,
           ),
+          child: cardContent,
         ),
       );
     }
 
     return cardContent;
+  }
+}
+
+class _PatientIconButton extends StatelessWidget {
+  const _PatientIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, size: AppIcons.large, color: AppColors.text),
+        ),
+      ),
+    );
+  }
+}
+
+class _PatientDropdown extends StatelessWidget {
+  const _PatientDropdown({
+    required this.value,
+    required this.items,
+    required this.icon,
+    required this.labelBuilder,
+    required this.onChanged,
+  });
+
+  final String value;
+  final List<String> items;
+  final IconData icon;
+  final String Function(String value) labelBuilder;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.md,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: AppIcons.normal,
+            color: AppColors.textSecondary,
+          ),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: AppColors.text,
+            fontWeight: FontWeight.normal,
+          ),
+          selectedItemBuilder: (context) {
+            return items.map((item) {
+              return Row(
+                children: [
+                  Icon(icon, color: AppColors.primary, size: AppIcons.normal),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      labelBuilder(item),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              );
+            }).toList();
+          },
+          items: items.map((item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(labelBuilder(item), overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _PatientAvatar extends StatelessWidget {
+  const _PatientAvatar({required this.patient});
+
+  final Patient patient;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = patient.isDead
+        ? AppColors.surface2
+        : AppColors.primaryLight;
+    final foreground = patient.isDead ? AppColors.textMuted : AppColors.primary;
+
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(color: background, borderRadius: AppRadius.md),
+      child: Center(
+        child: patient.isDead
+            ? const Icon(Icons.person_off_outlined, color: AppColors.textMuted)
+            : Text(
+                patient.name.isNotEmpty ? patient.name[0].toUpperCase() : '?',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _PatientMetaPill extends StatelessWidget {
+  const _PatientMetaPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: AppIcons.small),
+          const SizedBox(width: AppSpacing.xxs),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PatientStatusPill extends StatelessWidget {
+  const _PatientStatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }

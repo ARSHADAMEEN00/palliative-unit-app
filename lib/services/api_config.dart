@@ -1,6 +1,4 @@
-import 'package:flutter/foundation.dart';
-
-/// API Configuration for the Oruma app.
+/// API Configuration for the Palliative App.
 ///
 /// Contains the base URL and common headers for API requests.
 class ApiConfig {
@@ -8,25 +6,11 @@ class ApiConfig {
   ApiConfig._();
 
   /// Base URL for the API server.
-  /// Uses localhost:3000 for web/desktop development.
-  /// For mobile emulators, you may need to use:
-  /// - Android Emulator: 10.0.2.2:3000
-  /// - iOS Simulator: localhost:3000
-  static String get baseUrl {
-    if (kDebugMode) {
-      if (kIsWeb) {
-        return 'https://api-erp-palliative.osperb.com/api';
-      }
-      // For Android emulator use 10.0.2.2, for iOS/Desktop use localhost
-      return 'https://api-erp-palliative.osperb.com/api';
-    }
-    return 'https://api-erp-palliative.osperb.com/api';
-  }
+  static const String baseUrl = 'https://api-erp-palliative.osperb.com/api';
 
   /// Health check endpoint
-  static String get healthUrl => kDebugMode
-      ? 'https://api-erp-palliative.osperb.com/health'
-      : 'https://api-erp-palliative.osperb.com/health';
+  static const String healthUrl =
+      'https://api-erp-palliative.osperb.com/health';
 
   /// API Endpoints
   static String get patientsEndpoint => '$baseUrl/patients';
@@ -37,6 +21,10 @@ class ApiConfig {
       '$baseUrl/v2/visit-assessments';
   static String get equipmentEndpoint => '$baseUrl/equipment';
   static String get equipmentSuppliesEndpoint => '$baseUrl/equipment-supplies';
+  static String get notificationsEndpoint => '$baseUrl/notifications';
+  static String get billingPortalEndpoint => '$baseUrl/billing/me';
+  static String get billingFeaturesEndpoint => '$baseUrl/billing/features';
+  static String get billingEnquiriesEndpoint => '$baseUrl/billing/enquiries';
   static String get medicineSuppliesEndpoint => '$baseUrl/medicine-supplies';
   static String get v2MedicineSuppliesEndpoint =>
       '$baseUrl/v2/medicine-supplies';
@@ -45,6 +33,7 @@ class ApiConfig {
   static String get v2SocialSupportEndpoint => '$baseUrl/v2/social-support';
   static String get v2VolunteersEndpoint => '$baseUrl/v2/volunteers';
   static String get meEndpoint => '$baseUrl/auth/me';
+  static String get staffEndpoint => '$baseUrl/auth/staff';
 
   /// Default headers for API requests
   static Map<String, String> get headers => {

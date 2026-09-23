@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/patient_details_page.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:intl/intl.dart';
@@ -70,65 +72,63 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
   Widget build(BuildContext context) {
     return AdaptiveAppScaffold(
       appBar: AppBar(
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search passed away patients...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.grey),
-                ),
-                style: const TextStyle(color: Colors.black),
-              )
-            : const Text("Passed Away Patients"),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        toolbarHeight: 72,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        titleSpacing: AppSpacing.md,
+        title: _isSearching
+            ? _buildSearchField()
+            : Text(
+                "Passed Away Patients",
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
         actions: [
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                if (_isSearching) {
-                  _isSearching = false;
-                  _searchController.clear();
-                  _searchQuery = '';
-                } else {
-                  _isSearching = true;
-                }
-              });
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.xs),
+            child: _DeceasedIconButton(
+              icon: _isSearching ? Icons.close : Icons.search,
+              onPressed: () {
+                setState(() {
+                  if (_isSearching) {
+                    _isSearching = false;
+                    _searchController.clear();
+                    _searchQuery = '';
+                  } else {
+                    _isSearching = true;
+                  }
+                });
+              },
+            ),
           ),
           if (!_isSearching)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadPatients,
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: _DeceasedIconButton(
+                icon: Icons.refresh,
+                onPressed: _loadPatients,
+              ),
             ),
         ],
       ),
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: AppColors.background,
       contentMaxWidth: 820,
       body: Builder(
         builder: (context) {
           if (_isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppListSkeleton(itemCount: 5);
           }
 
           if (_error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text("Error: $_error"),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadPatients,
-                    child: const Text("Retry"),
-                  ),
-                ],
+            return AppEmptyState(
+              icon: Icons.error_outline,
+              title: 'Could not load records',
+              message: _error!,
+              action: AppPrimaryButton(
+                label: 'Retry',
+                icon: Icons.refresh,
+                onPressed: _loadPatients,
               ),
             );
           }
@@ -144,33 +144,34 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
 
           if (filteredPatients.isEmpty) {
             if (_searchQuery.isNotEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No matching patients found',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              return const AppEmptyState(
+                icon: Icons.search_off,
+                title: 'No matching records',
+                message:
+                    'Try a different name, register ID, village, or phone number.',
               );
             }
-            return const Center(child: Text("No passed away patients found."));
+            return const AppEmptyState(
+              icon: Icons.person_off_outlined,
+              title: 'No passed away patients',
+              message: 'Passed away patient records will appear here.',
+            );
           }
 
           return RefreshIndicator(
             onRefresh: _loadPatients,
+            color: AppColors.primary,
+            backgroundColor: AppColors.surface,
             child: ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
+                AppSpacing.md,
+                AppInsets.screenHorizontal(context),
+                AppSpacing.lg,
+              ),
               itemCount: filteredPatients.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              separatorBuilder: (context, index) =>
+                  const SizedBox(height: AppSpacing.md),
               itemBuilder: (context, index) {
                 final patient = filteredPatients[index];
                 return _buildPatientCard(context, patient);
@@ -182,66 +183,178 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
     );
   }
 
-  Widget _buildPatientCard(BuildContext context, Patient patient) {
-    return Card(
-      elevation: 0,
-      color: Colors.grey.shade100,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
+  Widget _buildSearchField() {
+    return SizedBox(
+      height: 48,
+      child: TextField(
+        controller: _searchController,
+        autofocus: true,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: InputDecoration(
+          hintText: 'Search passed away patients...',
+          prefixIcon: const Icon(Icons.search, size: AppIcons.normal),
+          filled: true,
+          fillColor: AppColors.surface1,
+          contentPadding: AppInsets.input,
+          border: OutlineInputBorder(
+            borderRadius: AppRadius.input,
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: AppRadius.input,
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppRadius.input,
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+          ),
+        ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: Colors.grey.shade200,
-          child: const Icon(Icons.person_off, color: Colors.grey),
-        ),
-        title: Text(
-          patient.name,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            if (patient.dateOfDeath != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  "Died: ${DateFormat('MMM dd, yyyy').format(patient.dateOfDeath!)}",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            Text(
-              "${patient.age} years • ${patient.village}",
-              style: TextStyle(color: Colors.grey.shade600),
+    );
+  }
+
+  Widget _buildPatientCard(BuildContext context, Patient patient) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      surfaceLevel: AppSurfaceLevel.elevated,
+      borderColor: AppColors.borderStrong,
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ModuleTheme(
+              palette: ModulePalettes.patients,
+              child: PatientDetailsPage(patient: patient),
             ),
-          ],
+          ),
+        );
+        if (result == true) {
+          _loadPatients();
+        }
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: AppColors.surface2,
+              borderRadius: AppRadius.md,
+            ),
+            child: const Icon(
+              Icons.person_off_outlined,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  patient.name,
+                  style: Theme.of(context).textTheme.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    if (patient.dateOfDeath != null)
+                      _DeceasedPill(
+                        icon: Icons.event_busy_outlined,
+                        label:
+                            'Died ${DateFormat('MMM dd, yyyy').format(patient.dateOfDeath!)}',
+                        color: AppColors.danger,
+                      ),
+                    _DeceasedPill(
+                      icon: Icons.place_outlined,
+                      label: '${patient.age} years • ${patient.village}',
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const Icon(
+            Icons.chevron_right,
+            color: AppColors.textMuted,
+            size: AppIcons.large,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeceasedIconButton extends StatelessWidget {
+  const _DeceasedIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, size: AppIcons.large, color: AppColors.text),
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ModuleTheme(
-                palette: ModulePalettes.patients,
-                child: PatientDetailsPage(patient: patient),
+      ),
+    );
+  }
+}
+
+class _DeceasedPill extends StatelessWidget {
+  const _DeceasedPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: AppIcons.small),
+          const SizedBox(width: AppSpacing.xxs),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          );
-          if (result == true) {
-            _loadPatients();
-          }
-        },
+          ),
+        ],
       ),
     );
   }

@@ -5,7 +5,7 @@ import 'package:oruma_app/features/visit_assessment/presentation/widgets/assessm
 
 const _visitModeOptions = <({String value, String label, IconData icon})>[
   (value: 'new', label: 'New', icon: Icons.add_circle_outline),
-  (value: 'monthly', label: 'Monthly', icon: Icons.calendar_month_outlined),
+  (value: 'monthly', label: 'Planned NHC', icon: Icons.calendar_month_outlined),
   (value: 'emergency', label: 'Emergency', icon: Icons.emergency),
   (value: 'dhc_visit', label: 'DHC', icon: Icons.home_work_outlined),
   (value: 'vhc_visit', label: 'VHC', icon: Icons.local_hospital_outlined),
@@ -23,6 +23,7 @@ class VisitHeaderStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     final assessment = controller.assessment;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -108,9 +109,7 @@ class VisitHeaderStep extends StatelessWidget {
         const SizedBox(height: 14),
         const AssessmentLabel('Team', required: true),
         AssessmentTextField(
-          initialValue: assessment.team.isEmpty
-              ? 'Team Oruma'
-              : assessment.team,
+          initialValue: assessment.team,
           hint: 'Enter team name',
           suffixIcon: const Icon(Icons.groups_outlined, size: 18),
           onChanged: (value) =>

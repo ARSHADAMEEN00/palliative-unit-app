@@ -498,7 +498,7 @@ class PhysicalExamStep extends StatelessWidget {
       style: const TextStyle(
         color: assessmentText,
         fontSize: 11,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.normal,
       ),
       decoration: InputDecoration(
         filled: true,

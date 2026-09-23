@@ -64,7 +64,7 @@ class _VisitAssessmentModuleScreenState
       timeTo: '',
       team: visit?.team?.trim().isNotEmpty == true
           ? visit!.team!
-          : 'Team Oruma',
+          : auth.unitName,
       visitMode: visit?.visitMode ?? 'new',
       visitType: visit == null ? 'NHC' : _visitTypeFromMode(visit.visitMode),
       nurseName: auth.user?['name']?.toString() ?? '',

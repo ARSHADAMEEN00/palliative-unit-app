@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/volunteer.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
 
-const _volunteerPrimary = Color(0xFF2F6F73);
-const _volunteerSurface = Color(0xFFE3F4F3);
-const _volunteerIconSurface = Color(0xFFACDDDA);
+const _volunteerPrimary = Color(0xFF0F766E);
+const _volunteerIconSurface = Color(0xFFCCFBF1);
 
 class VolunteerListPage extends StatefulWidget {
   const VolunteerListPage({super.key});
@@ -125,17 +127,35 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete volunteer?'),
-        content: Text('Delete ${volunteer.name} from volunteers?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: const _VolunteerDialogHeader(
+          icon: Icons.delete_outline,
+          title: 'Delete volunteer?',
+          color: AppColors.danger,
+        ),
+        content: Text(
+          'Delete ${volunteer.name} from volunteers?',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
           ),
-          FilledButton(
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        actions: [
+          AppSecondaryButton(
+            label: 'Cancel',
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          AppDangerButton(
+            label: 'Delete',
+            icon: Icons.delete_outline,
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -149,7 +169,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Volunteer deleted'),
-          backgroundColor: _volunteerPrimary,
+          backgroundColor: AppColors.success,
         ),
       );
       await _loadData(showLoading: false);
@@ -158,7 +178,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_friendlyError(error)),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.danger,
         ),
       );
     }
@@ -168,82 +188,69 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
 
-    return AdaptiveAppScaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        backgroundColor: _volunteerSurface,
-        surfaceTintColor: _volunteerSurface,
-        foregroundColor: _volunteerPrimary,
-        elevation: 1,
-        title: const Text('Volunteers', style: TextStyle(fontSize: 18)),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _loadData,
-            icon: const Icon(Icons.refresh),
+    return ModuleTheme(
+      palette: ModulePalettes.volunteers,
+      child: AdaptiveAppScaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          toolbarHeight: 72,
+          titleSpacing: AppSpacing.md,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(
+            'Volunteers',
+            style: Theme.of(context).textTheme.titleLarge,
           ),
-        ],
-      ),
-      floatingActionButton: auth.canCreate
-          ? RevealActionFab(
-              onPressed: () => _openForm(),
-              backgroundColor: _volunteerPrimary,
-              foregroundColor: Colors.white,
-              icon: Icons.add,
-              label: 'Add Volunteer',
-            )
-          : null,
-      contentMaxWidth: 820,
-      body: Column(
-        children: [
-          _buildFilters(),
-          Expanded(child: _buildBody(auth)),
-        ],
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: _VolunteerIconButton(
+                icon: Icons.refresh,
+                onPressed: _loading ? null : _loadData,
+              ),
+            ),
+          ],
+        ),
+        floatingActionButton: auth.canCreate
+            ? RevealActionFab(
+                onPressed: () => _openForm(),
+                backgroundColor: _volunteerPrimary,
+                foregroundColor: Colors.white,
+                icon: Icons.add,
+                label: 'Add Volunteer',
+              )
+            : null,
+        contentMaxWidth: 820,
+        body: Column(
+          children: [
+            _buildFilters(),
+            Expanded(child: _buildBody(auth)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFilters() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+    return AppCard(
+      margin: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+        AppInsets.screenHorizontal(context),
+        AppSpacing.xs,
+      ),
+      padding: AppInsets.md,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: Column(
         children: [
           TextField(
             controller: _searchController,
             textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search name, phone, address, place or ward',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-                        FocusScope.of(context).unfocus();
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-              filled: true,
-              fillColor: Colors.grey.shade50,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: _volunteerPrimary,
-                  width: 1.5,
-                ),
-              ),
-            ),
+            decoration: _searchDecoration(),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               Expanded(
@@ -261,7 +268,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                   },
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _filterDropdown(
                   icon: Icons.apartment_outlined,
@@ -293,23 +300,10 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
       key: ValueKey('$value-${items.join('|')}'),
       initialValue: items.contains(value) ? value : null,
       isExpanded: true,
-      decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: _volunteerPrimary, size: 20),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-      ),
+      dropdownColor: AppColors.surface,
+      iconEnabledColor: AppColors.textSecondary,
+      style: AppTypography.dropdownTextStyle(context),
+      decoration: _compactInputDecoration(labelFor(value), icon),
       items: items
           .map(
             (item) =>
@@ -322,37 +316,16 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
 
   Widget _buildBody(AuthService auth) {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: _volunteerPrimary),
-      );
+      return const AppListSkeleton(itemCount: 5);
     }
 
     if (_error != null) {
-      return _messageState(
-        Icons.cloud_off_outlined,
-        'Could not load volunteers',
-        _error!,
-        action: OutlinedButton.icon(
-          onPressed: _loadData,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Retry'),
-        ),
-      );
+      return _errorState();
     }
 
     final volunteers = _filteredVolunteers;
     if (volunteers.isEmpty) {
-      final hasFilters =
-          _searchController.text.isNotEmpty ||
-          _selectedVillage != 'All' ||
-          _selectedWard != 'All';
-      return _messageState(
-        hasFilters ? Icons.search_off_outlined : Icons.group_add_outlined,
-        hasFilters ? 'No matching volunteers' : 'No volunteers added',
-        hasFilters
-            ? 'Try another name, phone, village or ward.'
-            : 'Add the first volunteer profile.',
-      );
+      return _emptyState();
     }
 
     return RefreshIndicator(
@@ -360,9 +333,14 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
       onRefresh: () => _loadData(showLoading: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.xs,
+          AppInsets.screenHorizontal(context),
+          112,
+        ),
         itemCount: volunteers.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
         itemBuilder: (context, index) =>
             _volunteerCard(volunteers[index], auth),
       ),
@@ -370,94 +348,71 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   }
 
   Widget _volunteerCard(Volunteer volunteer, AuthService auth) {
-    return InkWell(
+    return AppCard(
       onTap: () => _showDetails(volunteer, auth),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: _volunteerPrimary.withValues(alpha: 0.07),
-              blurRadius: 18,
-              offset: const Offset(0, 7),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      surfaceLevel: AppSurfaceLevel.elevated,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _avatar(size: 44),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  volunteer.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  volunteer.locationLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: _volunteerPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                _inlineDetail(Icons.call_outlined, volunteer.phone),
+                if (volunteer.phone2.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  _inlineDetail(Icons.phone_iphone_outlined, volunteer.phone2),
+                ],
+                if (volunteer.address.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  _inlineDetail(Icons.home_outlined, volunteer.address.trim()),
+                ],
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _avatar(),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    volunteer.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF202333),
+          ),
+          if (auth.canEdit || auth.canDelete)
+            PopupMenuButton<String>(
+              iconColor: AppColors.textSecondary,
+              onSelected: (value) {
+                if (value == 'edit') _openForm(volunteer);
+                if (value == 'delete') _deleteVolunteer(volunteer);
+              },
+              itemBuilder: (context) => [
+                if (auth.canEdit)
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                if (auth.canDelete)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      'Delete',
+                      style: TextStyle(color: AppColors.danger),
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    volunteer.locationLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _volunteerPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _inlineDetail(Icons.call_outlined, volunteer.phone),
-                  if (volunteer.phone2.trim().isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    _inlineDetail(
-                      Icons.phone_iphone_outlined,
-                      volunteer.phone2,
-                    ),
-                  ],
-                  if (volunteer.address.trim().isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    _inlineDetail(
-                      Icons.home_outlined,
-                      volunteer.address.trim(),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (auth.canEdit || auth.canDelete)
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'edit') _openForm(volunteer);
-                  if (value == 'delete') _deleteVolunteer(volunteer);
-                },
-                itemBuilder: (context) => [
-                  if (auth.canEdit)
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  if (auth.canDelete)
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        'Delete',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                ],
-              )
-            else
-              const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
+              ],
+            )
+          else
+            const Icon(Icons.chevron_right, color: AppColors.textMuted),
+        ],
       ),
     );
   }
@@ -466,9 +421,9 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: _volunteerIconSurface,
-        borderRadius: BorderRadius.circular(size * 0.3),
+        borderRadius: AppRadius.md,
       ),
       child: Icon(
         Icons.volunteer_activism_outlined,
@@ -482,14 +437,16 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 15, color: Colors.grey.shade600),
-        const SizedBox(width: 5),
+        Icon(icon, size: AppIcons.small, color: AppColors.textMuted),
+        const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
         ),
       ],
@@ -499,88 +456,119 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   void _showDetails(Volunteer volunteer, AuthService auth) {
     showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _avatar(size: 54),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final bottomSafePadding = MediaQuery.of(context).viewPadding.bottom;
+
+        return ModuleTheme(
+          palette: ModulePalettes.volunteers,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: AppRadius.sheet,
+            ),
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.lg + bottomSafePadding,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Center(child: _SheetHandle()),
+                  const SizedBox(height: AppSpacing.lg),
+                  Row(
                     children: [
-                      Text(
-                        volunteer.name,
-                        style: const TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        volunteer.phone2.trim().isEmpty
-                            ? volunteer.phone
-                            : '${volunteer.phone} / ${volunteer.phone2}',
-                        style: const TextStyle(
-                          color: _volunteerPrimary,
-                          fontWeight: FontWeight.w700,
+                      _avatar(size: 48),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              volunteer.name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            Text(
+                              volunteer.phone2.trim().isEmpty
+                                  ? volunteer.phone
+                                  : '${volunteer.phone} / ${volunteer.phone2}',
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: _volunteerPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.lg),
+                  _detailLine(
+                    Icons.location_city_outlined,
+                    'Village',
+                    volunteer.village,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _detailLine(
+                    Icons.apartment_outlined,
+                    'Ward',
+                    volunteer.wardLabel,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _detailLine(Icons.place_outlined, 'Place', volunteer.place),
+                  if (volunteer.address.trim().isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _detailLine(
+                      Icons.home_outlined,
+                      'Address',
+                      volunteer.address.trim(),
+                    ),
+                  ],
+                  if (volunteer.phone2.trim().isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _detailLine(
+                      Icons.phone_iphone_outlined,
+                      'Second Phone',
+                      volunteer.phone2.trim(),
+                    ),
+                  ],
+                  if (auth.canEdit || auth.canDelete) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    if (auth.canEdit)
+                      AppPrimaryButton(
+                        label: 'Edit volunteer',
+                        icon: Icons.edit_outlined,
+                        fullWidth: true,
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _openForm(volunteer);
+                        },
+                      ),
+                    if (auth.canDelete) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      AppDangerButton(
+                        label: 'Delete volunteer',
+                        icon: Icons.delete_outline,
+                        fullWidth: true,
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _deleteVolunteer(volunteer);
+                        },
+                      ),
+                    ],
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 18),
-            _detailLine(
-              Icons.location_city_outlined,
-              'Village',
-              volunteer.village,
-            ),
-            const SizedBox(height: 10),
-            _detailLine(Icons.apartment_outlined, 'Ward', volunteer.wardLabel),
-            const SizedBox(height: 10),
-            _detailLine(Icons.place_outlined, 'Place', volunteer.place),
-            if (volunteer.address.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _detailLine(
-                Icons.home_outlined,
-                'Address',
-                volunteer.address.trim(),
-              ),
-            ],
-            if (volunteer.phone2.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _detailLine(
-                Icons.phone_iphone_outlined,
-                'Second Phone',
-                volunteer.phone2.trim(),
-              ),
-            ],
-            if (auth.canEdit) ...[
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _openForm(volunteer);
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: _volunteerPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit volunteer'),
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -588,17 +576,26 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: _volunteerPrimary, size: 20),
-        const SizedBox(width: 10),
+        Icon(icon, color: _volunteerPrimary, size: AppIcons.normal),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value, style: const TextStyle(fontSize: 14)),
-              const SizedBox(height: 2),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 label,
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -607,38 +604,125 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     );
   }
 
-  Widget _messageState(
-    IconData icon,
-    String title,
-    String message, {
-    Widget? action,
-  }) {
+  Widget _errorState() {
+    return AppEmptyState(
+      icon: Icons.cloud_off_outlined,
+      title: 'Could not load volunteers',
+      message: _error!,
+      action: AppPrimaryButton(
+        label: 'Retry',
+        icon: Icons.refresh,
+        onPressed: _loadData,
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    final hasFilters =
+        _searchController.text.isNotEmpty ||
+        _selectedVillage != 'All' ||
+        _selectedWard != 'All';
+
     return RefreshIndicator(
-      color: _volunteerPrimary,
       onRefresh: () => _loadData(showLoading: false),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(30),
-        children: [
-          const SizedBox(height: 80),
-          Icon(icon, color: _volunteerPrimary, size: 54),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-          if (action != null) ...[
-            const SizedBox(height: 16),
-            Center(child: action),
-          ],
-        ],
+      color: _volunteerPrimary,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              height: constraints.maxHeight,
+              child: AppEmptyState(
+                icon: hasFilters
+                    ? Icons.search_off_outlined
+                    : Icons.group_add_outlined,
+                title: hasFilters ? 'No matching volunteers' : 'No volunteers',
+                message: hasFilters
+                    ? 'Try changing the search, village, or ward filter.'
+                    : 'Volunteer profiles will appear here once added.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _compactPrefixIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
+        color: _volunteerIconSurface,
+        borderRadius: AppRadius.sm,
+      ),
+      child: Icon(icon, color: _volunteerPrimary, size: AppIcons.normal),
+    );
+  }
+
+  InputDecoration _searchDecoration() {
+    return InputDecoration(
+      isDense: true,
+      hintText: 'Search name, phone, address, place or ward',
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactPrefixIcon(Icons.search),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      suffixIcon: _searchController.text.isEmpty
+          ? null
+          : IconButton(
+              onPressed: () {
+                _searchController.clear();
+                FocusScope.of(context).unfocus();
+              },
+              icon: const Icon(Icons.close, size: 20),
+            ),
+      filled: true,
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _volunteerPrimary, width: 1.5),
+      ),
+    );
+  }
+
+  InputDecoration _compactInputDecoration(String hint, IconData icon) {
+    return InputDecoration(
+      isDense: true,
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactPrefixIcon(icon),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      floatingLabelBehavior: FloatingLabelBehavior.never,
+      filled: true,
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _volunteerPrimary, width: 1.4),
       ),
     );
   }
@@ -770,7 +854,7 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_editing ? 'Volunteer updated' : 'Volunteer created'),
-          backgroundColor: _volunteerPrimary,
+          backgroundColor: AppColors.success,
         ),
       );
       Navigator.pop(context, true);
@@ -780,7 +864,7 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_friendlyError(error)),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.danger,
         ),
       );
     }
@@ -789,185 +873,210 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
   @override
   Widget build(BuildContext context) {
     if (_loadingConfig) {
-      return AdaptiveAppScaffold(
-        backgroundColor: Colors.grey.shade50,
-        appBar: AppBar(
-          backgroundColor: _volunteerSurface,
-          foregroundColor: _volunteerPrimary,
-          title: Text(_editing ? 'Edit Volunteer' : 'New Volunteer'),
+      return ModuleTheme(
+        palette: ModulePalettes.volunteers,
+        child: AdaptiveAppScaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            toolbarHeight: 72,
+            titleSpacing: AppSpacing.md,
+            backgroundColor: AppColors.background,
+            foregroundColor: AppColors.text,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            title: Text(
+              _editing ? 'Edit Volunteer' : 'New Volunteer',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          body: const AppListSkeleton(itemCount: 4),
+          contentMaxWidth: 900,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(color: _volunteerPrimary),
-        ),
-        contentMaxWidth: 900,
       );
     }
 
-    return AdaptiveAppScaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        backgroundColor: _volunteerSurface,
-        surfaceTintColor: _volunteerSurface,
-        foregroundColor: _volunteerPrimary,
-        title: Text(
-          _editing ? 'Edit Volunteer' : 'New Volunteer',
-          style: const TextStyle(fontSize: 18),
+    return ModuleTheme(
+      palette: ModulePalettes.volunteers,
+      child: AdaptiveAppScaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          toolbarHeight: 72,
+          titleSpacing: AppSpacing.md,
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(
+            _editing ? 'Edit Volunteer' : 'New Volunteer',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
         ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 110),
-          children: [
-            if (_configError != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 14),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.red.shade100),
-                ),
-                child: Text(
-                  _configError!,
-                  style: TextStyle(color: Colors.red.shade700),
-                ),
-              ),
-            _formCard(
-              title: 'Location',
-              icon: Icons.map_outlined,
-              children: [
-                DropdownButtonFormField<String>(
-                  key: ValueKey(
-                    'village-${_selectedVillage ?? ''}-${_villageOptions.join('|')}',
-                  ),
-                  initialValue: _villageOptions.contains(_selectedVillage)
-                      ? _selectedVillage
-                      : null,
-                  isExpanded: true,
-                  decoration: _inputDecoration(
-                    'Village',
-                    Icons.location_city_outlined,
-                  ),
-                  items: _villageOptions
-                      .map(
-                        (village) => DropdownMenuItem(
-                          value: village,
-                          child: Text(village),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedVillage = value;
-                      _selectedWard = null;
-                      _updateWardOptions();
-                    });
-                  },
-                  validator: (value) =>
-                      value == null ? 'Village is required' : null,
-                ),
-                DropdownButtonFormField<String>(
-                  key: ValueKey(
-                    'ward-${_selectedWard ?? ''}-${_wardOptions.join('|')}',
-                  ),
-                  initialValue: _wardOptions.contains(_selectedWard)
-                      ? _selectedWard
-                      : null,
-                  isExpanded: true,
-                  decoration: _inputDecoration(
-                    'Ward',
-                    Icons.apartment_outlined,
-                  ),
-                  hint: const Text('Select Ward'),
-                  items: _wardOptions
-                      .map(
-                        (ward) => DropdownMenuItem(
-                          value: ward,
-                          child: Text('Ward $ward'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _selectedWard = value),
-                  validator: (value) =>
-                      value == null ? 'Ward is required' : null,
-                ),
-                TextFormField(
-                  controller: _placeController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: _inputDecoration('Place', Icons.place_outlined),
-                  validator: (value) => value?.trim().isEmpty == true
-                      ? 'Place is required'
-                      : null,
-                ),
-                TextFormField(
-                  controller: _addressController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: _inputDecoration('Address', Icons.home_outlined),
-                  minLines: 1,
-                  maxLines: 3,
-                ),
-              ],
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              AppInsets.screenHorizontal(context),
+              AppSpacing.md,
+              AppInsets.screenHorizontal(context),
+              112,
             ),
-            const SizedBox(height: 14),
-            _formCard(
-              title: 'Volunteer',
-              icon: Icons.volunteer_activism_outlined,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: _inputDecoration('Name', Icons.person_outline),
-                  validator: (value) =>
-                      value?.trim().isEmpty == true ? 'Name is required' : null,
-                ),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: _inputDecoration('Phone', Icons.call_outlined),
-                  validator: (value) => value?.trim().isEmpty == true
-                      ? 'Phone is required'
-                      : null,
-                ),
-                TextFormField(
-                  controller: _phone2Controller,
-                  keyboardType: TextInputType.phone,
-                  decoration: _inputDecoration(
-                    'Second Phone',
-                    Icons.phone_iphone_outlined,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      contentMaxWidth: 900,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: FilledButton(
-            onPressed: _saving ? null : _save,
-            style: FilledButton.styleFrom(
-              backgroundColor: _volunteerPrimary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: _saving
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
+            children: [
+              if (_configError != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  padding: AppInsets.md,
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.08),
+                    borderRadius: AppRadius.input,
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.18),
                     ),
-                  )
-                : Text(_editing ? 'Update Volunteer' : 'Save Volunteer'),
+                  ),
+                  child: Text(
+                    _configError!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              _formCard(
+                title: 'Location',
+                icon: Icons.map_outlined,
+                children: [
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'village-${_selectedVillage ?? ''}-${_villageOptions.join('|')}',
+                    ),
+                    initialValue: _villageOptions.contains(_selectedVillage)
+                        ? _selectedVillage
+                        : null,
+                    isExpanded: true,
+                    style: AppTypography.dropdownTextStyle(context),
+                    decoration: _inputDecoration(
+                      'Village',
+                      Icons.location_city_outlined,
+                    ),
+                    items: _villageOptions
+                        .map(
+                          (village) => DropdownMenuItem(
+                            value: village,
+                            child: Text(village),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedVillage = value;
+                        _selectedWard = null;
+                        _updateWardOptions();
+                      });
+                    },
+                    validator: (value) =>
+                        value == null ? 'Village is required' : null,
+                  ),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'ward-${_selectedWard ?? ''}-${_wardOptions.join('|')}',
+                    ),
+                    initialValue: _wardOptions.contains(_selectedWard)
+                        ? _selectedWard
+                        : null,
+                    isExpanded: true,
+                    style: AppTypography.dropdownTextStyle(context),
+                    decoration: _inputDecoration(
+                      'Ward',
+                      Icons.apartment_outlined,
+                    ),
+                    hint: const Text('Select Ward'),
+                    items: _wardOptions
+                        .map(
+                          (ward) => DropdownMenuItem(
+                            value: ward,
+                            child: Text('Ward $ward'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _selectedWard = value),
+                    validator: (value) =>
+                        value == null ? 'Ward is required' : null,
+                  ),
+                  TextFormField(
+                    controller: _placeController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _inputDecoration('Place', Icons.place_outlined),
+                    validator: (value) => value?.trim().isEmpty == true
+                        ? 'Place is required'
+                        : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _formCard(
+                title: 'Volunteer',
+                icon: Icons.volunteer_activism_outlined,
+                children: [
+                  TextFormField(
+                    controller: _nameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _inputDecoration('Name', Icons.person_outline),
+                    validator: (value) => value?.trim().isEmpty == true
+                        ? 'Name is required'
+                        : null,
+                  ),
+                  TextFormField(
+                    controller: _addressController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _inputDecoration(
+                      'Address',
+                      Icons.home_outlined,
+                    ),
+                    minLines: 1,
+                    maxLines: 3,
+                  ),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: _inputDecoration('Phone', Icons.call_outlined),
+                    validator: (value) => value?.trim().isEmpty == true
+                        ? 'Phone is required'
+                        : null,
+                  ),
+                  TextFormField(
+                    controller: _phone2Controller,
+                    keyboardType: TextInputType.phone,
+                    decoration: _inputDecoration(
+                      'Second Phone',
+                      Icons.phone_iphone_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        contentMaxWidth: 900,
+        bottomSheet: Container(
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
+            AppSpacing.sm,
+            AppInsets.screenHorizontal(context),
+            AppSpacing.md,
+          ),
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceFloating,
+            border: Border(top: BorderSide(color: AppColors.border)),
+            boxShadow: AppShadow.medium,
+          ),
+          child: SafeArea(
+            top: false,
+            child: AppPrimaryButton(
+              label: _editing ? 'Update Volunteer' : 'Save Volunteer',
+              icon: Icons.save_outlined,
+              fullWidth: true,
+              loading: _saving,
+              onPressed: _saving ? null : _save,
+            ),
           ),
         ),
       ),
@@ -987,40 +1096,35 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
     required IconData icon,
     required List<Widget> children,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _volunteerPrimary.withValues(alpha: 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 7),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: AppInsets.card,
+      surfaceLevel: AppSurfaceLevel.elevated,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: _volunteerPrimary),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: _volunteerIconSurface,
+                  borderRadius: AppRadius.sm,
+                ),
+                child: Icon(
+                  icon,
+                  color: _volunteerPrimary,
+                  size: AppIcons.normal,
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: AppSpacing.lg),
           ...children.expand(
             (child) => [
               child,
-              if (child != children.last) const SizedBox(height: 13),
+              if (child != children.last) const SizedBox(height: AppSpacing.md),
             ],
           ),
         ],
@@ -1030,26 +1134,132 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
 
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, color: _volunteerPrimary, size: 20),
+      isDense: true,
+      hintText: label,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: _compactFormPrefixIcon(icon),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      floatingLabelBehavior: FloatingLabelBehavior.never,
       filled: true,
-      fillColor: const Color(0xFFF8FBFA),
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade200),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade200),
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.input,
         borderSide: const BorderSide(color: _volunteerPrimary, width: 1.5),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger, width: 1.4),
+      ),
+    );
+  }
+
+  Widget _compactFormPrefixIcon(IconData icon) {
+    return Container(
+      width: 36,
+      height: 36,
+      margin: const EdgeInsets.all(6),
+      decoration: const BoxDecoration(
+        color: _volunteerIconSurface,
+        borderRadius: AppRadius.sm,
+      ),
+      child: Icon(icon, color: _volunteerPrimary, size: AppIcons.normal),
     );
   }
 
   String _friendlyError(Object error) {
     return error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+  }
+}
+
+class _VolunteerIconButton extends StatelessWidget {
+  const _VolunteerIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface1,
+      borderRadius: AppRadius.md,
+      child: InkWell(
+        borderRadius: AppRadius.md,
+        onTap: onPressed,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(
+            icon,
+            color: onPressed == null ? AppColors.textMuted : AppColors.text,
+            size: AppIcons.large,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 5,
+      decoration: BoxDecoration(
+        color: AppColors.borderStrong,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _VolunteerDialogHeader extends StatelessWidget {
+  const _VolunteerDialogHeader({
+    required this.icon,
+    required this.title,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: color, size: AppIcons.large),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+      ],
+    );
   }
 }
