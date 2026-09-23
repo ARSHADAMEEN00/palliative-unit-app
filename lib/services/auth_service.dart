@@ -284,14 +284,6 @@ class AuthService with ChangeNotifier {
     };
   }
 
-  void clearAccessBlocked() {
-    _isAccessBlocked = false;
-    _accessBlockedMessage = null;
-    _accessBlockedSupport = null;
-    _loginErrorMessage = null;
-    notifyListeners();
-  }
-
   Future<void> _handleAuthFailure(http.Response response) async {
     Map<String, dynamic> data = {};
     try {
@@ -301,11 +293,8 @@ class AuthService with ChangeNotifier {
     }
 
     if (response.statusCode == 403 && data['code'] == 'TRIAL_ENDED') {
-      _token = null;
-      _role = null;
-      _user = null;
-      _featurePermissions = null;
-      _featurePermissionsLoaded = false;
+      // Billing access and authentication are separate. Preserve the saved
+      // session so a renewal can restore access without forcing another login.
       _isAccessBlocked = true;
       _accessBlockedMessage =
           data['error']?.toString() ??
@@ -314,7 +303,7 @@ class AuthService with ChangeNotifier {
       _accessBlockedSupport = support is Map
           ? Map<String, dynamic>.from(support)
           : null;
-      await _clearStoredCredentials();
+      _loginErrorMessage = null;
       AppCache.clear();
     } else {
       _loginErrorMessage =
@@ -322,10 +311,6 @@ class AuthService with ChangeNotifier {
     }
 
     notifyListeners();
-  }
-
-  Future<void> _clearStoredCredentials() async {
-    await CredentialStore.clear();
   }
 
   void _applyFeaturePermissions(Map<String, dynamic> data) {

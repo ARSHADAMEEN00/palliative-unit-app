@@ -7,6 +7,7 @@ import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/loginscreen.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/trial_ended_screen.dart';
+import 'package:oruma_app/widgets/palliative_upgrade_alert.dart';
 import 'package:oruma_app/widgets/slide_page_route.dart';
 import 'package:provider/provider.dart';
 
@@ -50,6 +51,15 @@ class MyApp extends StatelessWidget {
       pageTransitionsTheme: pageTransitionsTheme,
     );
     final darkTheme = AppTheme.dark(pageTransitionsTheme: pageTransitionsTheme);
+    final home = Consumer<AuthService>(
+      builder: (context, auth, _) {
+        if (auth.isAccessBlocked) {
+          return const TrialEndedScreen();
+        }
+
+        return auth.isAuthenticated ? const Homescreen() : const Loginscreen();
+      },
+    );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -73,17 +83,9 @@ class MyApp extends StatelessWidget {
       },
       theme: lightTheme,
       darkTheme: darkTheme,
-      home: Consumer<AuthService>(
-        builder: (context, auth, _) {
-          if (auth.isAccessBlocked) {
-            return const TrialEndedScreen();
-          }
-
-          return auth.isAuthenticated
-              ? const Homescreen()
-              : const Loginscreen();
-        },
-      ),
+      home: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+          ? PalliativeUpgradeAlert(child: home)
+          : home,
     );
   }
 }

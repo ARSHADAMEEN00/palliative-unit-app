@@ -86,6 +86,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "csslib",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/csslib-1.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
       "name": "cupertino_icons",
       "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/cupertino_icons-1.0.8",
       "packageUri": "lib/",
@@ -222,6 +228,12 @@
       "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/hooks-2.0.2",
       "packageUri": "lib/",
       "languageVersion": "3.10"
+    },
+    {
+      "name": "html",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/html-0.15.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
     },
     {
       "name": "http",
@@ -386,10 +398,28 @@
       "languageVersion": "3.10"
     },
     {
+      "name": "os_detect",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/os_detect-2.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
       "name": "package_config",
       "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/package_config-2.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "package_info_plus",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/package_info_plus-9.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "package_info_plus_platform_interface",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/package_info_plus_platform_interface-3.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.18"
     },
     {
       "name": "path",
@@ -614,6 +644,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "upgrader",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/upgrader-13.7.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
       "name": "url_launcher",
       "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/url_launcher-6.3.2",
       "packageUri": "lib/",
@@ -666,6 +702,12 @@
       "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/vector_math-2.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.1"
+    },
+    {
+      "name": "version",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/version-3.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
     },
     {
       "name": "vm_service",

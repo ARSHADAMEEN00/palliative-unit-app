@@ -120,11 +120,23 @@ class TrialEndedScreen extends StatelessWidget {
                         ],
                         const SizedBox(height: AppSpacing.xl),
                         AppPrimaryButton(
-                          label: 'Back to login',
-                          icon: Icons.arrow_back_rounded,
+                          label: 'Check access again',
+                          icon: Icons.refresh_rounded,
                           fullWidth: true,
                           onPressed: () =>
-                              context.read<AuthService>().clearAccessBlocked(),
+                              context.read<AuthService>().fetchUserProfile(),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                context.read<AuthService>().logout(),
+                            icon: const Icon(Icons.logout_rounded),
+                            label: const Text('Logout'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.danger,
+                            ),
+                          ),
                         ),
                       ],
                     ),
