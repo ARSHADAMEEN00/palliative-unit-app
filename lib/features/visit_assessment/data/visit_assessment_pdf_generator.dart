@@ -39,7 +39,7 @@ class VisitAssessmentPdfGenerator {
     'scalpHair': 'സ്കാൽപ്പ്, മുടി',
     'skin': 'തൊലി',
     'eyeNoseMouth': 'കണ്ണ്, മൂക്ക്, ചെവി',
-    'oral': 'വായ (പല്ല്, നാവ്, നാസി, അണ്ണാക്ക്, തൊണ്ട etc...)',
+    'oral': 'വായ (പല്ല്, നാവ്, നാസി, അണ്ണാക്ക്, തൊണ്ട തുടങ്ങിയവ)',
     'nails': 'നഖം',
     'perineum': 'പെരിനിയം',
     'pressureArea': 'പ്രഷർ ഏരിയ',
@@ -52,24 +52,63 @@ class VisitAssessmentPdfGenerator {
     'DHC': 'DHC',
     'NHC': 'NHC',
     'GVHC': 'GVHC',
-    'other': 'Other',
+    'other': 'മറ്റുള്ളവ',
   };
 
   static const _serviceLabels = <String, String>{
-    'healthEducation': 'Health Education',
-    'familyTraining': 'Family Training',
-    'physiotherapy': 'Physiotherapy',
-    'dayCare': 'Day Care',
-    'socialSupport': 'Social Support',
-    'medicineSupport': 'Medicine Support',
+    'healthEducation': 'ആരോഗ്യ വിദ്യാഭ്യാസം',
+    'familyTraining': 'കുടുംബ പരിശീലനം',
+    'physiotherapy': 'ഫിസിയോതെറാപ്പി',
+    'dayCare': 'ഡേ കെയർ',
+    'socialSupport': 'സാമൂഹിക പിന്തുണ',
+    'medicineSupport': 'മരുന്ന് സഹായം',
   };
 
   static const _visitModeLabels = <String, String>{
-    'new': 'New',
-    'monthly': 'Planned',
-    'emergency': 'Emergency',
+    'new': 'പുതിയ',
+    'monthly': 'ആസൂത്രിത',
+    'emergency': 'അടിയന്തര',
     'dhc_visit': 'DHC',
     'vhc_visit': 'VHC',
+  };
+
+  static const _malayalamTokenLabels = <String, String>{
+    'normal': 'സാധാരണം',
+    'abnormal': 'അസാധാരണം',
+    'self_feeding': 'സ്വയം കഴിക്കുന്നു',
+    'tube_fed': 'ട്യൂബ് ഫീഡിംഗ്',
+    'assistance': 'സഹായം ആവശ്യമാണ്',
+    'uses_toilet_independently': 'സ്വയം ടോയ്‌ലറ്റിൽ പോകും',
+    'urinary_catheter': 'യൂറിനറി കാത്തീറ്റർ',
+    'condom_catheter': 'കോണ്ടം കാത്തീറ്റർ',
+    'nephrostomy_tube': 'നെഫ്രോസ്റ്റമി ട്യൂബ്',
+    'uses_medication': 'മരുന്ന് ഉപയോഗിക്കുന്നു',
+    'no_defecation': 'ശോധന ഇല്ല',
+    'with_medication': 'മരുന്നിന്റെ സഹായത്തോടെ',
+    'no_sleep': 'ഉറക്കം ഇല്ല',
+    'over_sleep': 'അമിത ഉറക്കം',
+    'good': 'നല്ലത്',
+    'fair': 'ശരാശരി',
+    'poor': 'മോശം',
+    'yes': 'ഉണ്ട്',
+    'limited': 'പരിമിതം',
+    'no': 'ഇല്ല',
+    'clean': 'വൃത്തി ഉണ്ട്',
+    'not_clean': 'വൃത്തി ഇല്ല',
+    'unclean': 'വൃത്തിയില്ല',
+    'dry_skin': 'വരണ്ട ചർമ്മം',
+    'soft_skin': 'മൃദുവായ ചർമ്മം',
+    'pain_present': 'വേദന ഉണ്ട്',
+    'no_pain': 'വേദന ഇല്ല',
+    'oxygen_cylinder': 'ഓക്സിജൻ സിലിണ്ടർ',
+    'bipap_machine': 'BiPAP മെഷീൻ',
+    'nebulizer': 'കോൺസൻട്രേറ്റർ',
+    'lice_present': 'പേൻ ഉണ്ട്',
+    'no_lice': 'പേൻ ഇല്ല',
+    'dandruff_present_no_lice': 'താരൻ ഉണ്ട്, പേൻ ഇല്ല',
+    'no_dandruff_lice_present': 'താരൻ ഇല്ല, പേൻ ഉണ്ട്',
+    'wounds': 'മുറിവുകൾ',
+    'no_wounds': 'മുറിവുകളില്ല',
   };
 
   static Future<Uint8List> generate(VisitAssessment assessment) async {
@@ -137,18 +176,14 @@ class VisitAssessmentPdfGenerator {
       rowStride: _rasterWidth * 4,
       order: img.ChannelOrder.rgba,
     );
-    return img.encodeJpg(
-      raster,
-      quality: 90,
-      chroma: img.JpegChroma.yuv444,
-    );
+    return img.encodeJpg(raster, quality: 90, chroma: img.JpegChroma.yuv444);
   }
 
   static void _paintPageOne(Canvas canvas, VisitAssessment assessment) {
     final paint = _stroke(1.7);
     _text(
       canvas,
-      'PALLIATIVE CARE',
+      'പാലിയേറ്റീവ് കെയർ',
       const Rect.fromLTWH(175, 95, 420, 44),
       size: 34,
       weight: FontWeight.w800,
@@ -176,7 +211,7 @@ class VisitAssessmentPdfGenerator {
     );
     _fitText(
       canvas,
-      '${_visitModeLabel(assessment.visitMode)} Visit',
+      '${_visitModeLabel(assessment.visitMode)} സന്ദർശനം',
       const Rect.fromLTWH(952, 96, 158, 24),
       size: 17,
       weight: FontWeight.w700,
@@ -185,7 +220,7 @@ class VisitAssessmentPdfGenerator {
 
     _headerField(
       canvas,
-      label: 'Name :',
+      label: 'പേര് :',
       value: assessment.patientName,
       labelX: 135,
       valueX: 220,
@@ -194,7 +229,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'Age :',
+      label: 'വയസ്സ് :',
       value: assessment.patientAge,
       labelX: 650,
       valueX: 705,
@@ -203,7 +238,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'Reg. No. :',
+      label: 'രജി. നമ്പർ :',
       value: assessment.regNo,
       labelX: 790,
       valueX: 895,
@@ -212,7 +247,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'Date :',
+      label: 'തീയതി :',
       value: _date(assessment.visitDate),
       labelX: 135,
       valueX: 215,
@@ -221,7 +256,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'Time From :',
+      label: 'സമയം :',
       value: assessment.timeFrom,
       labelX: 520,
       valueX: 650,
@@ -230,7 +265,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'To :',
+      label: 'വരെ :',
       value: assessment.timeTo,
       labelX: 775,
       valueX: 825,
@@ -239,7 +274,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'Team :',
+      label: 'ടീം :',
       value: assessment.team,
       labelX: 135,
       valueX: 215,
@@ -405,11 +440,11 @@ class VisitAssessmentPdfGenerator {
 
     _text(
       canvas,
-      'Activity :',
-      const Rect.fromLTWH(105, 200, 95, 26),
-      size: 18,
+      'പ്രവർത്തന നില :',
+      const Rect.fromLTWH(105, 200, 135, 26),
+      size: 16,
     );
-    var x = 200.0;
+    var x = 245.0;
     for (final level in ['I', 'II', 'III', 'IV', 'V']) {
       final selected = vitals.activityLevel == level;
       if (selected) {
@@ -432,16 +467,16 @@ class VisitAssessmentPdfGenerator {
     }
     _checkboxLabel(
       canvas,
-      label: 'STABLE',
+      label: 'സ്ഥിരം',
       checked: vitals.stability.toLowerCase() == 'stable',
-      x: 445,
+      x: 500,
       y: 201,
     );
     _checkboxLabel(
       canvas,
-      label: 'UNSTABLE',
+      label: 'അസ്ഥിരം',
       checked: vitals.stability.toLowerCase() == 'unstable',
-      x: 605,
+      x: 680,
       y: 201,
     );
   }
@@ -515,7 +550,7 @@ class VisitAssessmentPdfGenerator {
     );
     _centerText(
       canvas,
-      'മരുന്ന് Strength',
+      'മരുന്ന്, ശക്തി',
       Rect.fromLTRB(columns[1], tableY, columns[2], tableY + headerOne),
       size: 17,
     );
@@ -686,7 +721,7 @@ class VisitAssessmentPdfGenerator {
     final medY = tableBottom + 18;
     _text(
       canvas,
-      'മരുന്ന് സംബന്ധിച്ച് മറ്റു കാര്യങ്ങൾ (മരുന്ന് ചികിൽസ, മരുന്നറിവ്, ഫലം, ഉപയോഗങ്ങൾ Etc.) :',
+      'മരുന്ന് സംബന്ധിച്ച് മറ്റു കാര്യങ്ങൾ (മരുന്ന് ചികിത്സ, മരുന്നറിവ്, ഫലം, ഉപയോഗങ്ങൾ തുടങ്ങിയവ) :',
       Rect.fromLTWH(x, medY, 980, 30),
       size: 18,
       weight: FontWeight.w700,
@@ -703,18 +738,18 @@ class VisitAssessmentPdfGenerator {
     final nursingY = medY + 122;
     _text(
       canvas,
-      'Nursing Diagnosis/Doctor Consult/Nursing Management/Medications :',
+      'നഴ്സിംഗ് രോഗനിർണയം / ഡോക്ടർ കൺസൾട്ട് / നഴ്സിംഗ് മാനേജ്മെന്റ് / മരുന്നുകൾ :',
       Rect.fromLTWH(x, nursingY, 1040, 36),
-      size: 23,
+      size: 19,
       weight: FontWeight.w500,
     );
     final combined = [
       if (assessment.nursingDiagnosis.trim().isNotEmpty)
-        'Nursing Diagnosis: ${assessment.nursingDiagnosis.trim()}',
+        'നഴ്സിംഗ് രോഗനിർണയം: ${assessment.nursingDiagnosis.trim()}',
       if (assessment.doctorConsultNotes.trim().isNotEmpty)
-        'Doctor Consult: ${assessment.doctorConsultNotes.trim()}',
+        'ഡോക്ടർ കൺസൾട്ട്: ${assessment.doctorConsultNotes.trim()}',
       if (assessment.nursingManagementPlan.trim().isNotEmpty)
-        'Nursing Management: ${assessment.nursingManagementPlan.trim()}',
+        'നഴ്സിംഗ് മാനേജ്മെന്റ്: ${assessment.nursingManagementPlan.trim()}',
     ].join('\n');
     _fitText(
       canvas,
@@ -738,7 +773,7 @@ class VisitAssessmentPdfGenerator {
     canvas.rotate(-1.5708);
     _text(
       canvas,
-      'PLAN',
+      'പദ്ധതി',
       const Rect.fromLTWH(0, 0, 110, 28),
       size: 22,
       weight: FontWeight.w900,
@@ -854,9 +889,9 @@ class VisitAssessmentPdfGenerator {
 
     _text(
       canvas,
-      'Team Meeting  Discussion :',
+      'ടീം മീറ്റിംഗ് ചർച്ച :',
       const Rect.fromLTWH(planX, 1345, 315, 28),
-      size: 22,
+      size: 20,
       weight: FontWeight.w500,
     );
     _fitText(
@@ -872,7 +907,7 @@ class VisitAssessmentPdfGenerator {
   static void _paintSignatureArea(Canvas canvas, VisitAssessment assessment) {
     _lineField(
       canvas,
-      label: 'Name of Nurse:',
+      label: 'നഴ്സിന്റെ പേര്:',
       value: assessment.nurseName,
       x: 90,
       y: 1584,
@@ -882,7 +917,7 @@ class VisitAssessmentPdfGenerator {
     );
     _lineField(
       canvas,
-      label: 'Signature :',
+      label: 'ഒപ്പ് :',
       value: '',
       x: 560,
       y: 1584,
@@ -901,7 +936,12 @@ class VisitAssessmentPdfGenerator {
     required double y,
     required double width,
   }) {
-    _text(canvas, label, Rect.fromLTWH(labelX, y, 115, 24), size: 17);
+    _fitText(
+      canvas,
+      label,
+      Rect.fromLTWH(labelX, y, valueX - labelX - 8, 26),
+      size: 17,
+    );
     _fitText(
       canvas,
       value,
@@ -1170,7 +1210,7 @@ class VisitAssessmentPdfGenerator {
     }
     if (finding.notes.trim().isNotEmpty) pieces.add(finding.notes.trim());
     if (finding.images.isNotEmpty) {
-      pieces.add('${finding.images.length} image(s)');
+      pieces.add('${finding.images.length} ചിത്രം');
     }
     return pieces.join(' - ');
   }
@@ -1186,6 +1226,12 @@ class VisitAssessmentPdfGenerator {
   static String _labelFromToken(String value) {
     final clean = value.trim();
     if (clean.isEmpty) return '';
+    final token = clean
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    final malayalamLabel = _malayalamTokenLabels[token];
+    if (malayalamLabel != null) return malayalamLabel;
     return clean
         .split(RegExp(r'[_\s-]+'))
         .where((part) => part.isNotEmpty)
