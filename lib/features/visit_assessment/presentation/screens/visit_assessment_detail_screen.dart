@@ -7,7 +7,6 @@ import 'package:oruma_app/features/visit_assessment/presentation/widgets/assessm
 import 'package:oruma_app/features/visit_assessment/presentation/widgets/assessment_widgets.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
-import 'package:printing/printing.dart';
 
 class VisitAssessmentDetailScreen extends StatelessWidget {
   const VisitAssessmentDetailScreen({
@@ -68,6 +67,11 @@ class VisitAssessmentDetailScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: assessmentText, size: 20),
+            onPressed: () => Navigator.maybePop(context),
+            visualDensity: VisualDensity.compact,
+          ),
           title: const Text('Assessment Details'),
           centerTitle: false,
           titleTextStyle: const TextStyle(
@@ -80,18 +84,21 @@ class VisitAssessmentDetailScreen extends StatelessWidget {
               IconButton(
                 tooltip: 'Delete assessment',
                 onPressed: () => _deleteAssessment(context),
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                visualDensity: VisualDensity.compact,
               ),
             if (onEdit != null)
               IconButton(
                 tooltip: 'Edit assessment',
                 onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined),
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                visualDensity: VisualDensity.compact,
               ),
             IconButton(
               tooltip: 'Create PDF',
               onPressed: () => _createPdf(context),
-              icon: const Icon(Icons.picture_as_pdf_outlined),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+              visualDensity: VisualDensity.compact,
             ),
             Padding(
               padding: const EdgeInsets.only(right: 16),
@@ -212,35 +219,10 @@ class VisitAssessmentDetailScreen extends StatelessWidget {
   }
 
   Future<void> _createPdf(BuildContext context) async {
-    var dialogOpen = true;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: assessmentGreen),
-      ),
+    await VisitAssessmentPdfGenerator.downloadWithLanguagePicker(
+      context,
+      assessment,
     );
-
-    try {
-      final bytes = await VisitAssessmentPdfGenerator.generate(assessment);
-      if (context.mounted && dialogOpen) {
-        Navigator.of(context, rootNavigator: true).pop();
-        dialogOpen = false;
-      }
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: VisitAssessmentPdfGenerator.fileName(assessment),
-      );
-    } catch (error) {
-      if (context.mounted) {
-        if (dialogOpen) {
-          Navigator.of(context, rootNavigator: true).pop();
-        }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not create PDF: $error')));
-      }
-    }
   }
 
   Widget _patientHeader() {

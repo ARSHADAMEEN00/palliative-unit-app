@@ -26,7 +26,14 @@ class _MedicinesStepState extends State<MedicinesStep> {
   static const double _remarksWidth = 118;
   static const double _clearWidth = 36;
   static const _specifiedOptions = ['Yes', 'No'];
-  static const _usageOptions = ['1-1-1', '1-0-1', '0-0-1', '1-0-0', 'SoS'];
+  static const _usageOptions = [
+    '1-1-1',
+    '1-0-1',
+    '0-1-0',
+    '0-0-1',
+    '1-0-0',
+    'SoS',
+  ];
   static const double _tableWidth =
       _noWidth +
       _medicineStrengthWidth +
@@ -1000,7 +1007,14 @@ class _MedicineTableRow {
 
   static String _sanitizeUsage(String value) {
     final trimmed = value.trim();
-    return const {'1-1-1', '1-0-1', '0-0-1', '1-0-0', 'SoS'}.contains(trimmed)
+    return const {
+      '1-1-1',
+      '1-0-1',
+      '0-1-0',
+      '0-0-1',
+      '1-0-0',
+      'SoS',
+    }.contains(trimmed)
         ? trimmed
         : '';
   }

@@ -276,26 +276,56 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           color: Colors.white,
-          child: FilledButton.icon(
-            onPressed: _saving ? null : _save,
-            style: FilledButton.styleFrom(
-              backgroundColor: _medicineGreen,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          child: Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _saving ? null : () => _addRow(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _medicineDarkGreen,
+                  side: const BorderSide(color: Color(0xFFBBDDCF), width: 1.2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text(
+                  'Add Row',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
-            ),
-            icon: _saving
-                ? const SizedBox(
-                    width: 19,
-                    height: 19,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _medicineGreen,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: Text(_saving ? 'Saving' : 'Save Stock Entries'),
+                  ),
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(
+                    _saving ? 'Saving' : 'Save Stock Entries',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

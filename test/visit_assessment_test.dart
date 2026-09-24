@@ -727,13 +727,38 @@ void main() {
     );
 
     final bytes = (await tester.runAsync(
-      () => VisitAssessmentPdfGenerator.generate(value),
+      () => VisitAssessmentPdfGenerator.generate(value, isMalayalam: false),
     ))!;
     final header = ascii.decode(bytes.take(4).toList());
     final pdfText = latin1.decode(bytes, allowInvalid: true);
 
     expect(header, '%PDF');
     expect(RegExp(r'/Type\s*/Page\b').allMatches(pdfText), hasLength(2));
+    expect(
+      VisitAssessmentPdfGenerator.fileName(value, isMalayalam: false),
+      endsWith('.pdf'),
+    );
+    expect(
+      VisitAssessmentPdfGenerator.fileName(value, isMalayalam: false),
+      isNot(contains('_ml.pdf')),
+    );
+
+    final mlBytes = (await tester.runAsync(
+      () => VisitAssessmentPdfGenerator.generate(value, isMalayalam: true),
+    ))!;
+    final mlPdfText = latin1.decode(mlBytes, allowInvalid: true);
+    expect(RegExp(r'/Type\s*/Page\b').allMatches(mlPdfText), hasLength(2));
+    expect(
+      VisitAssessmentPdfGenerator.fileName(value, isMalayalam: true),
+      endsWith('_ml.pdf'),
+    );
+  });
+
+  testWidgets('NHC controller defaults to English language', (tester) async {
+    final controller = VisitAssessmentController(initialAssessment: assessment);
+    addTearDown(controller.dispose);
+    expect(controller.language, 'en');
+    expect(controller.isMalayalam, isFalse);
   });
 
   testWidgets('medicine step uses editable table inputs', (tester) async {

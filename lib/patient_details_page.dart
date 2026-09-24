@@ -1746,19 +1746,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     BuildContext context,
     VisitAssessment assessment,
   ) async {
-    try {
-      final bytes = await VisitAssessmentPdfGenerator.generate(assessment);
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: VisitAssessmentPdfGenerator.fileName(assessment),
-      );
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not create PDF: $error')));
-      }
-    }
+    await VisitAssessmentPdfGenerator.downloadWithLanguagePicker(
+      context,
+      assessment,
+    );
   }
 
   Widget _infoRow(

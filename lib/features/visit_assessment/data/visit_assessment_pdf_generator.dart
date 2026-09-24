@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/domain/visit_assessment.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class VisitAssessmentPdfGenerator {
   const VisitAssessmentPdfGenerator._();
@@ -24,7 +25,7 @@ class VisitAssessmentPdfGenerator {
   static const Color _ink = Color(0xFF111827);
   static const Color _softBlue = Color(0x14083F88);
 
-  static const _primaryLabels = <String, String>{
+  static const _primaryLabelsMalayalam = <String, String>{
     'respiration': 'ശ്വാസം',
     'foodWater': 'അന്നപാനീയങ്ങൾ',
     'urine': 'മൂത്രം',
@@ -35,7 +36,18 @@ class VisitAssessmentPdfGenerator {
     'sexuality': 'ലൈംഗികത',
   };
 
-  static const _headToFootLabels = <String, String>{
+  static const _primaryLabelsEnglish = <String, String>{
+    'respiration': 'Respiration',
+    'foodWater': 'Food & Water Intake',
+    'urine': 'Urine',
+    'defecation': 'Defecation',
+    'sleep': 'Sleep',
+    'hygiene': 'Hygiene (Personal, Surroundings)',
+    'outdoorAccess': 'Outdoor Access / Exercise',
+    'sexuality': 'Sexuality',
+  };
+
+  static const _headToFootLabelsMalayalam = <String, String>{
     'scalpHair': 'സ്കാൽപ്പ്, മുടി',
     'skin': 'തൊലി',
     'eyeNoseMouth': 'കണ്ണ്, മൂക്ക്, ചെവി',
@@ -48,14 +60,34 @@ class VisitAssessmentPdfGenerator {
     'specialAttention': 'പ്രത്യേക ശ്രദ്ധ പതിയേണ്ട ഭാഗങ്ങൾ',
   };
 
-  static const _visitPlanLabels = <String, String>{
+  static const _headToFootLabelsEnglish = <String, String>{
+    'scalpHair': 'Scalp & Hair',
+    'skin': 'Skin',
+    'eyeNoseMouth': 'Eye, Nose, Ear',
+    'oral': 'Oral Cavity (Teeth, Tongue, Throat etc.)',
+    'nails': 'Nails',
+    'perineum': 'Perineum',
+    'pressureArea': 'Pressure Area',
+    'hiddenArea': 'Hidden Area',
+    'musclesJoints': 'Muscles & Joints',
+    'specialAttention': 'Special Attention Areas',
+  };
+
+  static const _visitPlanLabelsMalayalam = <String, String>{
     'DHC': 'DHC',
     'NHC': 'NHC',
     'GVHC': 'GVHC',
     'other': 'മറ്റുള്ളവ',
   };
 
-  static const _serviceLabels = <String, String>{
+  static const _visitPlanLabelsEnglish = <String, String>{
+    'DHC': 'DHC',
+    'NHC': 'NHC',
+    'GVHC': 'GVHC',
+    'other': 'Other',
+  };
+
+  static const _serviceLabelsMalayalam = <String, String>{
     'healthEducation': 'ആരോഗ്യ വിദ്യാഭ്യാസം',
     'familyTraining': 'കുടുംബ പരിശീലനം',
     'physiotherapy': 'ഫിസിയോതെറാപ്പി',
@@ -64,10 +96,27 @@ class VisitAssessmentPdfGenerator {
     'medicineSupport': 'മരുന്ന് സഹായം',
   };
 
-  static const _visitModeLabels = <String, String>{
+  static const _serviceLabelsEnglish = <String, String>{
+    'healthEducation': 'Health Education',
+    'familyTraining': 'Family Training',
+    'physiotherapy': 'Physiotherapy',
+    'dayCare': 'Day Care',
+    'socialSupport': 'Social Support',
+    'medicineSupport': 'Medicine Support',
+  };
+
+  static const _visitModeLabelsMalayalam = <String, String>{
     'new': 'പുതിയ',
     'monthly': 'ആസൂത്രിത',
     'emergency': 'അടിയന്തര',
+    'dhc_visit': 'DHC',
+    'vhc_visit': 'VHC',
+  };
+
+  static const _visitModeLabelsEnglish = <String, String>{
+    'new': 'New',
+    'monthly': 'Planned',
+    'emergency': 'Emergency',
     'dhc_visit': 'DHC',
     'vhc_visit': 'VHC',
   };
@@ -111,12 +160,434 @@ class VisitAssessmentPdfGenerator {
     'no_wounds': 'മുറിവുകളില്ല',
   };
 
-  static Future<Uint8List> generate(VisitAssessment assessment) async {
+  static const _englishTokenLabels = <String, String>{
+    'normal': 'Normal',
+    'abnormal': 'Abnormal',
+    'self_feeding': 'Self Feeding',
+    'tube_fed': 'Tube Fed',
+    'assistance': 'Assistance',
+    'uses_toilet_independently': 'Uses Toilet Independently',
+    'urinary_catheter': 'Urinary Catheter',
+    'condom_catheter': 'Condom Catheter',
+    'nephrostomy_tube': 'Nephrostomy Tube',
+    'uses_medication': 'Uses Medication',
+    'no_defecation': 'No Defecation',
+    'with_medication': 'With Medication',
+    'no_sleep': 'No Sleep',
+    'over_sleep': 'Over Sleep',
+    'good': 'Good',
+    'fair': 'Fair',
+    'poor': 'Poor',
+    'yes': 'Yes',
+    'limited': 'Limited',
+    'no': 'No',
+    'clean': 'Clean',
+    'not_clean': 'Not Clean',
+    'unclean': 'Unclean',
+    'dry_skin': 'Dry Skin',
+    'soft_skin': 'Soft Skin',
+    'pain_present': 'Pain Present',
+    'no_pain': 'No Pain',
+    'oxygen_cylinder': 'Oxygen Cylinder',
+    'bipap_machine': 'BiPAP Machine',
+    'nebulizer': 'Concentrator',
+    'lice_present': 'Lice Present',
+    'no_lice': 'No Lice',
+    'dandruff_present_no_lice': 'Dandruff Present, No Lice',
+    'no_dandruff_lice_present': 'No Dandruff, Lice Present',
+    'wounds': 'Wounds',
+    'no_wounds': 'No Wounds',
+  };
+
+  /// Displays the choice bottom sheet and shows a loading spinner in-place
+  /// until the PDF generation and download / share action completes.
+  static Future<void> downloadWithLanguagePicker(
+    BuildContext context,
+    VisitAssessment assessment,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        bool isLoading = false;
+        String loadingLabel = 'Preparing PDF...';
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return PopScope(
+              canPop: !isLoading,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: SafeArea(
+                  top: false,
+                  child: isLoading
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 36),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 44,
+                                  height: 44,
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF14865D),
+                                    strokeWidth: 3.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  loadingLabel,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Please wait until the download is complete...',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              'Download Assessment PDF',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF111827),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Choose the PDF format for download / print:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF14865D)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.description_outlined,
+                                  color: Color(0xFF14865D),
+                                  size: 20,
+                                ),
+                              ),
+                              title: const Text(
+                                'Normal',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Exact form labels & text entered',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                              trailing: const Icon(
+                                Icons.chevron_right,
+                                size: 18,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              onTap: () async {
+                                setSheetState(() {
+                                  isLoading = true;
+                                  loadingLabel = 'Generating Normal PDF...';
+                                });
+                                try {
+                                  final bytes = await generate(
+                                    assessment,
+                                    isMalayalam: false,
+                                  );
+                                  await Printing.sharePdf(
+                                    bytes: bytes,
+                                    filename: fileName(
+                                      assessment,
+                                      isMalayalam: false,
+                                    ),
+                                  );
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                  }
+                                } catch (error) {
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Could not create PDF: $error',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF083F88)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.translate,
+                                  color: Color(0xFF083F88),
+                                  size: 20,
+                                ),
+                              ),
+                              title: const Text(
+                                'Malayalam',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'മലയാളം (NHC in English)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                              trailing: const Icon(
+                                Icons.chevron_right,
+                                size: 18,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              onTap: () async {
+                                setSheetState(() {
+                                  isLoading = true;
+                                  loadingLabel = 'Generating Malayalam PDF...';
+                                });
+                                try {
+                                  final bytes = await generate(
+                                    assessment,
+                                    isMalayalam: true,
+                                  );
+                                  await Printing.sharePdf(
+                                    bytes: bytes,
+                                    filename: fileName(
+                                      assessment,
+                                      isMalayalam: true,
+                                    ),
+                                  );
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                  }
+                                } catch (error) {
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Could not create PDF: $error',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Displays a choice bottom sheet for the user to choose Normal or Malayalam PDF.
+  /// Returns `false` for Normal, `true` for Malayalam, and `null` if dismissed.
+  static Future<bool?> promptLanguage(BuildContext context) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                'Download Assessment PDF',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose the PDF format for download / print:',
+                style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 4,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF14865D).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.description_outlined,
+                    color: Color(0xFF14865D),
+                    size: 20,
+                  ),
+                ),
+                title: const Text(
+                  'Normal',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Exact form labels & text entered',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: Color(0xFF9CA3AF),
+                ),
+                onTap: () => Navigator.pop(sheetContext, false),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 4,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF083F88).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.translate,
+                    color: Color(0xFF083F88),
+                    size: 20,
+                  ),
+                ),
+                title: const Text(
+                  'Malayalam',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'മലയാളം (NHC in English)',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: Color(0xFF9CA3AF),
+                ),
+                onTap: () => Navigator.pop(sheetContext, true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Future<Uint8List> generate(
+    VisitAssessment assessment, {
+    bool isMalayalam = false,
+  }) async {
     final pageOne = await _renderPage(
-      (canvas) => _paintPageOne(canvas, assessment),
+      (canvas) => _paintPageOne(canvas, assessment, isMalayalam: isMalayalam),
     );
     final pageTwo = await _renderPage(
-      (canvas) => _paintPageTwo(canvas, assessment),
+      (canvas) => _paintPageTwo(canvas, assessment, isMalayalam: isMalayalam),
     );
 
     final document = pw.Document(
@@ -141,7 +612,10 @@ class VisitAssessmentPdfGenerator {
     return document.save();
   }
 
-  static String fileName(VisitAssessment assessment) {
+  static String fileName(
+    VisitAssessment assessment, {
+    bool isMalayalam = false,
+  }) {
     final patient = assessment.patientName
         .trim()
         .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')
@@ -149,7 +623,8 @@ class VisitAssessmentPdfGenerator {
         .replaceAll(RegExp(r'^_|_$'), '');
     final name = patient.isEmpty ? 'patient' : patient.toLowerCase();
     final date = DateFormat('yyyyMMdd').format(assessment.visitDate);
-    return 'visit_assessment_${name}_$date.pdf';
+    final suffix = isMalayalam ? '_ml' : '';
+    return 'visit_assessment_${name}_$date$suffix.pdf';
   }
 
   static Future<Uint8List> _renderPage(
@@ -179,12 +654,16 @@ class VisitAssessmentPdfGenerator {
     return img.encodeJpg(raster, quality: 90, chroma: img.JpegChroma.yuv444);
   }
 
-  static void _paintPageOne(Canvas canvas, VisitAssessment assessment) {
+  static void _paintPageOne(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     final paint = _stroke(1.7);
     _text(
       canvas,
-      'പാലിയേറ്റീവ് കെയർ',
-      const Rect.fromLTWH(175, 95, 420, 44),
+      isMalayalam ? 'പാലിയേറ്റീവ് കെയർ' : 'PALLIATIVE CARE',
+      const Rect.fromLTWH(175, 95, 450, 44),
       size: 34,
       weight: FontWeight.w800,
       letterSpacing: 1.2,
@@ -201,6 +680,7 @@ class VisitAssessmentPdfGenerator {
     );
     canvas.drawRRect(visitTypeBox, paint);
     canvas.drawLine(const Offset(940, 90), const Offset(940, 126), paint);
+    // Top-right: ALWAYS English NHC (or visitType)
     _text(
       canvas,
       assessment.visitType.isEmpty ? 'NHC' : assessment.visitType,
@@ -211,7 +691,9 @@ class VisitAssessmentPdfGenerator {
     );
     _fitText(
       canvas,
-      '${_visitModeLabel(assessment.visitMode)} സന്ദർശനം',
+      isMalayalam
+          ? '${_visitModeLabel(assessment.visitMode, isMalayalam: true)} സന്ദർശനം'
+          : '${_visitModeLabel(assessment.visitMode, isMalayalam: false)} Visit',
       const Rect.fromLTWH(952, 96, 158, 24),
       size: 17,
       weight: FontWeight.w700,
@@ -220,7 +702,7 @@ class VisitAssessmentPdfGenerator {
 
     _headerField(
       canvas,
-      label: 'പേര് :',
+      label: isMalayalam ? 'പേര് :' : 'Name :',
       value: assessment.patientName,
       labelX: 135,
       valueX: 220,
@@ -229,7 +711,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'വയസ്സ് :',
+      label: isMalayalam ? 'വയസ്സ് :' : 'Age :',
       value: assessment.patientAge,
       labelX: 650,
       valueX: 705,
@@ -238,7 +720,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'രജി. നമ്പർ :',
+      label: isMalayalam ? 'രജി. നമ്പർ :' : 'Reg. No. :',
       value: assessment.regNo,
       labelX: 790,
       valueX: 895,
@@ -247,7 +729,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'തീയതി :',
+      label: isMalayalam ? 'തീയതി :' : 'Date :',
       value: _date(assessment.visitDate),
       labelX: 135,
       valueX: 215,
@@ -256,7 +738,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'സമയം :',
+      label: isMalayalam ? 'സമയം :' : 'Time From :',
       value: assessment.timeFrom,
       labelX: 520,
       valueX: 650,
@@ -265,7 +747,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'വരെ :',
+      label: isMalayalam ? 'വരെ :' : 'To :',
       value: assessment.timeTo,
       labelX: 775,
       valueX: 825,
@@ -274,7 +756,7 @@ class VisitAssessmentPdfGenerator {
     );
     _headerField(
       canvas,
-      label: 'ടീം :',
+      label: isMalayalam ? 'ടീം :' : 'Team :',
       value: assessment.team,
       labelX: 135,
       valueX: 215,
@@ -288,13 +770,14 @@ class VisitAssessmentPdfGenerator {
     );
     canvas.drawRRect(body, paint);
 
-    const prompt =
-        'കഴിഞ്ഞ സന്ദർശനത്തിലെഴുതിയിരുന്ന ബുദ്ധിമുട്ടുകളും അതിന്റെ ഇപ്പോഴത്തെ അവസ്ഥയും, രോഗിയുടെ പ്രധാന പരാതികൾ / പ്രധാന ബുദ്ധിമുട്ട് / പൊതു അവസ്ഥ';
+    final prompt = isMalayalam
+        ? 'കഴിഞ്ഞ സന്ദർശനത്തിലെഴുതിയിരുന്ന ബുദ്ധിമുട്ടുകളും അതിന്റെ ഇപ്പോഴത്തെ അവസ്ഥയും, രോഗിയുടെ പ്രധാന പരാതികൾ / പ്രധാന ബുദ്ധിമുട്ട് / പൊതു അവസ്ഥ'
+        : "The difficulties/problems noted during the previous visit and their current status, the patient's main complaints / major difficulties / general condition.";
     _text(
       canvas,
       prompt,
       const Rect.fromLTWH(140, 315, 960, 52),
-      size: 18,
+      size: isMalayalam ? 18 : 16,
       weight: FontWeight.w700,
       lineHeight: 1.22,
     );
@@ -310,23 +793,37 @@ class VisitAssessmentPdfGenerator {
     double y = 480;
     _underlinedText(
       canvas,
-      'പ്രാഥമിക കാര്യങ്ങൾ',
+      isMalayalam ? 'പ്രാഥമിക കാര്യങ്ങൾ' : 'Primary Functions',
       Offset(140, y),
       size: 24,
-      width: 230,
+      width: isMalayalam ? 230 : 210,
     );
     y += 48;
-    y = _examRows(canvas, _primaryLabels, assessment, y, rowHeight: 69);
+    y = _examRows(
+      canvas,
+      isMalayalam ? _primaryLabelsMalayalam : _primaryLabelsEnglish,
+      assessment,
+      y,
+      rowHeight: 69,
+      isMalayalam: isMalayalam,
+    );
     y += 10;
     _text(
       canvas,
-      'ഹെഡ് ടു ഫൂട്ട് പരിശോധന',
-      Rect.fromLTWH(140, y, 300, 30),
+      isMalayalam ? 'ഹെഡ് ടു ഫൂട്ട് പരിശോധന' : 'Head to Foot Examination',
+      Rect.fromLTWH(140, y, 350, 30),
       size: 21,
       weight: FontWeight.w800,
     );
     y += 44;
-    _examRows(canvas, _headToFootLabels, assessment, y, rowHeight: 58);
+    _examRows(
+      canvas,
+      isMalayalam ? _headToFootLabelsMalayalam : _headToFootLabelsEnglish,
+      assessment,
+      y,
+      rowHeight: 58,
+      isMalayalam: isMalayalam,
+    );
   }
 
   static double _examRows(
@@ -335,6 +832,7 @@ class VisitAssessmentPdfGenerator {
     VisitAssessment assessment,
     double startY, {
     required double rowHeight,
+    required bool isMalayalam,
   }) {
     var y = startY;
     for (final entry in labels.entries) {
@@ -350,7 +848,7 @@ class VisitAssessmentPdfGenerator {
       _text(canvas, ':', Rect.fromLTWH(480, y, 18, 22), size: 20);
       _fitText(
         canvas,
-        _findingValue(finding),
+        _findingValue(finding, isMalayalam: isMalayalam),
         Rect.fromLTWH(510, y - 3, 600, rowHeight - 6),
         size: 19,
         color: _ink,
@@ -361,7 +859,11 @@ class VisitAssessmentPdfGenerator {
     return y;
   }
 
-  static void _paintPageTwo(Canvas canvas, VisitAssessment assessment) {
+  static void _paintPageTwo(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     final paint = _stroke(1.7);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -371,14 +873,18 @@ class VisitAssessmentPdfGenerator {
       paint,
     );
 
-    _paintVitals(canvas, assessment);
-    _paintMedicines(canvas, assessment);
-    _paintClinicalNotes(canvas, assessment);
-    _paintPlan(canvas, assessment);
-    _paintSignatureArea(canvas, assessment);
+    _paintVitals(canvas, assessment, isMalayalam: isMalayalam);
+    _paintMedicines(canvas, assessment, isMalayalam: isMalayalam);
+    _paintClinicalNotes(canvas, assessment, isMalayalam: isMalayalam);
+    _paintPlan(canvas, assessment, isMalayalam: isMalayalam);
+    _paintSignatureArea(canvas, assessment, isMalayalam: isMalayalam);
   }
 
-  static void _paintVitals(Canvas canvas, VisitAssessment assessment) {
+  static void _paintVitals(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     final vitals = assessment.vitals;
     _lineField(
       canvas,
@@ -440,11 +946,11 @@ class VisitAssessmentPdfGenerator {
 
     _text(
       canvas,
-      'പ്രവർത്തന നില :',
-      const Rect.fromLTWH(105, 200, 135, 26),
-      size: 16,
+      isMalayalam ? 'പ്രവർത്തന നില :' : 'Activity :',
+      Rect.fromLTWH(105, 200, isMalayalam ? 135 : 95, 26),
+      size: isMalayalam ? 16 : 18,
     );
-    var x = 245.0;
+    var x = isMalayalam ? 245.0 : 200.0;
     for (final level in ['I', 'II', 'III', 'IV', 'V']) {
       final selected = vitals.activityLevel == level;
       if (selected) {
@@ -467,21 +973,25 @@ class VisitAssessmentPdfGenerator {
     }
     _checkboxLabel(
       canvas,
-      label: 'സ്ഥിരം',
+      label: isMalayalam ? 'സ്ഥിരം' : 'STABLE',
       checked: vitals.stability.toLowerCase() == 'stable',
-      x: 500,
+      x: isMalayalam ? 500 : 445,
       y: 201,
     );
     _checkboxLabel(
       canvas,
-      label: 'അസ്ഥിരം',
+      label: isMalayalam ? 'അസ്ഥിരം' : 'UNSTABLE',
       checked: vitals.stability.toLowerCase() == 'unstable',
-      x: 680,
+      x: isMalayalam ? 680 : 605,
       y: 201,
     );
   }
 
-  static void _paintMedicines(Canvas canvas, VisitAssessment assessment) {
+  static void _paintMedicines(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     const tableX = 92.0;
     const tableY = 285.0;
     const tableW = 1056.0;
@@ -497,7 +1007,9 @@ class VisitAssessmentPdfGenerator {
 
     _text(
       canvas,
-      'സ്ഥിരമായി കഴിക്കുന്ന മരുന്നുകൾ (മരുന്നലർജി)',
+      isMalayalam
+          ? 'സ്ഥിരമായി കഴിക്കുന്ന മരുന്നുകൾ (മരുന്നലർജി)'
+          : 'Regular Medicines (Drug Allergy)',
       const Rect.fromLTWH(tableX + 18, tableY - 37, 600, 28),
       size: 19,
       weight: FontWeight.w800,
@@ -544,25 +1056,25 @@ class VisitAssessmentPdfGenerator {
 
     _centerText(
       canvas,
-      'ക്രമ\nനമ്പർ',
+      isMalayalam ? 'ക്രമ\nനമ്പർ' : 'No',
       Rect.fromLTRB(columns[0], tableY, columns[1], tableY + headerOne),
       size: 14,
     );
     _centerText(
       canvas,
-      'മരുന്ന്, ശക്തി',
+      isMalayalam ? 'മരുന്ന്, ശക്തി' : 'Medicine, Strength',
       Rect.fromLTRB(columns[1], tableY, columns[2], tableY + headerOne),
       size: 17,
     );
     _centerText(
       canvas,
-      'ഉപയോഗക്രമ',
+      isMalayalam ? 'ഉപയോഗക്രമ' : 'Instructions',
       Rect.fromLTRB(columns[2], tableY, columns[4], tableY + headerOne),
-      size: 13,
+      size: isMalayalam ? 13 : 15,
     );
     _centerText(
       canvas,
-      'നിർദിഷ്ടം',
+      isMalayalam ? 'നിർദിഷ്ടം' : 'Specified',
       Rect.fromLTRB(
         columns[2],
         tableY + headerOne,
@@ -573,7 +1085,7 @@ class VisitAssessmentPdfGenerator {
     );
     _centerText(
       canvas,
-      'ഉപയോഗം',
+      isMalayalam ? 'ഉപയോഗം' : 'Usage',
       Rect.fromLTRB(
         columns[3],
         tableY + headerOne,
@@ -584,7 +1096,7 @@ class VisitAssessmentPdfGenerator {
     );
     _centerText(
       canvas,
-      'സ്രോതസ്സ്',
+      isMalayalam ? 'സ്രോതസ്സ്' : 'Source',
       Rect.fromLTRB(columns[4], tableY, columns[8], tableY + headerOne),
       size: 13,
     );
@@ -603,13 +1115,13 @@ class VisitAssessmentPdfGenerator {
     }
     _centerText(
       canvas,
-      'കാലാവധി',
+      isMalayalam ? 'കാലാവധി' : 'Duration',
       Rect.fromLTRB(columns[8], tableY, columns[9], tableY + headerOne),
       size: 15,
     );
     _centerText(
       canvas,
-      'റിമാർക്സ്',
+      isMalayalam ? 'റിമാർക്സ്' : 'Remarks',
       Rect.fromLTRB(columns[9], tableY, columns[10], tableY + headerOne),
       size: 15,
     );
@@ -688,8 +1200,8 @@ class VisitAssessmentPdfGenerator {
     final footerY = tableY + tableH - footerH;
     _text(
       canvas,
-      'കോംപ്ലിമെന്ററി',
-      Rect.fromLTWH(tableX + 18, footerY + 13, 150, 24),
+      isMalayalam ? 'കോംപ്ലിമെന്ററി' : 'Complementary',
+      Rect.fromLTWH(tableX + 18, footerY + 13, 160, 24),
       size: 18,
       weight: FontWeight.w800,
     );
@@ -715,13 +1227,19 @@ class VisitAssessmentPdfGenerator {
     }
   }
 
-  static void _paintClinicalNotes(Canvas canvas, VisitAssessment assessment) {
+  static void _paintClinicalNotes(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     const x = 92.0;
     const tableBottom = 285.0 + 520.0;
     final medY = tableBottom + 18;
     _text(
       canvas,
-      'മരുന്ന് സംബന്ധിച്ച് മറ്റു കാര്യങ്ങൾ (മരുന്ന് ചികിത്സ, മരുന്നറിവ്, ഫലം, ഉപയോഗങ്ങൾ തുടങ്ങിയവ) :',
+      isMalayalam
+          ? 'മരുന്ന് സംബന്ധിച്ച് മറ്റു കാര്യങ്ങൾ (മരുന്ന് ചികിത്സ, മരുന്നറിവ്, ഫലം, ഉപയോഗങ്ങൾ തുടങ്ങിയവ) :'
+          : 'Other matters related to medicines (treatment, awareness, efficacy, usages etc.) :',
       Rect.fromLTWH(x, medY, 980, 30),
       size: 18,
       weight: FontWeight.w700,
@@ -738,19 +1256,30 @@ class VisitAssessmentPdfGenerator {
     final nursingY = medY + 122;
     _text(
       canvas,
-      'നഴ്സിംഗ് രോഗനിർണയം / ഡോക്ടർ കൺസൾട്ട് / നഴ്സിംഗ് മാനേജ്മെന്റ് / മരുന്നുകൾ :',
+      isMalayalam
+          ? 'നഴ്സിംഗ് രോഗനിർണയം / ഡോക്ടർ കൺസൾട്ട് / നഴ്സിംഗ് മാനേജ്മെന്റ് / മരുന്നുകൾ :'
+          : 'Nursing Diagnosis / Doctor Consult / Nursing Management / Medications :',
       Rect.fromLTWH(x, nursingY, 1040, 36),
-      size: 19,
+      size: isMalayalam ? 19 : 21,
       weight: FontWeight.w500,
     );
-    final combined = [
-      if (assessment.nursingDiagnosis.trim().isNotEmpty)
-        'നഴ്സിംഗ് രോഗനിർണയം: ${assessment.nursingDiagnosis.trim()}',
-      if (assessment.doctorConsultNotes.trim().isNotEmpty)
-        'ഡോക്ടർ കൺസൾട്ട്: ${assessment.doctorConsultNotes.trim()}',
-      if (assessment.nursingManagementPlan.trim().isNotEmpty)
-        'നഴ്സിംഗ് മാനേജ്മെന്റ്: ${assessment.nursingManagementPlan.trim()}',
-    ].join('\n');
+    final combined = isMalayalam
+        ? [
+            if (assessment.nursingDiagnosis.trim().isNotEmpty)
+              'നഴ്സിംഗ് രോഗനിർണയം: ${assessment.nursingDiagnosis.trim()}',
+            if (assessment.doctorConsultNotes.trim().isNotEmpty)
+              'ഡോക്ടർ കൺസൾട്ട്: ${assessment.doctorConsultNotes.trim()}',
+            if (assessment.nursingManagementPlan.trim().isNotEmpty)
+              'നഴ്സിംഗ് മാനേജ്മെന്റ്: ${assessment.nursingManagementPlan.trim()}',
+          ].join('\n')
+        : [
+            if (assessment.nursingDiagnosis.trim().isNotEmpty)
+              'Nursing Diagnosis: ${assessment.nursingDiagnosis.trim()}',
+            if (assessment.doctorConsultNotes.trim().isNotEmpty)
+              'Doctor Consult: ${assessment.doctorConsultNotes.trim()}',
+            if (assessment.nursingManagementPlan.trim().isNotEmpty)
+              'Nursing Management: ${assessment.nursingManagementPlan.trim()}',
+          ].join('\n');
     _fitText(
       canvas,
       combined,
@@ -761,7 +1290,11 @@ class VisitAssessmentPdfGenerator {
     );
   }
 
-  static void _paintPlan(Canvas canvas, VisitAssessment assessment) {
+  static void _paintPlan(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     const planX = 105.0;
     const planY = 1132.0;
     const planW = 580.0;
@@ -773,7 +1306,7 @@ class VisitAssessmentPdfGenerator {
     canvas.rotate(-1.5708);
     _text(
       canvas,
-      'പദ്ധതി',
+      isMalayalam ? 'പദ്ധതി' : 'PLAN',
       const Rect.fromLTWH(0, 0, 110, 28),
       size: 22,
       weight: FontWeight.w900,
@@ -793,7 +1326,9 @@ class VisitAssessmentPdfGenerator {
     }
 
     var row = 0;
-    for (final entry in _visitPlanLabels.entries) {
+    final planLabels =
+        isMalayalam ? _visitPlanLabelsMalayalam : _visitPlanLabelsEnglish;
+    for (final entry in planLabels.entries) {
       final y = planY + rowH * row;
       _text(
         canvas,
@@ -807,8 +1342,8 @@ class VisitAssessmentPdfGenerator {
       final value = note.trim().isNotEmpty
           ? note
           : selected
-          ? '✓'
-          : '';
+              ? '✓'
+              : '';
       _fitText(
         canvas,
         value,
@@ -850,6 +1385,8 @@ class VisitAssessmentPdfGenerator {
       'socialSupport',
       'medicineSupport',
     ];
+    final serviceLabels =
+        isMalayalam ? _serviceLabelsMalayalam : _serviceLabelsEnglish;
     for (var i = 0; i < serviceOrder.length; i++) {
       final row = i ~/ 2;
       final col = i % 2;
@@ -869,7 +1406,7 @@ class VisitAssessmentPdfGenerator {
       );
       _centerText(
         canvas,
-        _serviceLabels[serviceOrder[i]]!,
+        serviceLabels[serviceOrder[i]]!,
         Rect.fromLTWH(
           rect.left + 26,
           rect.top + 5,
@@ -881,15 +1418,17 @@ class VisitAssessmentPdfGenerator {
     }
     _text(
       canvas,
-      'തുടർ പരിചരണത്തിന് ആവശ്യമുള്ള ടിക് ചെയ്യുക',
+      isMalayalam
+          ? 'തുടർ പരിചരണത്തിന് ആവശ്യമുള്ള ടിക് ചെയ്യുക'
+          : 'Tick required for follow-up care',
       const Rect.fromLTWH(serviceX, serviceY + 140, 420, 28),
-      size: 18,
+      size: isMalayalam ? 18 : 16,
       weight: FontWeight.w700,
     );
 
     _text(
       canvas,
-      'ടീം മീറ്റിംഗ് ചർച്ച :',
+      isMalayalam ? 'ടീം മീറ്റിംഗ് ചർച്ച :' : 'Team Meeting Discussion :',
       const Rect.fromLTWH(planX, 1345, 315, 28),
       size: 20,
       weight: FontWeight.w500,
@@ -904,10 +1443,14 @@ class VisitAssessmentPdfGenerator {
     );
   }
 
-  static void _paintSignatureArea(Canvas canvas, VisitAssessment assessment) {
+  static void _paintSignatureArea(
+    Canvas canvas,
+    VisitAssessment assessment, {
+    required bool isMalayalam,
+  }) {
     _lineField(
       canvas,
-      label: 'നഴ്സിന്റെ പേര്:',
+      label: isMalayalam ? 'നഴ്സിന്റെ പേര്:' : 'Name of Nurse:',
       value: assessment.nurseName,
       x: 90,
       y: 1584,
@@ -917,7 +1460,7 @@ class VisitAssessmentPdfGenerator {
     );
     _lineField(
       canvas,
-      label: 'ഒപ്പ് :',
+      label: isMalayalam ? 'ഒപ്പ് :' : 'Signature :',
       value: '',
       x: 560,
       y: 1584,
@@ -1154,10 +1697,12 @@ class VisitAssessmentPdfGenerator {
 
   static String _date(DateTime value) => DateFormat('dd/MM/yyyy').format(value);
 
-  static String _visitModeLabel(String value) {
-    final key = value.trim();
-    if (key.isEmpty) return _visitModeLabels['new']!;
-    return _visitModeLabels[key] ?? key.toUpperCase();
+  static String _visitModeLabel(String value, {required bool isMalayalam}) {
+    final key = value.trim().toLowerCase();
+    final labels =
+        isMalayalam ? _visitModeLabelsMalayalam : _visitModeLabelsEnglish;
+    if (key.isEmpty) return labels['new']!;
+    return labels[key] ?? value.trim();
   }
 
   static String _number(num? value) {
@@ -1198,19 +1743,28 @@ class VisitAssessmentPdfGenerator {
     return clean.isEmpty ? 'O/A/R' : clean;
   }
 
-  static String _findingValue(ExamFinding finding) {
+  static String _findingValue(
+    ExamFinding finding, {
+    required bool isMalayalam,
+  }) {
     final pieces = <String>[];
     if (finding.value.trim().isNotEmpty) {
-      pieces.add(_labelFromToken(finding.value));
+      pieces.add(_labelFromToken(finding.value, isMalayalam: isMalayalam));
     } else if (finding.status != 'not_assessed') {
-      pieces.add(_labelFromToken(finding.status));
+      pieces.add(_labelFromToken(finding.status, isMalayalam: isMalayalam));
     }
     for (final value in finding.extraValues.values) {
-      if (value.trim().isNotEmpty) pieces.add(_labelFromToken(value));
+      if (value.trim().isNotEmpty) {
+        pieces.add(_labelFromToken(value, isMalayalam: isMalayalam));
+      }
     }
     if (finding.notes.trim().isNotEmpty) pieces.add(finding.notes.trim());
     if (finding.images.isNotEmpty) {
-      pieces.add('${finding.images.length} ചിത്രം');
+      pieces.add(
+        isMalayalam
+            ? '${finding.images.length} ചിത്രം'
+            : '${finding.images.length} image(s)',
+      );
     }
     return pieces.join(' - ');
   }
@@ -1223,15 +1777,28 @@ class VisitAssessmentPdfGenerator {
     return '$name, $strength';
   }
 
-  static String _labelFromToken(String value) {
+  static String _labelFromToken(String value, {required bool isMalayalam}) {
     final clean = value.trim();
     if (clean.isEmpty) return '';
     final token = clean
         .toLowerCase()
         .replaceAll(RegExp(r'[\s-]+'), '_')
         .replaceAll(RegExp(r'_+'), '_');
-    final malayalamLabel = _malayalamTokenLabels[token];
-    if (malayalamLabel != null) return malayalamLabel;
+
+    if (isMalayalam) {
+      final malayalamLabel = _malayalamTokenLabels[token];
+      if (malayalamLabel != null) return malayalamLabel;
+    } else {
+      final englishLabel = _englishTokenLabels[token];
+      if (englishLabel != null) return englishLabel;
+    }
+
+    // If freeform text without underscores, preserve user-entered case & text
+    if (!token.contains('_') &&
+        clean.contains(RegExp(r'[\s\p{L}]', unicode: true))) {
+      return clean;
+    }
+
     return clean
         .split(RegExp(r'[_\s-]+'))
         .where((part) => part.isNotEmpty)

@@ -40,7 +40,7 @@ class VisitAssessmentController extends ChangeNotifier {
   bool isLoading = true;
   bool isSubmitting = false;
   int currentStep = 0;
-  String language = 'ml';
+  String language = 'en';
 
   bool get isMalayalam => language == 'ml';
   String get _draftKey => VisitAssessmentRepository.draftKeyFor(_assessment);

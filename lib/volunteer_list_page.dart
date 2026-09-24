@@ -10,6 +10,7 @@ import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const _volunteerPrimary = Color(0xFF0F766E);
 const _volunteerIconSurface = Color(0xFFCCFBF1);
@@ -390,28 +391,37 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
               ],
             ),
           ),
-          if (auth.canEdit || auth.canDelete)
-            PopupMenuButton<String>(
-              iconColor: AppColors.textSecondary,
-              onSelected: (value) {
-                if (value == 'edit') _openForm(volunteer);
-                if (value == 'delete') _deleteVolunteer(volunteer);
-              },
-              itemBuilder: (context) => [
-                if (auth.canEdit)
-                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                if (auth.canDelete)
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Text(
-                      'Delete',
-                      style: TextStyle(color: AppColors.danger),
-                    ),
-                  ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_phoneButton(volunteer.phone) != null) ...[
+                _phoneButton(volunteer.phone)!,
+                const SizedBox(width: AppSpacing.xxs),
               ],
-            )
-          else
-            const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              if (auth.canEdit || auth.canDelete)
+                PopupMenuButton<String>(
+                  iconColor: AppColors.textSecondary,
+                  onSelected: (value) {
+                    if (value == 'edit') _openForm(volunteer);
+                    if (value == 'delete') _deleteVolunteer(volunteer);
+                  },
+                  itemBuilder: (context) => [
+                    if (auth.canEdit)
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    if (auth.canDelete)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(color: AppColors.danger),
+                        ),
+                      ),
+                  ],
+                )
+              else
+                const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            ],
+          ),
         ],
       ),
     );
@@ -493,19 +503,29 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                               volunteer.name,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            Text(
-                              volunteer.phone2.trim().isEmpty
-                                  ? volunteer.phone
-                                  : '${volunteer.phone} / ${volunteer.phone2}',
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                    color: _volunteerPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                            InkWell(
+                              onTap: volunteer.phone.trim().isEmpty
+                                  ? null
+                                  : () => _callPhone(volunteer.phone.trim()),
+                              borderRadius: AppRadius.sm,
+                              child: Text(
+                                volunteer.phone2.trim().isEmpty
+                                    ? volunteer.phone
+                                    : '${volunteer.phone} / ${volunteer.phone2}',
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(
+                                      color: _volunteerPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
                             ),
                           ],
                         ),
                       ),
+                      if (_phoneButton(volunteer.phone) != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        _phoneButton(volunteer.phone)!,
+                      ],
                     ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -536,6 +556,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                       Icons.phone_iphone_outlined,
                       'Second Phone',
                       volunteer.phone2.trim(),
+                      trailing: _phoneButton(volunteer.phone2.trim()),
                     ),
                   ],
                   if (auth.canEdit || auth.canDelete) ...[
@@ -572,9 +593,14 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     );
   }
 
-  Widget _detailLine(IconData icon, String label, String value) {
+  Widget _detailLine(
+    IconData icon,
+    String label,
+    String value, {
+    Widget? trailing,
+  }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Icon(icon, color: _volunteerPrimary, size: AppIcons.normal),
         const SizedBox(width: AppSpacing.sm),
@@ -600,7 +626,41 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
             ],
           ),
         ),
+        if (trailing != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          trailing,
+        ],
       ],
+    );
+  }
+
+  Future<void> _callPhone(String phone) async {
+    try {
+      final trimmed = phone.trim();
+      final uri = Uri(scheme: 'tel', path: trimmed);
+      if (!await launchUrl(uri)) {
+        throw Exception('Calling is not available on this device');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyError(error))));
+    }
+  }
+
+  Widget? _phoneButton(String? phone) {
+    if (phone == null || phone.trim().isEmpty) return null;
+
+    return IconButton(
+      tooltip: 'Call $phone',
+      onPressed: () => _callPhone(phone),
+      style: IconButton.styleFrom(
+        backgroundColor: _volunteerPrimary,
+        foregroundColor: AppColors.textInverse,
+      ),
+      icon: const Icon(Icons.call_outlined, size: 17),
+      visualDensity: VisualDensity.compact,
     );
   }
 

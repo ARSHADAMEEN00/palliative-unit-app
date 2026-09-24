@@ -174,8 +174,9 @@ class _VisitAssessmentListScreenState extends State<VisitAssessmentListScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: assessmentText),
+          icon: const Icon(Icons.arrow_back, color: assessmentText, size: 20),
           onPressed: () => Navigator.pop(context),
+          visualDensity: VisualDensity.compact,
         ),
         title: const Text('Visit Assessments'),
         centerTitle: false,
