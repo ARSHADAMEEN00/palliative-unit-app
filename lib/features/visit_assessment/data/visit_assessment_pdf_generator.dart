@@ -680,21 +680,19 @@ class VisitAssessmentPdfGenerator {
     );
     canvas.drawRRect(visitTypeBox, paint);
     canvas.drawLine(const Offset(940, 90), const Offset(940, 126), paint);
-    // Top-right: ALWAYS English NHC (or visitType)
+    // Top-right: ALWAYS English NHC (or visitType) and English visit mode (e.g. Planned Visit)
     _text(
       canvas,
       assessment.visitType.isEmpty ? 'NHC' : assessment.visitType,
-      const Rect.fromLTWH(875, 95, 58, 25),
-      size: 25,
+      const Rect.fromLTWH(865, 95, 75, 25),
+      size: 24,
       weight: FontWeight.w800,
       align: TextAlign.center,
     );
     _fitText(
       canvas,
-      isMalayalam
-          ? '${_visitModeLabel(assessment.visitMode, isMalayalam: true)} സന്ദർശനം'
-          : '${_visitModeLabel(assessment.visitMode, isMalayalam: false)} Visit',
-      const Rect.fromLTWH(952, 96, 158, 24),
+      '${_visitModeLabel(assessment.visitMode, isMalayalam: false)} Visit',
+      const Rect.fromLTWH(946, 96, 172, 24),
       size: 17,
       weight: FontWeight.w700,
       align: TextAlign.center,
