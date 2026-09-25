@@ -1302,14 +1302,15 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Color(0xFFEEF5FF), // Gentle soothing light blue tint
-            Color(0xFFF7FAFD), // Smooth transition tone
-            AppColors.background, // Base clean surface
+            Color(0xFFD8ECFD), // Serene palliative sky blue
+            Color(0xFFDEF5EB), // Soothing restorative mint / eucalyptus
+            Color(0xFFF5EDFA), // Gentle compassionate warm lavender
+            Color(0xFFEDF4FA), // Calming pearl base
           ],
-          stops: [0.0, 0.40, 1.0],
+          stops: [0.0, 0.35, 0.70, 1.0],
         ),
       ),
       child: AdaptiveAppScaffold(

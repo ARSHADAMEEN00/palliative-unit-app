@@ -110,7 +110,7 @@ class AppTheme {
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 56),
+          minimumSize: const Size(0, 46),
           padding: AppInsets.button,
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
@@ -122,7 +122,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(0, 56),
+          minimumSize: const Size(0, 46),
           padding: AppInsets.button,
           elevation: 0,
           shadowColor: Colors.transparent,
@@ -136,7 +136,7 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 56),
+          minimumSize: const Size(0, 46),
           padding: AppInsets.button,
           foregroundColor: colorScheme.primary,
           side: BorderSide(color: border),

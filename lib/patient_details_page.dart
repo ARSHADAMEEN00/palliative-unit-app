@@ -1882,11 +1882,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     return IconButton(
       tooltip: 'Call $phone',
       onPressed: () => _callPhone(phone),
-      style: IconButton.styleFrom(
-        backgroundColor: _patientPrimary,
-        foregroundColor: AppColors.textInverse,
-      ),
-      icon: const Icon(Icons.call_outlined, size: 17),
+      icon: const Icon(Icons.call, color: AppColors.success, size: 18),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
       visualDensity: VisualDensity.compact,
     );
   }

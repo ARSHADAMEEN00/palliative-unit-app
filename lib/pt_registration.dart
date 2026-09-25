@@ -76,7 +76,9 @@ class _patientrigisterState extends State<patientrigister> {
     _loadConfig();
 
     if (widget.patient != null) {
-      nameController.text = widget.patient!.name;
+      nameController.text = CapitalizeWordsInputFormatter.capitalizeWords(
+        widget.patient!.name,
+      );
       relationController.text = widget.patient!.relation;
       addressController.text = widget.patient!.address;
       ageController.text = widget.patient!.age.toString();
@@ -664,6 +666,10 @@ class _patientrigisterState extends State<patientrigister> {
                 children: [
                   TextFormField(
                     controller: nameController,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: const [
+                      CapitalizeWordsInputFormatter(),
+                    ],
                     decoration: _buildInputDecoration(
                       "Patient Name",
                       Icons.person,
@@ -1234,7 +1240,9 @@ class _patientrigisterState extends State<patientrigister> {
       try {
         final patientData = Patient(
           id: widget.patient?.id,
-          name: nameController.text,
+          name: CapitalizeWordsInputFormatter.capitalizeWords(
+            nameController.text.trim(),
+          ),
           relation: relationController.text,
           gender: _gender!,
           address: addressController.text,
@@ -1357,6 +1365,38 @@ class _DialogTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class CapitalizeWordsInputFormatter extends TextInputFormatter {
+  const CapitalizeWordsInputFormatter();
+
+  static String capitalizeWords(String text) {
+    if (text.isEmpty) return text;
+    return text.replaceAllMapped(
+      RegExp(r'\b[a-z]'),
+      (match) => match.group(0)!.toUpperCase(),
+    );
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    final formattedText = capitalizeWords(newValue.text);
+    if (formattedText == newValue.text) {
+      return newValue;
+    }
+
+    return newValue.copyWith(
+      text: formattedText,
+      selection: newValue.selection,
     );
   }
 }

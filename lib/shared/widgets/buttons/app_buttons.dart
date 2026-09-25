@@ -11,6 +11,7 @@ class AppPrimaryButton extends StatelessWidget {
     this.icon,
     this.fullWidth = false,
     this.loading = false,
+    this.height,
   });
 
   final String label;
@@ -18,11 +19,26 @@ class AppPrimaryButton extends StatelessWidget {
   final IconData? icon;
   final bool fullWidth;
   final bool loading;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
-    final child = _ButtonContent(label: label, icon: icon, loading: loading);
+    final isCompact = height != null && height! <= 44;
+    final child = _ButtonContent(
+      label: label,
+      icon: icon,
+      loading: loading,
+      isCompact: isCompact,
+    );
     final button = FilledButton(
+      style: height != null
+          ? FilledButton.styleFrom(
+              minimumSize: Size(0, height!),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
+              ),
+            )
+          : null,
       onPressed: loading ? null : onPressed,
       child: child,
     );
@@ -40,6 +56,7 @@ class AppSecondaryButton extends StatelessWidget {
     this.icon,
     this.fullWidth = false,
     this.loading = false,
+    this.height,
   });
 
   final String label;
@@ -47,11 +64,26 @@ class AppSecondaryButton extends StatelessWidget {
   final IconData? icon;
   final bool fullWidth;
   final bool loading;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
-    final child = _ButtonContent(label: label, icon: icon, loading: loading);
+    final isCompact = height != null && height! <= 44;
+    final child = _ButtonContent(
+      label: label,
+      icon: icon,
+      loading: loading,
+      isCompact: isCompact,
+    );
     final button = OutlinedButton(
+      style: height != null
+          ? OutlinedButton.styleFrom(
+              minimumSize: Size(0, height!),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
+              ),
+            )
+          : null,
       onPressed: loading ? null : onPressed,
       child: child,
     );
@@ -69,6 +101,7 @@ class AppDangerButton extends StatelessWidget {
     this.icon,
     this.fullWidth = false,
     this.loading = false,
+    this.height,
   });
 
   final String label;
@@ -76,14 +109,25 @@ class AppDangerButton extends StatelessWidget {
   final IconData? icon;
   final bool fullWidth;
   final bool loading;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
-    final child = _ButtonContent(label: label, icon: icon, loading: loading);
+    final isCompact = height != null && height! <= 44;
+    final child = _ButtonContent(
+      label: label,
+      icon: icon,
+      loading: loading,
+      isCompact: isCompact,
+    );
     final button = OutlinedButton(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.danger,
         side: const BorderSide(color: AppColors.danger),
+        minimumSize: height != null ? Size(0, height!) : null,
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
+        ),
       ),
       onPressed: loading ? null : onPressed,
       child: child,
@@ -99,30 +143,48 @@ class _ButtonContent extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.loading,
+    this.isCompact = false,
   });
 
   final String label;
   final IconData? icon;
   final bool loading;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const SizedBox.square(
-        dimension: AppIcons.normal,
-        child: CircularProgressIndicator(strokeWidth: 2),
+      return SizedBox.square(
+        dimension: isCompact ? 16 : AppIcons.normal,
+        child: const CircularProgressIndicator(strokeWidth: 2),
       );
     }
 
-    if (icon == null) return Text(label);
+    final textStyle = isCompact
+        ? const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)
+        : null;
+
+    if (icon == null) {
+      return Text(
+        label,
+        style: textStyle,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: AppIcons.normal),
-        const SizedBox(width: AppSpacing.xs),
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+        Icon(icon, size: isCompact ? 16 : AppIcons.normal),
+        SizedBox(width: isCompact ? 6 : AppSpacing.xs),
+        Flexible(
+          child: Text(
+            label,
+            style: textStyle,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }

@@ -124,18 +124,23 @@ class VisitAssessmentPdfGenerator {
   static const _malayalamTokenLabels = <String, String>{
     'normal': 'സാധാരണം',
     'abnormal': 'അസാധാരണം',
+    'normal_sleep': 'സാധാരണ ഉറക്കം',
     'self_feeding': 'സ്വയം കഴിക്കുന്നു',
     'tube_fed': 'ട്യൂബ് ഫീഡിംഗ്',
+    'tube_feeding': 'ട്യൂബ് ഫീഡിംഗ്',
     'assistance': 'സഹായം ആവശ്യമാണ്',
     'uses_toilet_independently': 'സ്വയം ടോയ്‌ലറ്റിൽ പോകും',
     'urinary_catheter': 'യൂറിനറി കാത്തീറ്റർ',
     'condom_catheter': 'കോണ്ടം കാത്തീറ്റർ',
     'nephrostomy_tube': 'നെഫ്രോസ്റ്റമി ട്യൂബ്',
+    'catheter': 'യൂറിനറി കാത്തീറ്റർ',
     'uses_medication': 'മരുന്ന് ഉപയോഗിക്കുന്നു',
     'no_defecation': 'ശോധന ഇല്ല',
     'with_medication': 'മരുന്നിന്റെ സഹായത്തോടെ',
     'no_sleep': 'ഉറക്കം ഇല്ല',
     'over_sleep': 'അമിത ഉറക്കം',
+    'disturbed': 'മരുന്നിന്റെ സഹായത്തോടെ',
+    'insomnia': 'ഉറക്കം ഇല്ല',
     'good': 'നല്ലത്',
     'fair': 'ശരാശരി',
     'poor': 'മോശം',
@@ -152,29 +157,39 @@ class VisitAssessmentPdfGenerator {
     'oxygen_cylinder': 'ഓക്സിജൻ സിലിണ്ടർ',
     'bipap_machine': 'BiPAP മെഷീൻ',
     'nebulizer': 'കോൺസൻട്രേറ്റർ',
+    'concentrator': 'കോൺസൻട്രേറ്റർ',
     'lice_present': 'പേൻ ഉണ്ട്',
     'no_lice': 'പേൻ ഇല്ല',
     'dandruff_present_no_lice': 'താരൻ ഉണ്ട്, പേൻ ഇല്ല',
     'no_dandruff_lice_present': 'താരൻ ഇല്ല, പേൻ ഉണ്ട്',
+    'dandruff_present': 'താരൻ ഉണ്ട്',
+    'no_dandruff': 'താരൻ ഇല്ല',
+    'lice': 'പേൻ ഉണ്ട്',
     'wounds': 'മുറിവുകൾ',
     'no_wounds': 'മുറിവുകളില്ല',
+    'not_assessed': 'പരിശോധിച്ചിട്ടില്ല',
   };
 
   static const _englishTokenLabels = <String, String>{
     'normal': 'Normal',
     'abnormal': 'Abnormal',
+    'normal_sleep': 'Normal',
     'self_feeding': 'Self Feeding',
     'tube_fed': 'Tube Fed',
+    'tube_feeding': 'Tube Fed',
     'assistance': 'Assistance',
     'uses_toilet_independently': 'Uses Toilet Independently',
     'urinary_catheter': 'Urinary Catheter',
     'condom_catheter': 'Condom Catheter',
     'nephrostomy_tube': 'Nephrostomy Tube',
+    'catheter': 'Urinary Catheter',
     'uses_medication': 'Uses Medication',
     'no_defecation': 'No Defecation',
     'with_medication': 'With Medication',
     'no_sleep': 'No Sleep',
     'over_sleep': 'Over Sleep',
+    'disturbed': 'With Medication',
+    'insomnia': 'No Sleep',
     'good': 'Good',
     'fair': 'Fair',
     'poor': 'Poor',
@@ -191,269 +206,70 @@ class VisitAssessmentPdfGenerator {
     'oxygen_cylinder': 'Oxygen Cylinder',
     'bipap_machine': 'BiPAP Machine',
     'nebulizer': 'Concentrator',
+    'concentrator': 'Concentrator',
     'lice_present': 'Lice Present',
     'no_lice': 'No Lice',
     'dandruff_present_no_lice': 'Dandruff Present, No Lice',
     'no_dandruff_lice_present': 'No Dandruff, Lice Present',
+    'dandruff_present': 'Dandruff Present',
+    'no_dandruff': 'No Dandruff',
+    'lice': 'Lice',
     'wounds': 'Wounds',
     'no_wounds': 'No Wounds',
+    'not_assessed': 'Not Assessed',
   };
 
-  /// Displays the choice bottom sheet and shows a loading spinner in-place
-  /// until the PDF generation and download / share action completes.
-  static Future<void> downloadWithLanguagePicker(
+  /// Generates and shares/downloads the assessment PDF directly.
+  static Future<void> download(
     BuildContext context,
     VisitAssessment assessment,
   ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isDismissible: true,
-      enableDrag: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        bool isLoading = false;
-        String loadingLabel = 'Preparing PDF...';
-
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return PopScope(
-              canPop: !isLoading,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                child: SafeArea(
-                  top: false,
-                  child: isLoading
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 36),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const SizedBox(
-                                  width: 44,
-                                  height: 44,
-                                  child: CircularProgressIndicator(
-                                    color: Color(0xFF14865D),
-                                    strokeWidth: 3.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                Text(
-                                  loadingLabel,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF111827),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  'Please wait until the download is complete...',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF6B7280),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                              child: Container(
-                                width: 40,
-                                height: 4,
-                                margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                            const Text(
-                              'Download Assessment PDF',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF111827),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Choose the PDF format for download / print:',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 4,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: Colors.grey.shade200),
-                              ),
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF14865D)
-                                      .withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.description_outlined,
-                                  color: Color(0xFF14865D),
-                                  size: 20,
-                                ),
-                              ),
-                              title: const Text(
-                                'Normal',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              subtitle: const Text(
-                                'Exact form labels & text entered',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF6B7280),
-                                ),
-                              ),
-                              trailing: const Icon(
-                                Icons.chevron_right,
-                                size: 18,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                              onTap: () async {
-                                setSheetState(() {
-                                  isLoading = true;
-                                  loadingLabel = 'Generating Normal PDF...';
-                                });
-                                try {
-                                  final bytes = await generate(
-                                    assessment,
-                                    isMalayalam: false,
-                                  );
-                                  await Printing.sharePdf(
-                                    bytes: bytes,
-                                    filename: fileName(
-                                      assessment,
-                                      isMalayalam: false,
-                                    ),
-                                  );
-                                  if (sheetContext.mounted) {
-                                    Navigator.pop(sheetContext);
-                                  }
-                                } catch (error) {
-                                  if (sheetContext.mounted) {
-                                    Navigator.pop(sheetContext);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Could not create PDF: $error',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                            ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 4,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: Colors.grey.shade200),
-                              ),
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF083F88)
-                                      .withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.translate,
-                                  color: Color(0xFF083F88),
-                                  size: 20,
-                                ),
-                              ),
-                              title: const Text(
-                                'Malayalam',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              subtitle: const Text(
-                                'മലയാളം (NHC in English)',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF6B7280),
-                                ),
-                              ),
-                              trailing: const Icon(
-                                Icons.chevron_right,
-                                size: 18,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                              onTap: () async {
-                                setSheetState(() {
-                                  isLoading = true;
-                                  loadingLabel = 'Generating Malayalam PDF...';
-                                });
-                                try {
-                                  final bytes = await generate(
-                                    assessment,
-                                    isMalayalam: true,
-                                  );
-                                  await Printing.sharePdf(
-                                    bytes: bytes,
-                                    filename: fileName(
-                                      assessment,
-                                      isMalayalam: true,
-                                    ),
-                                  );
-                                  if (sheetContext.mounted) {
-                                    Navigator.pop(sheetContext);
-                                  }
-                                } catch (error) {
-                                  if (sheetContext.mounted) {
-                                    Navigator.pop(sheetContext);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Could not create PDF: $error',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                ),
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.clearSnackBars();
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
               ),
-            );
-          },
-        );
-      },
+            ),
+            SizedBox(width: 12),
+            Text('Generating Assessment PDF...'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+      ),
     );
+
+    try {
+      final bytes = await generate(assessment);
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: fileName(assessment),
+      );
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not create PDF: $error'),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Downloads assessment PDF directly.
+  /// The language picker modal (Normal / Malayalam) is hidden for this phase.
+  static Future<void> downloadWithLanguagePicker(
+    BuildContext context,
+    VisitAssessment assessment,
+  ) {
+    return download(context, assessment);
   }
 
   /// Displays a choice bottom sheet for the user to choose Normal or Malayalam PDF.
@@ -562,7 +378,7 @@ class VisitAssessmentPdfGenerator {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
                 subtitle: const Text(
-                  'മലയാളം (NHC in English)',
+                  'മലയാളം',
                   style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
                 ),
                 trailing: const Icon(
@@ -803,7 +619,7 @@ class VisitAssessmentPdfGenerator {
       assessment,
       y,
       rowHeight: 69,
-      isMalayalam: isMalayalam,
+      isMalayalamValues: true,
     );
     y += 10;
     _text(
@@ -820,7 +636,7 @@ class VisitAssessmentPdfGenerator {
       assessment,
       y,
       rowHeight: 58,
-      isMalayalam: isMalayalam,
+      isMalayalamValues: true,
     );
   }
 
@@ -830,7 +646,7 @@ class VisitAssessmentPdfGenerator {
     VisitAssessment assessment,
     double startY, {
     required double rowHeight,
-    required bool isMalayalam,
+    bool isMalayalamValues = true,
   }) {
     var y = startY;
     for (final entry in labels.entries) {
@@ -846,7 +662,11 @@ class VisitAssessmentPdfGenerator {
       _text(canvas, ':', Rect.fromLTWH(480, y, 18, 22), size: 20);
       _fitText(
         canvas,
-        _findingValue(finding, isMalayalam: isMalayalam),
+        _findingValue(
+          finding,
+          key: entry.key,
+          isMalayalam: isMalayalamValues,
+        ),
         Rect.fromLTWH(510, y - 3, 600, rowHeight - 6),
         size: 19,
         color: _ink,
@@ -1743,17 +1563,30 @@ class VisitAssessmentPdfGenerator {
 
   static String _findingValue(
     ExamFinding finding, {
+    String? key,
     required bool isMalayalam,
   }) {
     final pieces = <String>[];
+    String? mainToken;
+
     if (finding.value.trim().isNotEmpty) {
-      pieces.add(_labelFromToken(finding.value, isMalayalam: isMalayalam));
-    } else if (finding.status != 'not_assessed') {
-      pieces.add(_labelFromToken(finding.status, isMalayalam: isMalayalam));
+      mainToken = finding.value.trim();
+    } else if (finding.status.trim().isNotEmpty &&
+        finding.status != 'not_assessed') {
+      mainToken = _defaultTokenForStatus(key, finding.status);
     }
-    for (final value in finding.extraValues.values) {
-      if (value.trim().isNotEmpty) {
-        pieces.add(_labelFromToken(value, isMalayalam: isMalayalam));
+
+    if (mainToken != null && mainToken.isNotEmpty) {
+      pieces.add(
+        _labelFromToken(mainToken, key: key, isMalayalam: isMalayalam),
+      );
+    }
+
+    for (final entry in finding.extraValues.entries) {
+      if (entry.value.trim().isNotEmpty) {
+        pieces.add(
+          _labelFromToken(entry.value, key: entry.key, isMalayalam: isMalayalam),
+        );
       }
     }
     if (finding.notes.trim().isNotEmpty) pieces.add(finding.notes.trim());
@@ -1767,6 +1600,58 @@ class VisitAssessmentPdfGenerator {
     return pieces.join(' - ');
   }
 
+  static String _defaultTokenForStatus(String? key, String status) {
+    final norm = status.trim().toLowerCase();
+    if (norm == 'normal') {
+      switch (key) {
+        case 'scalpHair':
+          return 'clean';
+        case 'skin':
+          return 'soft_skin';
+        case 'eyeNoseMouth':
+        case 'oral':
+        case 'nails':
+        case 'perineum':
+        case 'pressureArea':
+        case 'hiddenArea':
+          return 'clean';
+        case 'musclesJoints':
+          return 'no_pain';
+        case 'specialAttention':
+          return 'no';
+        case 'foodWater':
+          return 'self_feeding';
+        case 'urine':
+          return 'uses_toilet_independently';
+        case 'sleep':
+          return 'normal_sleep';
+        default:
+          return 'normal';
+      }
+    } else if (norm == 'abnormal') {
+      switch (key) {
+        case 'scalpHair':
+          return 'not_clean';
+        case 'skin':
+          return 'dry_skin';
+        case 'eyeNoseMouth':
+        case 'oral':
+        case 'nails':
+        case 'perineum':
+        case 'pressureArea':
+        case 'hiddenArea':
+          return 'unclean';
+        case 'musclesJoints':
+          return 'pain_present';
+        case 'specialAttention':
+          return 'yes';
+        default:
+          return 'abnormal';
+      }
+    }
+    return status;
+  }
+
   static String _medicineTitle(AssessmentMedicine medicine) {
     final name = medicine.medicineName.trim();
     final strength = medicine.strength.trim();
@@ -1775,7 +1660,11 @@ class VisitAssessmentPdfGenerator {
     return '$name, $strength';
   }
 
-  static String _labelFromToken(String value, {required bool isMalayalam}) {
+  static String _labelFromToken(
+    String value, {
+    String? key,
+    required bool isMalayalam,
+  }) {
     final clean = value.trim();
     if (clean.isEmpty) return '';
     final token = clean
@@ -1784,9 +1673,15 @@ class VisitAssessmentPdfGenerator {
         .replaceAll(RegExp(r'_+'), '_');
 
     if (isMalayalam) {
+      if (key == 'sleep' && (token == 'normal' || token == 'normal_sleep')) {
+        return 'സാധാരണ ഉറക്കം';
+      }
       final malayalamLabel = _malayalamTokenLabels[token];
       if (malayalamLabel != null) return malayalamLabel;
     } else {
+      if (key == 'sleep' && token == 'normal_sleep') {
+        return 'Normal';
+      }
       final englishLabel = _englishTokenLabels[token];
       if (englishLabel != null) return englishLabel;
     }

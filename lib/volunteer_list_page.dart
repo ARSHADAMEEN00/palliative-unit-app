@@ -560,23 +560,25 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                     ),
                   ],
                   if (auth.canEdit || auth.canDelete) ...[
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     if (auth.canEdit)
                       AppPrimaryButton(
                         label: 'Edit volunteer',
                         icon: Icons.edit_outlined,
                         fullWidth: true,
+                        height: 40,
                         onPressed: () {
                           Navigator.pop(context);
                           _openForm(volunteer);
                         },
                       ),
                     if (auth.canDelete) ...[
-                      const SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: AppSpacing.xs),
                       AppDangerButton(
                         label: 'Delete volunteer',
                         icon: Icons.delete_outline,
                         fullWidth: true,
+                        height: 40,
                         onPressed: () {
                           Navigator.pop(context);
                           _deleteVolunteer(volunteer);
@@ -655,11 +657,9 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     return IconButton(
       tooltip: 'Call $phone',
       onPressed: () => _callPhone(phone),
-      style: IconButton.styleFrom(
-        backgroundColor: _volunteerPrimary,
-        foregroundColor: AppColors.textInverse,
-      ),
-      icon: const Icon(Icons.call_outlined, size: 17),
+      icon: const Icon(Icons.call, color: AppColors.success, size: 18),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
       visualDensity: VisualDensity.compact,
     );
   }
