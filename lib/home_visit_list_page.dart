@@ -548,11 +548,12 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     int visitNumber,
   ) {
     final patient = visit.patientDetails;
+    final canViewDetails = context.read<AuthService>().canViewHomeVisitDetails;
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.sm),
       surfaceLevel: AppSurfaceLevel.elevated,
-      onTap: () => _showVisitDetails(context, visit),
+      onTap: canViewDetails ? () => _showVisitDetails(context, visit) : null,
       child: Row(
         children: [
           // Visit Number Badge
@@ -690,12 +691,14 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
             ),
           ),
 
-          const SizedBox(width: AppSpacing.xs),
-          const Icon(
-            Icons.chevron_right,
-            size: AppIcons.large,
-            color: AppColors.textMuted,
-          ),
+          if (canViewDetails) ...[
+            const SizedBox(width: AppSpacing.xs),
+            const Icon(
+              Icons.chevron_right,
+              size: AppIcons.large,
+              color: AppColors.textMuted,
+            ),
+          ],
         ],
       ),
     );
@@ -1011,6 +1014,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
     final patient = widget.visit.patientDetails;
     final mediaQuery = MediaQuery.of(context);
     final bottomSafePadding = mediaQuery.viewPadding.bottom;
+    final canViewContacts = context.watch<AuthService>().canViewContactNumbers;
 
     return Container(
       decoration: const BoxDecoration(
@@ -1098,7 +1102,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                   spacing: 8,
                   runSpacing: 12,
                   children: [
-                    if (patient.phone.isNotEmpty)
+                    if (canViewContacts && patient.phone.isNotEmpty)
                       SizedBox(
                         width: (MediaQuery.of(context).size.width - 48) / 2 - 4,
                         child: _buildDetailRow(
@@ -1107,7 +1111,9 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                           patient.phone,
                         ),
                       ),
-                    if (patient.phone2 != null && patient.phone2!.isNotEmpty)
+                    if (canViewContacts &&
+                        patient.phone2 != null &&
+                        patient.phone2!.isNotEmpty)
                       SizedBox(
                         width: (MediaQuery.of(context).size.width - 48) / 2 - 4,
                         child: _buildDetailRow(
@@ -1291,7 +1297,7 @@ class _VisitDetailsSheetState extends State<_VisitDetailsSheet> {
                           if (result == true) widget.onRefresh();
                         },
                         icon: const Icon(Icons.edit_outlined),
-                        label: const Text("Edit Details"),
+                        label: const Text("Edit"),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
                           foregroundColor: AppColors.textInverse,
@@ -1721,9 +1727,9 @@ class _EditPatientDialogState extends State<_EditPatientDialog> {
                         return FilterChip(
                           label: Text(disease),
                           selected: isSelected,
+                          showCheckmark: false,
                           selectedColor: primaryColor,
                           backgroundColor: AppColors.surface1,
-                          checkmarkColor: AppColors.textInverse,
                           side: BorderSide(
                             color: isSelected ? primaryColor : AppColors.border,
                           ),

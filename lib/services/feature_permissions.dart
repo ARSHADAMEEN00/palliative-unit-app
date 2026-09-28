@@ -59,9 +59,25 @@ class FeatureAccessPolicy {
     AppFeature.medicineSupply,
   };
 
+  static const Set<String> _userRestrictedFeatures = {
+    AppFeature.nhcAssessment,
+    AppFeature.nhcPdf,
+    AppFeature.medicineMaster,
+    AppFeature.medicineStock,
+    AppFeature.medicineSupply,
+    AppFeature.equipment,
+    AppFeature.equipmentDistribution,
+  };
+
   static bool roleAllows(String? role, String featureId) {
-    if (role?.trim().toLowerCase() != 'member') return true;
-    return !_memberRestrictedFeatures.contains(featureId);
+    final normalized = role?.trim().toLowerCase();
+    if (normalized == 'member') {
+      return !_memberRestrictedFeatures.contains(featureId);
+    }
+    if (normalized == 'user') {
+      return !_userRestrictedFeatures.contains(featureId);
+    }
+    return true;
   }
 }
 

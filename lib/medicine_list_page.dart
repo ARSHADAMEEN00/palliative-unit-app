@@ -6,14 +6,18 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_typography.dart';
+import 'package:oruma_app/core/theme/app_colors.dart';
 import 'package:oruma_app/medicine_stock_entry_page.dart';
 import 'package:oruma_app/medicine_stock_history_page.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/models/medicine.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/medicine_service.dart';
 import 'package:oruma_app/services/medicine_stock_service.dart';
+import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
@@ -457,7 +461,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
               if (!isEmpty) ...[
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.assignment_return_outlined, size: 20),
+                  icon: const Icon(Icons.u_turn_left_rounded, size: 20),
                   color: color,
                   tooltip: 'Return to main stock',
                   padding: EdgeInsets.zero,
@@ -547,7 +551,10 @@ class _MedicineListPageState extends State<MedicineListPage> {
     );
   }
 
-  Future<void> _returnToMainStock(Medicine medicine, MedicineBatch batch) async {
+  Future<void> _returnToMainStock(
+    Medicine medicine,
+    MedicineBatch batch,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -593,9 +600,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
       _loadMedicines();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyError(error))));
     }
   }
 
@@ -645,6 +652,13 @@ class _MedicineListPageState extends State<MedicineListPage> {
         ),
         centerTitle: true,
         actions: [
+          if (auth.canAccessReports)
+            IconButton(
+              tooltip: 'Medicine stock report',
+              onPressed: () =>
+                  openReports(context, initialReport: ReportType.medicineStock),
+              icon: const Icon(Icons.assessment_outlined),
+            ),
           if (auth.canAccessMedicineStock)
             IconButton(
               tooltip: 'Stock history',
@@ -775,85 +789,93 @@ class _MedicineListPageState extends State<MedicineListPage> {
                   ),
                 ],
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _medicineIcon(medicine),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _medicineListTitle(medicine),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            height: 1.15,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          [
-                            medicine.code,
-                            if (medicine.formulation?.isNotEmpty == true)
-                              _titleCase(medicine.formulation!),
-                          ].join(' • '),
-                          style: const TextStyle(
-                            color: _medicineDarkGreen,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 5,
-                          children: [
-                            _inlineDetail(
-                              Icons.science_outlined,
-                              _strengthText(medicine),
-                            ),
-                            if (medicine.earliestExpiryDate != null)
-                              _inlineDetail(
-                                Icons.event_outlined,
-                                DateFormat('MMM yyyy').format(
-                                  medicine.earliestExpiryDate!.toLocal(),
-                                ),
-                                color: expiryWarning
-                                    ? Colors.red.shade700
-                                    : null,
-                              ),
-                          ],
-                        ),
-                      ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      _medicineListTitle(medicine),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        height: 1.15,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 126,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _medicineIcon(medicine),
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _stockPill(medicine),
-                            const SizedBox(width: 4),
-                            _medicineMenu(auth, medicine),
+                            Text(
+                              [
+                                medicine.code,
+                                if (medicine.formulation?.isNotEmpty == true)
+                                  _titleCase(medicine.formulation!),
+                              ].join(' • '),
+                              style: const TextStyle(
+                                color: _medicineDarkGreen,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 9),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 5,
+                              children: [
+                                _inlineDetail(
+                                  Icons.science_outlined,
+                                  _strengthText(medicine),
+                                ),
+                                if (medicine.earliestExpiryDate != null)
+                                  _inlineDetail(
+                                    Icons.event_outlined,
+                                    DateFormat('MMM yyyy').format(
+                                      medicine.earliestExpiryDate!.toLocal(),
+                                    ),
+                                    color: expiryWarning
+                                        ? Colors.red.shade700
+                                        : null,
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: _stockHighlight(medicine),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 126,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                _stockPill(medicine),
+                                const SizedBox(width: 4),
+                                _medicineMenu(auth, medicine),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: _stockHighlight(medicine),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -878,11 +900,21 @@ class _MedicineListPageState extends State<MedicineListPage> {
           },
           itemBuilder: (context) => [
             if (auth.canEdit)
-              const PopupMenuItem(value: 'edit', child: Text('Edit')),
+              const PopupMenuItem(
+                value: 'edit',
+                child: AppMenuActionLabel(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit',
+                ),
+              ),
             if (auth.canDelete)
               const PopupMenuItem(
                 value: 'delete',
-                child: Text('Delete', style: TextStyle(color: Colors.red)),
+                child: AppMenuActionLabel(
+                  icon: Icons.delete_outline,
+                  label: 'Delete',
+                  color: AppColors.danger,
+                ),
               ),
           ],
         ),

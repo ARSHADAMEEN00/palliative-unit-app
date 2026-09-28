@@ -77,6 +77,8 @@ class SocialSupport {
 
   String get patientObjectId => _getId(patientId) ?? '';
 
+  String get volunteerObjectId => _getId(volunteerId) ?? '';
+
   String get patientName {
     if (patientId is Map) return patientId['name']?.toString() ?? 'Unknown';
     return 'Unknown';

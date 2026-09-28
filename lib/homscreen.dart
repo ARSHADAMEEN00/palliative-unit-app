@@ -36,6 +36,7 @@ import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/unit_brand_avatar.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_visit_picker_screen.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 
 const _appVersionLabel = 'Version 1.0.0 (Build 1)';
 
@@ -665,14 +666,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     auth.unitName,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.outfit(
-                      textStyle:
-                          Theme.of(context).textTheme.headlineMedium,
+                      textStyle: Theme.of(context).textTheme.headlineMedium,
                       color: AppColors.text,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
-                    ).copyWith(
-                      fontFamilyFallback: const ['NotoSansMalayalam'],
-                    ),
+                    ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   if ((user?['name']?.toString().trim().isNotEmpty ?? false))
@@ -882,101 +880,105 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppSpacing.md),
-                        const Divider(height: 1),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withValues(alpha: 0.1),
-                                borderRadius: AppRadius.sm,
+                        if (auth.canViewContactNumbers) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          const Divider(height: 1),
+                          const SizedBox(height: AppSpacing.md),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.1),
+                                  borderRadius: AppRadius.sm,
+                                ),
+                                child: const Icon(
+                                  Icons.phone_rounded,
+                                  color: AppColors.success,
+                                  size: AppIcons.normal,
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.phone_rounded,
-                                color: AppColors.success,
-                                size: AppIcons.normal,
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Contact Number",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: AppColors.textSecondary,
+                                          ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.xxs),
+                                    Text(
+                                      supportPhone ?? 'Not added',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            color: AppColors.text,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Contact Number",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                  ),
-                                  const SizedBox(height: AppSpacing.xxs),
-                                  Text(
-                                    supportPhone ?? 'Not added',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                          color: AppColors.text,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: supportPhoneDial == null
-                          ? null
-                          : () async {
-                              final Uri phoneUri = Uri(
-                                scheme: 'tel',
-                                path: supportPhoneDial,
-                              );
-                              if (await canLaunchUrl(phoneUri)) {
-                                await launchUrl(phoneUri);
-                              } else {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Could not launch phone dialer',
+                  if (auth.canCall) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: supportPhoneDial == null
+                            ? null
+                            : () async {
+                                final Uri phoneUri = Uri(
+                                  scheme: 'tel',
+                                  path: supportPhoneDial,
+                                );
+                                if (await canLaunchUrl(phoneUri)) {
+                                  await launchUrl(phoneUri);
+                                } else {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Could not launch phone dialer',
+                                        ),
+                                        backgroundColor: AppColors.danger,
                                       ),
-                                      backgroundColor: AppColors.danger,
-                                    ),
-                                  );
+                                    );
+                                  }
                                 }
-                              }
-                            },
-                      icon: const Icon(Icons.call, size: 18),
-                      label: const Text(
-                        "Make a Call",
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                              },
+                        icon: const Icon(Icons.call, size: 18),
+                        label: const Text(
+                          "Make a Call",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: AppColors.textInverse,
-                        minimumSize: const Size.fromHeight(56),
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: AppRadius.button,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          foregroundColor: AppColors.textInverse,
+                          minimumSize: const Size.fromHeight(56),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: AppRadius.button,
+                          ),
+                          elevation: 0,
                         ),
-                        elevation: 0,
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -1148,7 +1150,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: AppSpacing.xs),
           ],
-          if (phones.isNotEmpty) ...[
+          if (auth.canViewContactNumbers && phones.isNotEmpty) ...[
             _buildUnitDetailRow(
               icon: Icons.phone_outlined,
               label: 'Contact Phone(s)',
@@ -1320,172 +1322,187 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         currentSection: AppBottomSection.home,
         onNavigationSelected: _handleBottomNavigation,
         contentMaxWidth: 1040,
-      body: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            isCompact ? AppSpacing.sm : AppSpacing.md,
-            horizontalPadding,
-            AppSpacing.xxl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDashboardHeader(context, auth, isCompact: isCompact),
-              if (maintenanceNotification != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                _buildMaintenanceDueBanner(context, maintenanceNotification),
-              ],
-              const SizedBox(height: AppSpacing.lg),
-              _buildDashboardSectionHeader(
-                context,
-                title: 'Care Modules',
-                subtitle: 'Open the work area you need now.',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final width = constraints.maxWidth;
-                  final columns = width >= 900
-                      ? 4
-                      : width >= 620
-                      ? 3
-                      : 2;
-                  final cards = <Widget>[
-                    if (auth.canAccessPatients)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Patients',
-                        icon: Icons.people_alt_rounded,
-                        palette: ModulePalettes.patients,
-                        page: const ModuleTheme(
-                          palette: ModulePalettes.patients,
-                          child: PatientListPage(),
-                        ),
-                      ),
-                    if (auth.canAccessNHC)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Visit Assessment',
-                        icon: Icons.assignment_rounded,
-                        palette: ModulePalettes.patients,
-                        page: const VisitAssessmentVisitPickerScreen(),
-                      ),
-                    if (auth.canAccessEquipmentDistribution)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Equipment Supply',
-                        icon: Icons.wheelchair_pickup_rounded,
-                        palette: ModulePalettes.equipmentSupply,
-                        page: const ModuleTheme(
-                          palette: ModulePalettes.equipmentSupply,
-                          child: EquipmentSupplyListPage(),
-                        ),
-                      ),
-                    if (auth.canAccessMedicineSupply)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Medicine Supply',
-                        icon: Icons.medication_liquid_rounded,
-                        palette: ModulePalettes.medicineSupply,
-                        page: const ModuleTheme(
-                          palette: ModulePalettes.medicineSupply,
-                          child: MedicineSupplyListPage(),
-                        ),
-                      ),
-                    if (auth.canAccessHomeVisits)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Home Visits',
-                        icon: Icons.home_rounded,
-                        palette: ModulePalettes.homeVisits,
-                        page: const ModuleTheme(
-                          palette: ModulePalettes.homeVisits,
-                          child: HomeVisitListPage(),
-                        ),
-                      ),
-                    if (auth.canAccessSocialSupport)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Social Support',
-                        icon: Icons.food_bank_rounded,
-                        palette: ModulePalettes.socialSupport,
-                        page: const ModuleTheme(
-                          palette: ModulePalettes.socialSupport,
-                          child: SocialSupportListPage(),
-                        ),
-                      ),
-                    if (auth.canAccessVolunteers)
-                      _buildModernActionCard(
-                        context,
-                        title: 'Volunteers',
-                        icon: Icons.volunteer_activism_rounded,
-                        palette: ModulePalettes.volunteers,
-                        page: const ModuleTheme(
-                          palette: ModulePalettes.volunteers,
-                          child: VolunteerListPage(),
-                        ),
-                      ),
-                  ];
-
-                  if (cards.isEmpty) {
-                    return const AppCard(
-                      surfaceLevel: AppSurfaceLevel.elevated,
-                      child: AppEmptyState(
-                        icon: Icons.lock_outline_rounded,
-                        title: 'No modules enabled',
-                        message:
-                            'Your unit administrator can enable care modules for this account.',
-                      ),
-                    );
-                  }
-
-                  return GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: columns,
-                    crossAxisSpacing: isCompact ? AppSpacing.sm : AppSpacing.md,
-                    mainAxisSpacing: isCompact ? AppSpacing.sm : AppSpacing.md,
-                    childAspectRatio: columns >= 4
-                        ? 1.42
-                        : columns == 3
-                        ? 1.28
-                        : 1.15,
-                    children: cards,
-                  );
-                },
-              ),
-              if (auth.canAccessEquipmentDistribution) ...[
-                const SizedBox(height: AppSpacing.xl),
+        body: SafeArea(
+          bottom: false,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              isCompact ? AppSpacing.sm : AppSpacing.md,
+              horizontalPadding,
+              AppSpacing.xxl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDashboardHeader(context, auth, isCompact: isCompact),
+                if (maintenanceNotification != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _buildMaintenanceDueBanner(context, maintenanceNotification),
+                ],
+                const SizedBox(height: AppSpacing.lg),
                 _buildDashboardSectionHeader(
                   context,
-                  title: 'Active Supplies',
-                  subtitle: 'Equipment currently assigned to patients.',
-                  actionLabel: 'View all',
-                  onAction: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ModuleTheme(
-                          palette: ModulePalettes.equipmentSupply,
-                          child: EquipmentSupplyListPage(),
+                  title: 'Care Modules',
+                  subtitle: 'Open the work area you need now.',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final columns = width >= 900
+                        ? 4
+                        : width >= 620
+                        ? 3
+                        : 2;
+                    final cards = <Widget>[
+                      if (auth.canAccessPatients)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Patients',
+                          icon: Icons.people_alt_rounded,
+                          palette: ModulePalettes.patients,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.patients,
+                            child: PatientListPage(),
+                          ),
                         ),
-                      ),
+                      if (auth.canAccessNHC)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Visit Assessment',
+                          icon: Icons.assignment_rounded,
+                          palette: ModulePalettes.patients,
+                          page: const VisitAssessmentVisitPickerScreen(),
+                        ),
+                      if (auth.canAccessEquipmentDistribution)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Equipment Supply',
+                          icon: Icons.wheelchair_pickup_rounded,
+                          palette: ModulePalettes.equipmentSupply,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.equipmentSupply,
+                            child: EquipmentSupplyListPage(),
+                          ),
+                        ),
+                      if (auth.canAccessMedicineSupply)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Medicine Supply',
+                          icon: Icons.medication_liquid_rounded,
+                          palette: ModulePalettes.medicineSupply,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.medicineSupply,
+                            child: MedicineSupplyListPage(),
+                          ),
+                        ),
+                      if (auth.canAccessHomeVisits)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Home Visits',
+                          icon: Icons.home_rounded,
+                          palette: ModulePalettes.homeVisits,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.homeVisits,
+                            child: HomeVisitListPage(),
+                          ),
+                        ),
+                      if (auth.canAccessSocialSupport)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Social Support',
+                          icon: Icons.food_bank_rounded,
+                          palette: ModulePalettes.socialSupport,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.socialSupport,
+                            child: SocialSupportListPage(),
+                          ),
+                        ),
+                      if (auth.canAccessVolunteers)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Volunteers',
+                          icon: Icons.volunteer_activism_rounded,
+                          palette: ModulePalettes.volunteers,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.volunteers,
+                            child: VolunteerListPage(),
+                          ),
+                        ),
+                      if (auth.canAccessReports)
+                        _buildModernActionCard(
+                          context,
+                          title: 'Reports',
+                          icon: Icons.assessment_outlined,
+                          palette: ModulePalettes.reports,
+                          page: const ModuleTheme(
+                            palette: ModulePalettes.reports,
+                            child: ReportsPage(),
+                          ),
+                        ),
+                    ];
+
+                    if (cards.isEmpty) {
+                      return const AppCard(
+                        surfaceLevel: AppSurfaceLevel.elevated,
+                        child: AppEmptyState(
+                          icon: Icons.lock_outline_rounded,
+                          title: 'No modules enabled',
+                          message:
+                              'Your unit administrator can enable care modules for this account.',
+                        ),
+                      );
+                    }
+
+                    return GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: columns,
+                      crossAxisSpacing: isCompact
+                          ? AppSpacing.sm
+                          : AppSpacing.md,
+                      mainAxisSpacing: isCompact
+                          ? AppSpacing.sm
+                          : AppSpacing.md,
+                      childAspectRatio: columns >= 4
+                          ? 1.42
+                          : columns == 3
+                          ? 1.28
+                          : 1.15,
+                      children: cards,
                     );
                   },
                 ),
-                const SizedBox(height: AppSpacing.md),
-                _buildActiveSuppliesList(context),
+                if (auth.canAccessEquipmentDistribution) ...[
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildDashboardSectionHeader(
+                    context,
+                    title: 'Active Supplies',
+                    subtitle: 'Equipment currently assigned to patients.',
+                    actionLabel: 'View all',
+                    onAction: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ModuleTheme(
+                            palette: ModulePalettes.equipmentSupply,
+                            child: EquipmentSupplyListPage(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildActiveSuppliesList(context),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   AppNotification? _visibleMaintenanceDueNotification() {
     for (final notification in _notifications) {
@@ -1693,9 +1710,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
               height: 1.15,
-            ).copyWith(
-              fontFamilyFallback: const ['NotoSansMalayalam'],
-            ),
+            ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
           ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
@@ -2337,6 +2352,27 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                             builder: (context) => const ModuleTheme(
                               palette: ModulePalettes.volunteers,
                               child: VolunteerListPage(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (auth.canAccessReports)
+                    _buildDrawerSectionLabel('REPORTS'),
+                  if (auth.canAccessReports)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.assessment_outlined,
+                      title: 'Reports',
+                      color: ModulePalettes.reports.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ModuleTheme(
+                              palette: ModulePalettes.reports,
+                              child: ReportsPage(),
                             ),
                           ),
                         );

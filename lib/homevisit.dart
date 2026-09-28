@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/home_visit.dart';
 import 'package:oruma_app/models/patient.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
@@ -72,12 +74,17 @@ class _HomevisitState extends State<Homevisit> {
 
         // If editing, try to find the matching patient and visit mode
         if (isEditing) {
+          final visitPatientId = widget.visit?.patientId;
           try {
             _selectedPatient = _patients.firstWhere(
-              (p) => p.name == widget.visit!.patientName,
+              (p) =>
+                  (visitPatientId != null &&
+                      visitPatientId.isNotEmpty &&
+                      p.id == visitPatientId) ||
+                  p.name.trim().toLowerCase() ==
+                      widget.visit!.patientName.trim().toLowerCase(),
             );
           } catch (_) {
-            // If not found (maybe name changed or deleted), we'll handle it
             _selectedPatient = null;
           }
           // Set visit mode from existing visit
@@ -86,6 +93,21 @@ class _HomevisitState extends State<Homevisit> {
           }
         }
       });
+
+      final visitPatientId = widget.visit?.patientId;
+      if (isEditing &&
+          _selectedPatient == null &&
+          visitPatientId != null &&
+          visitPatientId.isNotEmpty) {
+        try {
+          final patient = await PatientService.getPatientById(visitPatientId);
+          if (mounted) {
+            setState(() {
+              _selectedPatient = patient;
+            });
+          }
+        } catch (_) {}
+      }
     } catch (e) {
       setState(() => _isLoadingPatients = false);
       if (mounted) {
@@ -242,6 +264,7 @@ class _HomevisitState extends State<Homevisit> {
                       icon: Icons.person_search_outlined,
                       children: [
                         _buildPatientAutocomplete(),
+                        if (_selectedPatient != null) _buildSelectedPatientCard(),
                         const SizedBox(height: AppSpacing.md),
                         _buildTextField(
                           controller: addressController,
@@ -383,177 +406,334 @@ class _HomevisitState extends State<Homevisit> {
   }
 
   Widget _buildPatientAutocomplete() {
-    return Autocomplete<Patient>(
-      initialValue: _selectedPatient != null
-          ? TextEditingValue(text: _selectedPatient!.name)
-          : null,
-      optionsBuilder: (TextEditingValue textEditingValue) async {
-        if (textEditingValue.text.isEmpty) {
-          return _patients;
-        }
-        try {
-          return PatientService.searchPatients(
-            textEditingValue.text,
-            isDead: false,
-          );
-        } catch (e) {
-          return _patients.where((patient) {
-            return patient.name.toLowerCase().contains(
-              textEditingValue.text.toLowerCase(),
-            );
-          });
-        }
-      },
-      displayStringForOption: (Patient patient) => patient.name,
-      onSelected: (Patient patient) {
-        setState(() {
-          _selectedPatient = patient;
-          addressController.text = patient.address;
-        });
-      },
-      fieldViewBuilder:
-          (
-            BuildContext context,
-            TextEditingController textEditingController,
-            FocusNode focusNode,
-            VoidCallback onFieldSubmitted,
-          ) {
-            return TextFormField(
-              controller: textEditingController,
-              focusNode: focusNode,
-              decoration: _buildInputDecoration(
-                'Search Patient',
-                Icons.person_search_outlined,
-              ),
-              onFieldSubmitted: (String value) {
-                onFieldSubmitted();
-              },
-            );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Autocomplete<Patient>(
+          initialValue: _selectedPatient != null
+              ? TextEditingValue(text: _selectedPatient!.name)
+              : null,
+          optionsBuilder: (TextEditingValue textEditingValue) async {
+            final query = textEditingValue.text.trim();
+            if (query.isEmpty) {
+              return _patients.take(25);
+            }
+            if (_selectedPatient != null &&
+                query.toLowerCase() ==
+                    _selectedPatient!.name.trim().toLowerCase()) {
+              return const Iterable<Patient>.empty();
+            }
+
+            final lowerQuery = query.toLowerCase();
+            final localMatches = _patients.where((patient) {
+              final nameMatch = patient.name.toLowerCase().contains(lowerQuery);
+              final regMatch =
+                  patient.registerId?.toLowerCase().contains(lowerQuery) ??
+                  false;
+              final placeMatch =
+                  patient.place.toLowerCase().contains(lowerQuery);
+              final phoneMatch =
+                  patient.phone.toLowerCase().contains(lowerQuery) ||
+                  (patient.phone2?.toLowerCase().contains(lowerQuery) ?? false);
+              return nameMatch || regMatch || placeMatch || phoneMatch;
+            }).toList();
+
+            try {
+              final serverMatches = await PatientService.searchPatients(
+                query,
+                isDead: false,
+              );
+              final seen = {for (final p in localMatches) p.id};
+              for (final p in serverMatches) {
+                if (!seen.contains(p.id)) {
+                  localMatches.add(p);
+                  seen.add(p.id);
+                }
+              }
+            } catch (_) {
+              // Local matches already populated
+            }
+
+            return localMatches;
           },
-      optionsViewBuilder:
-          (
-            BuildContext context,
-            AutocompleteOnSelected<Patient> onSelected,
-            Iterable<Patient> options,
-          ) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Material(
-                  color: AppColors.surface,
-                  elevation: 0,
-                  borderRadius: AppRadius.card,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      maxHeight: 240,
-                      maxWidth: 420,
-                    ),
-                    decoration: BoxDecoration(
+          displayStringForOption: (Patient patient) => patient.name,
+          onSelected: (Patient patient) {
+            setState(() {
+              _selectedPatient = patient;
+              addressController.text = patient.address;
+            });
+          },
+          fieldViewBuilder:
+              (
+                BuildContext context,
+                TextEditingController textEditingController,
+                FocusNode focusNode,
+                VoidCallback onFieldSubmitted,
+              ) {
+                return ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: textEditingController,
+                  builder: (context, value, _) {
+                    return TextFormField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      decoration: _buildInputDecoration(
+                        'Search Patient',
+                        Icons.person_search_outlined,
+                      ).copyWith(
+                        hintText: 'Search by name, Reg No, phone, or place',
+                        suffixIcon: value.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                tooltip: 'Clear patient',
+                                onPressed: () {
+                                  textEditingController.clear();
+                                  setState(() {
+                                    _selectedPatient = null;
+                                    addressController.clear();
+                                  });
+                                },
+                              )
+                            : null,
+                      ),
+                      onChanged: (text) {
+                        if (_selectedPatient != null &&
+                            text.trim().toLowerCase() !=
+                                _selectedPatient!.name.trim().toLowerCase()) {
+                          setState(() {
+                            _selectedPatient = null;
+                          });
+                        }
+                      },
+                      validator: (_) =>
+                          _selectedPatient == null ? 'Please select a patient' : null,
+                      onFieldSubmitted: (String val) {
+                        onFieldSubmitted();
+                      },
+                    );
+                  },
+                );
+              },
+          optionsViewBuilder:
+              (
+                BuildContext context,
+                AutocompleteOnSelected<Patient> onSelected,
+                Iterable<Patient> options,
+              ) {
+                if (options.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Material(
                       color: AppColors.surface,
+                      elevation: 0,
                       borderRadius: AppRadius.card,
-                      border: Border.all(color: AppColors.border),
-                      boxShadow: AppShadow.medium,
-                    ),
-                    child: ListView.separated(
-                      padding: AppInsets.xs,
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      separatorBuilder: (_, _) =>
-                          const Divider(height: 1, color: AppColors.borderSoft),
-                      itemBuilder: (BuildContext context, int index) {
-                        final Patient patient = options.elementAt(index);
-                        return InkWell(
-                          onTap: () => onSelected(patient),
-                          borderRadius: AppRadius.md,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: AppSpacing.xs,
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: const BoxDecoration(
-                                    color: _homeVisitIconBackground,
-                                    borderRadius: AppRadius.sm,
-                                  ),
-                                  child: const Icon(
-                                    Icons.person_outline,
-                                    size: AppIcons.small,
-                                    color: _homeVisitPrimary,
-                                  ),
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxHeight: 280,
+                          maxWidth: constraints.maxWidth,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: AppRadius.card,
+                          border: Border.all(color: AppColors.border),
+                          boxShadow: AppShadow.medium,
+                        ),
+                        child: ListView.separated(
+                          padding: AppInsets.xs,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1, color: AppColors.borderSoft),
+                          itemBuilder: (BuildContext context, int index) {
+                            final Patient patient = options.elementAt(index);
+                            return InkWell(
+                              onTap: () => onSelected(patient),
+                              borderRadius: AppRadius.md,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                  vertical: AppSpacing.xs,
                                 ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: const BoxDecoration(
+                                        color: _homeVisitIconBackground,
+                                        borderRadius: AppRadius.sm,
+                                      ),
+                                      child: const Icon(
+                                        Icons.person_outline,
+                                        size: AppIcons.small,
+                                        color: _homeVisitPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                            child: Text(
-                                              patient.name,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleSmall,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (patient.registerId != null)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 2,
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  patient.name,
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.titleSmall,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (patient.registerId != null &&
+                                                  patient.registerId!.isNotEmpty)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.primaryLight,
+                                                    borderRadius:
+                                                        BorderRadius.circular(999),
                                                   ),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primaryLight,
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                              ),
-                                              child: Text(
-                                                '#${patient.registerId}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .labelSmall
-                                                    ?.copyWith(
-                                                      color: AppColors.primary,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                              ),
-                                            ),
+                                                  child: Text(
+                                                    '#${patient.registerId}',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                          color: AppColors.primary,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            [
+                                              if (patient.place.isNotEmpty)
+                                                patient.place,
+                                              if (context.read<AuthService>().canViewContactNumbers &&
+                                                  patient.phone.isNotEmpty)
+                                                patient.phone,
+                                            ].join(' • '),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                          ),
                                         ],
                                       ),
-                                      if (patient.phone.isNotEmpty)
-                                        Text(
-                                          patient.phone,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: AppColors.textSecondary,
-                                              ),
-                                        ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
+                );
+              },
+        );
+      },
+    );
+  }
+
+  Widget _buildSelectedPatientCard() {
+    final patient = _selectedPatient!;
+    final canViewContacts = context.read<AuthService>().canViewContactNumbers;
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: _homeVisitIconBackground,
+        borderRadius: AppRadius.md,
+        border: Border.all(
+          color: _homeVisitPrimary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _homeVisitPrimary.withValues(alpha: 0.15),
+              borderRadius: AppRadius.sm,
+            ),
+            child: const Icon(
+              Icons.person,
+              color: _homeVisitPrimary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        patient.name,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (patient.registerId != null &&
+                        patient.registerId!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _homeVisitPrimary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '#${patient.registerId}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: _homeVisitPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (patient.place.isNotEmpty) 'Place: ${patient.place}',
+                    if (canViewContacts && patient.phone.isNotEmpty)
+                      'Ph: ${patient.phone}',
+                  ].join(' • '),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

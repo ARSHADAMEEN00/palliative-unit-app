@@ -378,11 +378,13 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                _inlineDetail(Icons.call_outlined, volunteer.phone),
-                if (volunteer.phone2.trim().isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.xxs),
-                  _inlineDetail(Icons.phone_iphone_outlined, volunteer.phone2),
+                if (auth.canViewContactNumbers) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  _inlineDetail(Icons.call_outlined, volunteer.phone),
+                  if (volunteer.phone2.trim().isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.xxs),
+                    _inlineDetail(Icons.phone_iphone_outlined, volunteer.phone2),
+                  ],
                 ],
                 if (volunteer.address.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.xxs),
@@ -394,7 +396,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_phoneButton(volunteer.phone) != null) ...[
+              if (auth.canCall && _phoneButton(volunteer.phone) != null) ...[
                 _phoneButton(volunteer.phone)!,
                 const SizedBox(width: AppSpacing.xxs),
               ],
@@ -407,13 +409,20 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                   },
                   itemBuilder: (context) => [
                     if (auth.canEdit)
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: AppMenuActionLabel(
+                          icon: Icons.edit_outlined,
+                          label: 'Edit',
+                        ),
+                      ),
                     if (auth.canDelete)
                       const PopupMenuItem(
                         value: 'delete',
-                        child: Text(
-                          'Delete',
-                          style: TextStyle(color: AppColors.danger),
+                        child: AppMenuActionLabel(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          color: AppColors.danger,
                         ),
                       ),
                   ],
@@ -503,26 +512,29 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                               volunteer.name,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            InkWell(
-                              onTap: volunteer.phone.trim().isEmpty
-                                  ? null
-                                  : () => _callPhone(volunteer.phone.trim()),
-                              borderRadius: AppRadius.sm,
-                              child: Text(
-                                volunteer.phone2.trim().isEmpty
-                                    ? volunteer.phone
-                                    : '${volunteer.phone} / ${volunteer.phone2}',
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(
-                                      color: _volunteerPrimary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                            if (auth.canViewContactNumbers)
+                              InkWell(
+                                onTap: (!auth.canCall ||
+                                        volunteer.phone.trim().isEmpty)
+                                    ? null
+                                    : () => _callPhone(volunteer.phone.trim()),
+                                borderRadius: AppRadius.sm,
+                                child: Text(
+                                  volunteer.phone2.trim().isEmpty
+                                      ? volunteer.phone
+                                      : '${volunteer.phone} / ${volunteer.phone2}',
+                                  style: Theme.of(context).textTheme.labelMedium
+                                      ?.copyWith(
+                                        color: _volunteerPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ),
-                      if (_phoneButton(volunteer.phone) != null) ...[
+                      if (auth.canCall &&
+                          _phoneButton(volunteer.phone) != null) ...[
                         const SizedBox(width: AppSpacing.xs),
                         _phoneButton(volunteer.phone)!,
                       ],
@@ -550,13 +562,16 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                       volunteer.address.trim(),
                     ),
                   ],
-                  if (volunteer.phone2.trim().isNotEmpty) ...[
+                  if (auth.canViewContactNumbers &&
+                      volunteer.phone2.trim().isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
                     _detailLine(
                       Icons.phone_iphone_outlined,
                       'Second Phone',
                       volunteer.phone2.trim(),
-                      trailing: _phoneButton(volunteer.phone2.trim()),
+                      trailing: auth.canCall
+                          ? _phoneButton(volunteer.phone2.trim())
+                          : null,
                     ),
                   ],
                   if (auth.canEdit || auth.canDelete) ...[
@@ -652,6 +667,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   }
 
   Widget? _phoneButton(String? phone) {
+    if (!context.read<AuthService>().canCall) return null;
     if (phone == null || phone.trim().isEmpty) return null;
 
     return IconButton(

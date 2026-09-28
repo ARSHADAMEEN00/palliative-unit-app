@@ -48,6 +48,9 @@ class AuthService with ChangeNotifier {
       _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canEdit => _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canDelete => _role == 'admin';
+  bool get canCall => !isUser;
+  bool get canViewContactNumbers => !isUser;
+  bool get canViewHomeVisitDetails => !isUser;
   bool get canAccessPatients => hasFeature(AppFeature.patients);
   bool get canAccessHomeVisits => hasFeature(AppFeature.homeVisits);
   bool get canAccessVolunteers => hasFeature(AppFeature.volunteers);
@@ -65,6 +68,8 @@ class AuthService with ChangeNotifier {
   bool get canAccessNHC => hasFeature(AppFeature.nhcAssessment);
   bool get canAccessNHCReport => hasFeature(AppFeature.nhcPdf);
   bool get canAccessPatientPdf => hasFeature(AppFeature.patientPdf);
+  bool get canAccessReports =>
+      (isAdmin || isMember) && hasFeature(AppFeature.advancedReports);
 
   Set<String> get enabledFeatureIds =>
       _featurePermissions?.enabledFeatureIds ??
@@ -331,6 +336,15 @@ class AuthService with ChangeNotifier {
   }
 
   bool _legacyFeatureAccess(String featureId) {
+    if (isUser) {
+      return switch (featureId) {
+        AppFeature.patients ||
+        AppFeature.homeVisits ||
+        AppFeature.volunteers ||
+        AppFeature.socialSupport => true,
+        _ => false,
+      };
+    }
     return switch (featureId) {
       AppFeature.patients ||
       AppFeature.homeVisits ||

@@ -151,23 +151,33 @@ class PatientService {
     throw Exception(result.error ?? 'Failed to delete patient');
   }
 
-  /// Search patients by name — always live, bypasses cache.
+  /// Search patients by name or register number — always live, bypasses cache.
   static Future<List<Patient>> searchPatients(
     String query, {
     bool? isDead,
   }) async {
     String searchQuery =
-        '${ApiConfig.patientsEndpoint}?search=$query&populate=createdBy';
+        '${ApiConfig.patientsEndpoint}?search=${Uri.encodeComponent(query)}&populate=createdBy';
     if (isDead != null) {
       searchQuery += '&isDead=$isDead';
     }
 
-    final result = await ApiService.get<List<dynamic>>(searchQuery);
+    final result = await ApiService.get<dynamic>(searchQuery);
 
     if (result.isSuccess && result.data != null) {
-      return result.data!
-          .map((json) => Patient.fromJson(json as Map<String, dynamic>))
-          .toList();
+      if (result.data is Map<String, dynamic>) {
+        final rawList = (result.data as Map<String, dynamic>)['patients'];
+        if (rawList is List) {
+          return rawList
+              .map((json) => Patient.fromJson(json as Map<String, dynamic>))
+              .toList();
+        }
+      } else if (result.data is List) {
+        return (result.data as List)
+            .map((json) => Patient.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
     }
 
     throw Exception(result.error ?? 'Failed to search patients');

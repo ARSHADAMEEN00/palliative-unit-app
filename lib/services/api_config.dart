@@ -25,6 +25,7 @@ class ApiConfig {
   static String get billingPortalEndpoint => '$baseUrl/billing/me';
   static String get billingFeaturesEndpoint => '$baseUrl/billing/features';
   static String get billingEnquiriesEndpoint => '$baseUrl/billing/enquiries';
+  static String get reportsEndpoint => '$baseUrl/reports';
   static String get medicineSuppliesEndpoint => '$baseUrl/medicine-supplies';
   static String get v2MedicineSuppliesEndpoint =>
       '$baseUrl/v2/medicine-supplies';

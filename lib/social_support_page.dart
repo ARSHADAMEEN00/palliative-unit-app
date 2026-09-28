@@ -4,11 +4,13 @@ import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/social_support.dart';
 import 'package:oruma_app/models/volunteer.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/social_support_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:provider/provider.dart';
 
 const _supportPrimary = Color(0xFFBE185D);
 const _supportCard = Color(0xFFFDF2F8);
@@ -16,8 +18,9 @@ const _supportIcon = Color(0xFFFCE7F3);
 
 class SocialSupportPage extends StatefulWidget {
   final Patient? initialPatient;
+  final SocialSupport? socialSupport;
 
-  const SocialSupportPage({super.key, this.initialPatient});
+  const SocialSupportPage({super.key, this.initialPatient, this.socialSupport});
 
   @override
   State<SocialSupportPage> createState() => _SocialSupportPageState();
@@ -42,10 +45,20 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
     'medicine',
   ];
 
+  bool get _editing => widget.socialSupport != null;
+
   @override
   void initState() {
     super.initState();
     _selectedPatient = widget.initialPatient;
+    final support = widget.socialSupport;
+    if (support != null) {
+      _givenAt = support.givenAt;
+      _noteController.text = support.note ?? '';
+      _selectedTypes
+        ..clear()
+        ..addAll(support.supportTypes);
+    }
     _loadPatients();
   }
 
@@ -59,14 +72,17 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
     try {
       final patients = await PatientService.getAllPatients(isDead: false);
       final volunteers = await _loadVolunteersSafely();
-      final initialVolunteer = _findPatientVolunteer(
-        widget.initialPatient,
-        volunteers,
-      );
+      final support = widget.socialSupport;
+      final selectedPatient = _findPatientForSupport(patients);
+      final initialVolunteer = support == null
+          ? _findPatientVolunteer(selectedPatient, volunteers)
+          : _findSupportVolunteer(support, volunteers) ??
+                _findPatientVolunteer(selectedPatient, volunteers);
       if (!mounted) return;
       setState(() {
         _patients = patients;
         _volunteers = volunteers;
+        _selectedPatient = selectedPatient;
         _selectedVolunteer = initialVolunteer;
         _loading = false;
       });
@@ -151,22 +167,32 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
 
     setState(() => _saving = true);
     try {
-      await SocialSupportService.createSocialSupport(
-        SocialSupport(
-          patientId: _selectedPatient!.id,
-          supportTypes: _selectedTypes.toList(),
-          givenAt: _givenAt,
-          note: _blankToNull(_noteController.text),
-          volunteerId: _selectedVolunteer!.id,
-          volunteerName: _selectedVolunteer!.name,
-          volunteerContact: _selectedVolunteer!.phone,
-        ),
+      final support = SocialSupport(
+        patientId: _selectedPatient!.id,
+        supportTypes: _selectedTypes.toList(),
+        givenAt: _givenAt,
+        note: _blankToNull(_noteController.text),
+        volunteerId: _selectedVolunteer!.id,
+        volunteerName: _selectedVolunteer!.name,
+        volunteerContact: _selectedVolunteer!.phone,
       );
+      if (_editing) {
+        await SocialSupportService.updateSocialSupport(
+          widget.socialSupport!.id!,
+          support,
+        );
+      } else {
+        await SocialSupportService.createSocialSupport(support);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Social support recorded successfully'),
+        SnackBar(
+          content: Text(
+            _editing
+                ? 'Social support updated successfully'
+                : 'Social support recorded successfully',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
@@ -197,7 +223,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
           elevation: 0,
           scrolledUnderElevation: 0,
           title: Text(
-            'New Social Support',
+            _editing ? 'Edit Social Support' : 'New Social Support',
             style: Theme.of(context).textTheme.titleLarge,
           ),
         ),
@@ -216,7 +242,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         title: Text(
-          'New Social Support',
+          _editing ? 'Edit Social Support' : 'New Social Support',
           style: Theme.of(context).textTheme.titleLarge,
         ),
       ),
@@ -280,7 +306,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
         child: SafeArea(
           top: false,
           child: AppPrimaryButton(
-            label: 'Save Social Support',
+            label: _editing ? 'Update Social Support' : 'Save Social Support',
             icon: Icons.save_outlined,
             fullWidth: true,
             loading: _saving,
@@ -392,7 +418,9 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
                     if (patient.registerId?.isNotEmpty == true)
                       'Reg No: ${patient.registerId}',
                     if (patient.place.isNotEmpty) 'Place: ${patient.place}',
-                    if (patient.phone.isNotEmpty) 'Ph: ${patient.phone}',
+                    if (context.read<AuthService>().canViewContactNumbers &&
+                        patient.phone.isNotEmpty)
+                      'Ph: ${patient.phone}',
                   ].whereType<String>().join(' • '),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
@@ -447,6 +475,41 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
           volunteer.name.trim().toLowerCase() == name;
       final samePhone =
           phone == null ||
+          phone.isEmpty ||
+          volunteer.phone.trim() == phone ||
+          volunteer.phone2.trim() == phone;
+      if (sameName && samePhone) return volunteer;
+    }
+    return null;
+  }
+
+  Patient? _findPatientForSupport(List<Patient> patients) {
+    final support = widget.socialSupport;
+    if (support == null) return widget.initialPatient;
+
+    for (final patient in patients) {
+      if (patient.id == support.patientObjectId) return patient;
+    }
+    return widget.initialPatient;
+  }
+
+  Volunteer? _findSupportVolunteer(
+    SocialSupport support,
+    List<Volunteer> volunteers,
+  ) {
+    for (final volunteer in volunteers) {
+      if (support.volunteerObjectId.isNotEmpty &&
+          volunteer.id == support.volunteerObjectId) {
+        return volunteer;
+      }
+    }
+
+    final name = support.volunteerName.trim().toLowerCase();
+    final phone = support.volunteerContact.trim();
+    for (final volunteer in volunteers) {
+      final sameName =
+          name.isEmpty || volunteer.name.trim().toLowerCase() == name;
+      final samePhone =
           phone.isEmpty ||
           volunteer.phone.trim() == phone ||
           volunteer.phone2.trim() == phone;
@@ -515,6 +578,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
 
   Widget _selectedVolunteerCard() {
     final volunteer = _selectedVolunteer!;
+    final canViewContacts = context.read<AuthService>().canViewContactNumbers;
     return Container(
       padding: AppInsets.sm,
       decoration: const BoxDecoration(
@@ -536,8 +600,10 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
                 ),
                 Text(
                   [
-                    volunteer.phone,
-                    if (volunteer.phone2.trim().isNotEmpty) volunteer.phone2,
+                    if (canViewContacts && volunteer.phone.isNotEmpty)
+                      volunteer.phone,
+                    if (canViewContacts && volunteer.phone2.trim().isNotEmpty)
+                      volunteer.phone2,
                     volunteer.locationLabel,
                   ].join(' - '),
                   maxLines: 1,
@@ -567,6 +633,7 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
         final selected = _selectedTypes.contains(type);
         return FilterChip(
           selected: selected,
+          showCheckmark: false,
           label: Text(socialSupportTypeLabels[type] ?? type),
           avatar: Icon(
             _supportTypeIcon(type),
@@ -575,7 +642,6 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
           ),
           selectedColor: _supportPrimary,
           backgroundColor: AppColors.surface1,
-          checkmarkColor: AppColors.textInverse,
           side: BorderSide(
             color: selected ? _supportPrimary : AppColors.border,
           ),
@@ -730,9 +796,10 @@ class _SocialSupportPageState extends State<SocialSupportPage> {
   }
 
   String _volunteerLabel(Volunteer volunteer) {
+    final canViewContacts = context.read<AuthService>().canViewContactNumbers;
     final details = [
-      if (volunteer.phone.isNotEmpty) volunteer.phone,
-      if (volunteer.phone2.isNotEmpty) volunteer.phone2,
+      if (canViewContacts && volunteer.phone.isNotEmpty) volunteer.phone,
+      if (canViewContacts && volunteer.phone2.isNotEmpty) volunteer.phone2,
       if (volunteer.place.isNotEmpty) volunteer.place,
       if (volunteer.ward.isNotEmpty) 'Ward\u00A0${volunteer.ward}',
     ].join(' - ');

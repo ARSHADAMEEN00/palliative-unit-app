@@ -1,3 +1,45 @@
+class EquipmentDamageRecord {
+  final String? id;
+  final String? damageReason;
+  final DateTime damagedAt;
+  final String? damagedBy;
+  final DateTime? repairedAt;
+  final String? repairedBy;
+
+  const EquipmentDamageRecord({
+    this.id,
+    this.damageReason,
+    required this.damagedAt,
+    this.damagedBy,
+    this.repairedAt,
+    this.repairedBy,
+  });
+
+  factory EquipmentDamageRecord.fromJson(Map<String, dynamic> json) {
+    return EquipmentDamageRecord(
+      id: json['id']?.toString() ?? json['_id']?.toString(),
+      damageReason: json['damageReason']?.toString(),
+      damagedAt:
+          DateTime.tryParse(json['damagedAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      damagedBy: _actorLabel(json['damagedBy']),
+      repairedAt: DateTime.tryParse(json['repairedAt']?.toString() ?? ''),
+      repairedBy: _actorLabel(json['repairedBy']),
+    );
+  }
+
+  bool get isRepaired => repairedAt != null;
+
+  static String? _actorLabel(dynamic value) {
+    if (value is Map) {
+      return value['name']?.toString() ??
+          value['id']?.toString() ??
+          value['_id']?.toString();
+    }
+    return value?.toString();
+  }
+}
+
 /// Equipment model that matches the backend schema.
 /// Each equipment now has a unique ID for individual tracking.
 class Equipment {
@@ -12,6 +54,11 @@ class Equipment {
   final String phone;
   final String? storagePlace; // Storage location (e.g., "Store")
   final String status; // 'available', 'supplied', 'maintenance'
+  final String? damageReason;
+  final DateTime? damagedAt;
+  final String? damagedBy;
+  final DateTime? repairedAt;
+  final List<EquipmentDamageRecord> damageHistory;
   final String? createdBy;
   final DateTime? createdAt;
 
@@ -27,6 +74,11 @@ class Equipment {
     required this.phone,
     this.storagePlace,
     this.status = 'available',
+    this.damageReason,
+    this.damagedAt,
+    this.damagedBy,
+    this.repairedAt,
+    this.damageHistory = const [],
     this.createdBy,
     this.createdAt,
   });
@@ -49,6 +101,22 @@ class Equipment {
       phone: json['phone']?.toString() ?? '',
       storagePlace: json['storagePlace']?.toString(),
       status: json['status']?.toString() ?? 'available',
+      damageReason: json['damageReason']?.toString(),
+      damagedAt: json['damagedAt'] != null
+          ? DateTime.tryParse(json['damagedAt'].toString())
+          : null,
+      damagedBy: json['damagedBy']?.toString(),
+      repairedAt: json['repairedAt'] != null
+          ? DateTime.tryParse(json['repairedAt'].toString())
+          : null,
+      damageHistory: (json['damageHistory'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map(
+            (record) => EquipmentDamageRecord.fromJson(
+              Map<String, dynamic>.from(record),
+            ),
+          )
+          .toList(growable: false),
       createdBy: json['createdBy'] is Map
           ? json['createdBy']['name']?.toString()
           : json['createdBy']?.toString(),
@@ -86,6 +154,11 @@ class Equipment {
     String? phone,
     String? storagePlace,
     String? status,
+    String? damageReason,
+    DateTime? damagedAt,
+    String? damagedBy,
+    DateTime? repairedAt,
+    List<EquipmentDamageRecord>? damageHistory,
   }) {
     return Equipment(
       id: id ?? this.id,
@@ -99,12 +172,20 @@ class Equipment {
       phone: phone ?? this.phone,
       storagePlace: storagePlace ?? this.storagePlace,
       status: status ?? this.status,
+      damageReason: damageReason ?? this.damageReason,
+      damagedAt: damagedAt ?? this.damagedAt,
+      damagedBy: damagedBy ?? this.damagedBy,
+      repairedAt: repairedAt ?? this.repairedAt,
+      damageHistory: damageHistory ?? this.damageHistory,
+      createdBy: createdBy,
       createdAt: createdAt,
     );
   }
 
   /// Check if equipment is available for supply
   bool get isAvailable => status == 'available';
+
+  bool get isDamaged => status == 'maintenance';
 
   /// Get status color for UI
   String get statusLabel {
@@ -114,7 +195,7 @@ class Equipment {
       case 'supplied':
         return 'Supplied';
       case 'maintenance':
-        return 'Maintenance';
+        return 'Damaged';
       default:
         return status;
     }

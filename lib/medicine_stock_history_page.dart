@@ -3,8 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/models/medicine_stock_entry.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/medicine_stock_service.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:provider/provider.dart';
 
 const _medicineGreen = Color(0xFF0F6E56);
 const _medicineDarkGreen = Color(0xFF0A4A3A);
@@ -79,6 +83,7 @@ class _MedicineStockHistoryPageState extends State<MedicineStockHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
     return AdaptiveAppScaffold(
       backgroundColor: const Color(0xFFF5FAF8),
       appBar: AppBar(
@@ -91,6 +96,13 @@ class _MedicineStockHistoryPageState extends State<MedicineStockHistoryPage> {
           style: TextStyle(fontSize: 18, color: Colors.white),
         ),
         actions: [
+          if (auth.canAccessReports)
+            IconButton(
+              tooltip: 'Medicine stock report',
+              onPressed: () =>
+                  openReports(context, initialReport: ReportType.medicineStock),
+              icon: const Icon(Icons.assessment_outlined),
+            ),
           IconButton(
             tooltip: 'Refresh',
             onPressed: _loadHistory,

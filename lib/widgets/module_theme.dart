@@ -52,6 +52,12 @@ class ModulePalettes {
     iconBackground: Color(0xFFCCFBF1),
     primary: Color(0xFF0F766E),
   );
+
+  static const reports = ModulePalette(
+    cardBackground: Color(0xFFF5F3FF),
+    iconBackground: Color(0xFFEDE9FE),
+    primary: Color(0xFF7C3AED),
+  );
 }
 
 class ModuleTheme extends StatelessWidget {

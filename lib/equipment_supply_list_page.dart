@@ -7,6 +7,8 @@ import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/eq_supply_edit.dart';
 import 'package:oruma_app/equipment_list_page.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
@@ -374,9 +376,30 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
-              child: _EquipmentSupplyIconButton(
-                icon: Icons.refresh,
-                onPressed: _loadData,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (auth.canAccessReports) ...[
+                    Tooltip(
+                      message: 'Equipment supply report',
+                      child: _EquipmentSupplyIconButton(
+                        icon: Icons.assessment_outlined,
+                        onPressed: () => openReports(
+                          context,
+                          initialReport: ReportType.equipmentSupplies,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  Tooltip(
+                    message: 'Refresh',
+                    child: _EquipmentSupplyIconButton(
+                      icon: Icons.refresh,
+                      onPressed: _loadData,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -752,12 +775,15 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                       const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
-                          Expanded(
-                            child: _inlineDetail(
-                              Icons.phone_rounded,
-                              _supplyPhone(supply),
-                            ),
-                          ),
+                          if (authService.canViewContactNumbers)
+                            Expanded(
+                              child: _inlineDetail(
+                                Icons.phone_rounded,
+                                _supplyPhone(supply),
+                              ),
+                            )
+                          else
+                            const Spacer(),
                           buildReturnButton(),
                         ],
                       ),
@@ -778,10 +804,11 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         actions.add(
           SlidableAction(
             onPressed: (_) => _navigateToEditSupply(supply),
-            backgroundColor: AppColors.info,
-            foregroundColor: Colors.white,
-            icon: Icons.edit_rounded,
+            backgroundColor: AppColors.primaryLight,
+            foregroundColor: AppColors.primary,
+            icon: Icons.edit_outlined,
             label: 'Edit',
+            borderRadius: AppRadius.card,
           ),
         );
       }
@@ -790,10 +817,11 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         actions.add(
           SlidableAction(
             onPressed: (_) => _deleteSupply(supply),
-            backgroundColor: AppColors.danger,
-            foregroundColor: Colors.white,
-            icon: Icons.delete_rounded,
+            backgroundColor: AppColors.danger.withValues(alpha: 0.1),
+            foregroundColor: AppColors.danger,
+            icon: Icons.delete_outline,
             label: 'Delete',
+            borderRadius: AppRadius.card,
           ),
         );
       }
@@ -886,94 +914,98 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: AppRadius.sheet,
-        ),
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Center(child: _SheetHandle()),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                children: [
-                  _supplyAvatar(Icons.medical_services_outlined, size: 48),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          supply.equipmentName,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          supply.equipmentUniqueId,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: _equipmentSupplyStrong,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ],
+      builder: (context) {
+        final auth = context.read<AuthService>();
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: AppRadius.sheet,
+          ),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(child: _SheetHandle()),
+                const SizedBox(height: AppSpacing.lg),
+                Row(
+                  children: [
+                    _supplyAvatar(Icons.medical_services_outlined, size: 48),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            supply.equipmentName,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            supply.equipmentUniqueId,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: _equipmentSupplyStrong,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  _statusBadge(supply.status),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (supply.patientName != null &&
-                  supply.patientName!.isNotEmpty) ...[
-                _buildDetailRow(
-                  Icons.person,
-                  'Patient',
-                  supply.patientName!.toUpperCase(),
+                    _statusBadge(supply.status),
+                  ],
                 ),
-                _buildDetailRow(
-                  Icons.phone,
-                  'Phone',
-                  supply.patientPhone ?? 'N/A',
-                ),
-                if (supply.patientAddress != null &&
-                    supply.patientAddress!.isNotEmpty)
+                const SizedBox(height: AppSpacing.lg),
+                if (supply.patientName != null &&
+                    supply.patientName!.isNotEmpty) ...[
                   _buildDetailRow(
-                    Icons.location_on,
-                    'Address',
-                    supply.patientAddress!,
+                    Icons.person,
+                    'Patient',
+                    supply.patientName!.toUpperCase(),
                   ),
-                if (supply.patientPlace != null &&
-                    supply.patientPlace!.isNotEmpty)
+                  if (auth.canViewContactNumbers)
+                    _buildDetailRow(
+                      Icons.phone,
+                      'Phone',
+                      supply.patientPhone ?? 'N/A',
+                    ),
+                  if (supply.patientAddress != null &&
+                      supply.patientAddress!.isNotEmpty)
+                    _buildDetailRow(
+                      Icons.location_on,
+                      'Address',
+                      supply.patientAddress!,
+                    ),
+                  if (supply.patientPlace != null &&
+                      supply.patientPlace!.isNotEmpty)
+                    _buildDetailRow(
+                      Icons.location_city,
+                      'Place',
+                      supply.patientPlace!,
+                    ),
+                  if (supply.careOf != null && supply.careOf!.isNotEmpty)
+                    _buildDetailRow(
+                      Icons.supervised_user_circle,
+                      'Care Of',
+                      supply.careOf!,
+                    ),
+                ] else ...[
                   _buildDetailRow(
-                    Icons.location_city,
-                    'Place',
-                    supply.patientPlace!,
+                    Icons.person,
+                    'Receiver',
+                    (supply.receiverName ?? 'Unknown').toUpperCase(),
                   ),
-                if (supply.careOf != null && supply.careOf!.isNotEmpty)
-                  _buildDetailRow(
-                    Icons.supervised_user_circle,
-                    'Care Of',
-                    supply.careOf!,
-                  ),
-              ] else ...[
-                _buildDetailRow(
-                  Icons.person,
-                  'Receiver',
-                  (supply.receiverName ?? 'Unknown').toUpperCase(),
-                ),
-                _buildDetailRow(
-                  Icons.phone,
-                  'Phone',
-                  supply.receiverPhone ?? 'N/A',
-                ),
+                  if (auth.canViewContactNumbers)
+                    _buildDetailRow(
+                      Icons.phone,
+                      'Phone',
+                      supply.receiverPhone ?? 'N/A',
+                    ),
                 if (supply.receiverAddress != null &&
                     supply.receiverAddress!.isNotEmpty)
                   _buildDetailRow(
@@ -1061,7 +1093,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
             ],
           ),
         ),
-      ),
+      );
+    },
     );
   }
 

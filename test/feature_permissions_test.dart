@@ -27,6 +27,7 @@ void main() {
         AppFeature.socialSupport,
         AppFeature.equipment,
         AppFeature.equipmentDistribution,
+        AppFeature.advancedReports,
       ]) {
         expect(
           FeatureAccessPolicy.roleAllows('member', featureId),

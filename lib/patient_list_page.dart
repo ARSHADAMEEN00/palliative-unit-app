@@ -592,7 +592,7 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Widget _buildPatientCard(BuildContext context, Patient patient) {
     final authService = Provider.of<AuthService>(context, listen: false);
-    final isAdmin = authService.isAdmin;
+    final canViewContacts = authService.canViewContactNumbers;
     final details = <String>[
       '${patient.age} years',
       patient.gender,
@@ -689,7 +689,7 @@ class _PatientListPageState extends State<PatientListPage> {
                     ),
                   ],
                 ),
-                if (isAdmin && patient.phone.isNotEmpty) ...[
+                if (canViewContacts && patient.phone.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Row(
                     children: [
@@ -734,8 +734,8 @@ class _PatientListPageState extends State<PatientListPage> {
         actions.add(
           SlidableAction(
             onPressed: (_) => _navigateToEditPatient(patient),
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.primaryLight,
+            foregroundColor: AppColors.primary,
             icon: Icons.edit_outlined,
             label: 'Edit',
             borderRadius: AppRadius.card,
@@ -747,8 +747,8 @@ class _PatientListPageState extends State<PatientListPage> {
         actions.add(
           SlidableAction(
             onPressed: (_) => _deletePatient(patient),
-            backgroundColor: AppColors.danger,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.danger.withValues(alpha: 0.1),
+            foregroundColor: AppColors.danger,
             icon: Icons.delete_outline,
             label: 'Delete',
             borderRadius: AppRadius.card,

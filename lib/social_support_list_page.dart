@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/social_support.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/social_support_service.dart';
@@ -121,6 +123,30 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
     if (result == true) _loadData();
   }
 
+  Future<void> _openEdit(SocialSupport record) async {
+    Patient? patient;
+    for (final candidate in _patients) {
+      if (candidate.id == record.patientObjectId) {
+        patient = candidate;
+        break;
+      }
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ModuleTheme(
+          palette: ModulePalettes.socialSupport,
+          child: SocialSupportPage(
+            initialPatient: patient,
+            socialSupport: record,
+          ),
+        ),
+      ),
+    );
+    if (result == true) _loadData(showLoading: false);
+  }
+
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
@@ -225,9 +251,30 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.md),
-            child: _SupportIconButton(
-              icon: Icons.refresh,
-              onPressed: _loading ? null : _loadData,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (auth.canAccessReports) ...[
+                  Tooltip(
+                    message: 'Social support report',
+                    child: _SupportIconButton(
+                      icon: Icons.assessment_outlined,
+                      onPressed: () => openReports(
+                        context,
+                        initialReport: ReportType.socialSupport,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Tooltip(
+                  message: 'Refresh',
+                  child: _SupportIconButton(
+                    icon: Icons.refresh,
+                    onPressed: _loading ? null : _loadData,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -500,20 +547,31 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
                   ],
                 ),
               ),
-              if (auth.canDelete)
+              if (auth.canEdit || auth.canDelete)
                 PopupMenuButton<String>(
                   iconColor: AppColors.textSecondary,
                   onSelected: (value) {
+                    if (value == 'edit') _openEdit(record);
                     if (value == 'delete') _deleteRecord(record);
                   },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        'Delete',
-                        style: TextStyle(color: AppColors.danger),
+                  itemBuilder: (context) => [
+                    if (auth.canEdit)
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: AppMenuActionLabel(
+                          icon: Icons.edit_outlined,
+                          label: 'Edit',
+                        ),
                       ),
-                    ),
+                    if (auth.canDelete)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: AppMenuActionLabel(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          color: AppColors.danger,
+                        ),
+                      ),
                   ],
                 ),
             ],
@@ -522,8 +580,10 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
           _supportChips(record),
           const SizedBox(height: AppSpacing.sm),
           _detailLine(Icons.person_outline, 'Volunteer', record.volunteerName),
-          const SizedBox(height: AppSpacing.xs),
-          _detailLine(Icons.call_outlined, 'Contact', record.volunteerContact),
+          if (auth.canViewContactNumbers) ...[
+            const SizedBox(height: AppSpacing.xs),
+            _detailLine(Icons.call_outlined, 'Contact', record.volunteerContact),
+          ],
           if (record.note?.trim().isNotEmpty == true) ...[
             const SizedBox(height: AppSpacing.xs),
             _detailLine(Icons.notes_outlined, 'Note', record.note!),
@@ -682,26 +742,49 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
                   'Volunteer',
                   record.volunteerName,
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                _detailLine(
-                  Icons.call_outlined,
-                  'Contact',
-                  record.volunteerContact,
-                ),
+                if (auth.canViewContactNumbers) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _detailLine(
+                    Icons.call_outlined,
+                    'Contact',
+                    record.volunteerContact,
+                  ),
+                ],
                 if (record.note?.trim().isNotEmpty == true) ...[
                   const SizedBox(height: AppSpacing.sm),
                   _detailLine(Icons.notes_outlined, 'Note', record.note!),
                 ],
-                if (auth.canDelete) ...[
+                if (auth.canEdit || auth.canDelete) ...[
                   const SizedBox(height: AppSpacing.lg),
-                  AppDangerButton(
-                    label: 'Delete Record',
-                    icon: Icons.delete_outline,
-                    fullWidth: true,
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _deleteRecord(record);
-                    },
+                  Row(
+                    children: [
+                      if (auth.canEdit)
+                        Expanded(
+                          child: AppSecondaryButton(
+                            label: 'Edit',
+                            icon: Icons.edit_outlined,
+                            fullWidth: true,
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _openEdit(record);
+                            },
+                          ),
+                        ),
+                      if (auth.canEdit && auth.canDelete)
+                        const SizedBox(width: AppSpacing.sm),
+                      if (auth.canDelete)
+                        Expanded(
+                          child: AppDangerButton(
+                            label: 'Delete',
+                            icon: Icons.delete_outline,
+                            fullWidth: true,
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _deleteRecord(record);
+                            },
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ],

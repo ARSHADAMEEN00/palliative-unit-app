@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:oruma_app/widgets/damaged_seal_stamp.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/equipment_supply_list_page.dart';
 import 'package:oruma_app/eq_supply.dart'; // Import for Distribute Page
 import 'package:intl/intl.dart';
 import 'package:oruma_app/models/equipment.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/equipment_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
@@ -134,7 +138,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     });
 
     try {
-      final list = await EquipmentService.getAvailableEquipment(
+      final list = await EquipmentService.getInventoryEquipment(
         search: normalizedSearch,
       );
       if (!mounted || requestId != _availableRequestId) {
@@ -254,9 +258,30 @@ class _EquipmentListPageState extends State<EquipmentListPage>
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
-              child: _EquipmentIconButton(
-                icon: Icons.refresh,
-                onPressed: _loadAllData,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (auth.canAccessReports) ...[
+                    Tooltip(
+                      message: 'Equipment stock report',
+                      child: _EquipmentIconButton(
+                        icon: Icons.assessment_outlined,
+                        onPressed: () => openReports(
+                          context,
+                          initialReport: ReportType.equipmentStock,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  Tooltip(
+                    message: 'Refresh',
+                    child: _EquipmentIconButton(
+                      icon: Icons.refresh,
+                      onPressed: _loadAllData,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -383,80 +408,204 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       itemBuilder: (context, index) {
         final eq = _availableItems[index];
         final auth = context.read<AuthService>();
-        return AppCard(
+        final isDamaged = eq.isDamaged;
+
+        final card = AppCard(
           padding: const EdgeInsets.all(AppSpacing.md),
-          surfaceLevel: AppSurfaceLevel.elevated,
-          onTap: () => _showEquipmentDetails(eq),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _equipmentAvatar(Icons.medical_services_outlined),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      eq.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+          surfaceLevel: isDamaged
+              ? AppSurfaceLevel.surface1
+              : AppSurfaceLevel.elevated,
+          borderColor: isDamaged ? AppColors.borderStrong : null,
+          onTap: isDamaged ? null : () => _showEquipmentDetails(eq),
+          child: Opacity(
+            opacity: isDamaged ? 0.45 : 1.0,
+            child: ColorFiltered(
+              colorFilter: isDamaged
+                  ? const ColorFilter.matrix(<double>[
+                      0.2126,
+                      0.7152,
+                      0.0722,
+                      0,
+                      0,
+                      0.2126,
+                      0.7152,
+                      0.0722,
+                      0,
+                      0,
+                      0.2126,
+                      0.7152,
+                      0.0722,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                    ])
+                  : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _equipmentAvatar(Icons.medical_services_outlined),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          eq.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.xxs),
+                        Text(
+                          eq.uniqueId,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: _equipmentStrong,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        if (eq.storagePlace?.trim().isNotEmpty == true) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          _inlineDetail(
+                            Icons.warehouse_outlined,
+                            eq.storagePlace!.trim(),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      eq.uniqueId,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _equipmentStrong,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  ),
+                  if (auth.canEdit || auth.canDelete)
+                    PopupMenuButton<String>(
+                      iconColor: AppColors.textSecondary,
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  EquipmentFormPage(equipment: eq),
+                            ),
+                          ).then((result) {
+                            if (result == true) {
+                              _fetchAvailableEquipment(search: _searchQuery);
+                            }
+                          });
+                        } else if (value == 'delete') {
+                          await _deleteEquipment(eq);
+                        } else if (value == 'damage') {
+                          await _markEquipmentDamaged(eq);
+                        } else if (value == 'clear_damage') {
+                          await _markEquipmentRepaired(eq);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (auth.canEdit)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: AppMenuActionLabel(
+                              icon: Icons.edit_outlined,
+                              label: 'Edit',
+                            ),
+                          ),
+                        if (auth.canEdit && !eq.isDamaged)
+                          const PopupMenuItem(
+                            value: 'damage',
+                            child: AppMenuActionLabel(
+                              icon: Icons.build_circle_outlined,
+                              label: 'Mark damaged',
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        if (auth.canEdit && eq.isDamaged) ...[
+                          const PopupMenuItem(
+                            value: 'damage',
+                            child: AppMenuActionLabel(
+                              icon: Icons.edit_calendar_outlined,
+                              label: 'Edit damage date / info',
+                              color: AppColors.warning,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'clear_damage',
+                            child: AppMenuActionLabel(
+                              icon: Icons.home_repair_service_outlined,
+                              label: 'Mark repaired',
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ],
+                        if (auth.canDelete)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: AppMenuActionLabel(
+                              icon: Icons.delete_outline,
+                              label: 'Delete',
+                              color: AppColors.danger,
+                            ),
+                          ),
+                      ],
+                    )
+                  else
+                    const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        if (!isDamaged) {
+          return card;
+        }
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            card,
+            Positioned(
+              right: auth.canEdit
+                  ? 80
+                  : auth.canDelete
+                  ? 64
+                  : 20,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Transform.rotate(
+                  angle: -8.0 * (pi / 180),
+                  child: IgnorePointer(
+                    child: DamagedSealStamp(
+                      damagedAt: eq.damagedAt,
+                      size: 108,
+                      color: const Color(0xFFE57373),
                     ),
-                    if (eq.storagePlace?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      _inlineDetail(
-                        Icons.warehouse_outlined,
-                        eq.storagePlace!.trim(),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
-              if (auth.canEdit || auth.canDelete)
-                PopupMenuButton<String>(
-                  iconColor: AppColors.textSecondary,
-                  onSelected: (value) async {
-                    if (value == 'edit') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              EquipmentFormPage(equipment: eq),
-                        ),
-                      ).then((result) {
-                        if (result == true) {
-                          _fetchAvailableEquipment(search: _searchQuery);
-                        }
-                      });
-                    } else if (value == 'delete') {
-                      await _deleteEquipment(eq);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    if (auth.canEdit)
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    if (auth.canDelete)
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text(
-                          'Delete',
-                          style: TextStyle(color: AppColors.danger),
-                        ),
-                      ),
-                  ],
-                )
-              else
-                const Icon(Icons.chevron_right, color: AppColors.textMuted),
-            ],
-          ),
+            ),
+            if (auth.canEdit)
+              Positioned(
+                right: 64,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Material(
+                    color: AppColors.surface,
+                    shape: const CircleBorder(),
+                    elevation: 1,
+                    child: IconButton(
+                      tooltip: 'Mark repaired',
+                      onPressed: () => _markEquipmentRepaired(eq),
+                      icon: const Icon(Icons.home_repair_service_outlined),
+                      color: AppColors.success,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -554,15 +703,10 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                   itemBuilder: (context) => const [
                     PopupMenuItem(
                       value: 'return',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.assignment_return,
-                            color: _equipmentStrong,
-                          ),
-                          SizedBox(width: 8),
-                          Text('Mark Returned'),
-                        ],
+                      child: AppMenuActionLabel(
+                        icon: Icons.assignment_return_outlined,
+                        label: 'Mark returned',
+                        color: _equipmentStrong,
                       ),
                     ),
                   ],
@@ -583,6 +727,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       backgroundColor: Colors.transparent,
       builder: (context) {
         final bottomSafePadding = MediaQuery.of(context).viewPadding.bottom;
+        final auth = context.read<AuthService>();
 
         return Container(
           constraints: BoxConstraints(
@@ -644,11 +789,12 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                   'Name',
                   supply.receiverName ?? 'N/A',
                 ),
-                _buildDetailRow(
-                  Icons.phone_outlined,
-                  'Phone',
-                  supply.receiverPhone ?? 'N/A',
-                ),
+                if (auth.canViewContactNumbers)
+                  _buildDetailRow(
+                    Icons.phone_outlined,
+                    'Phone',
+                    supply.receiverPhone ?? 'N/A',
+                  ),
                 if (supply.receiverAddress != null &&
                     supply.receiverAddress!.isNotEmpty)
                   _buildDetailRow(
@@ -671,7 +817,8 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     'Name',
                     supply.patientName!,
                   ),
-                  if (supply.patientPhone != null &&
+                  if (auth.canViewContactNumbers &&
+                      supply.patientPhone != null &&
                       supply.patientPhone!.isNotEmpty)
                     _buildDetailRow(
                       Icons.phone_outlined,
@@ -731,6 +878,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
       backgroundColor: Colors.transparent,
       builder: (context) {
         final bottomSafePadding = MediaQuery.of(context).viewPadding.bottom;
+        final auth = context.read<AuthService>();
 
         return Container(
           constraints: BoxConstraints(
@@ -803,11 +951,27 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     'Vendor Location',
                     eq.place,
                   ),
-                _buildDetailRow(
-                  Icons.phone_outlined,
-                  'Contact',
-                  eq.phone.isEmpty ? 'N/A' : eq.phone,
-                ),
+                if (auth.canViewContactNumbers)
+                  _buildDetailRow(
+                    Icons.phone_outlined,
+                    'Contact',
+                    eq.phone.isEmpty ? 'N/A' : eq.phone,
+                  ),
+                if (eq.isDamaged) ...[
+                  _buildDetailRow(
+                    Icons.build_circle_outlined,
+                    'Damage reason',
+                    eq.damageReason?.trim().isNotEmpty == true
+                        ? eq.damageReason!.trim()
+                        : 'Reason not recorded',
+                  ),
+                  if (eq.damagedAt != null)
+                    _buildDetailRow(
+                      Icons.schedule_outlined,
+                      'Damaged on',
+                      DateFormat('d MMM yyyy, h:mm a').format(eq.damagedAt!),
+                    ),
+                ],
                 if (eq.createdBy != null)
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -819,12 +983,45 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     ),
                   ),
                 const SizedBox(height: AppSpacing.lg),
+                if (context.read<AuthService>().canEdit) ...[
+                  if (eq.isDamaged) ...[
+                    AppSecondaryButton(
+                      label: 'Mark repaired',
+                      icon: Icons.home_repair_service_outlined,
+                      fullWidth: true,
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _markEquipmentRepaired(eq);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    AppSecondaryButton(
+                      label: 'Edit damage date / info',
+                      icon: Icons.edit_calendar_outlined,
+                      fullWidth: true,
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _markEquipmentDamaged(eq);
+                      },
+                    ),
+                  ] else
+                    AppDangerButton(
+                      label: 'Mark as damaged',
+                      icon: Icons.build_circle_outlined,
+                      fullWidth: true,
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _markEquipmentDamaged(eq);
+                      },
+                    ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
                 Row(
                   children: [
                     if (context.read<AuthService>().canEdit) ...[
                       Expanded(
                         child: AppSecondaryButton(
-                          label: 'Edit Details',
+                          label: 'Edit',
                           icon: Icons.edit_outlined,
                           fullWidth: true,
                           onPressed: () {
@@ -878,6 +1075,8 @@ class _EquipmentListPageState extends State<EquipmentListPage>
     if (s == 'maintenance' || s == 'lost') color = AppColors.danger;
     if (s == 'returned') color = AppColors.success;
 
+    final label = s == 'maintenance' ? 'DAMAGED' : status.toUpperCase();
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -886,7 +1085,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
         border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Text(
-        status.toUpperCase(),
+        label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w700,
@@ -1053,6 +1252,314 @@ class _EquipmentListPageState extends State<EquipmentListPage>
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _markEquipmentDamaged(Equipment equipment) async {
+    if (equipment.id == null) return;
+    final reasonController = TextEditingController(
+      text: equipment.damageReason ?? '',
+    );
+    DateTime selectedDate = equipment.damagedAt ?? DateTime.now();
+
+    final result = await showDialog<({String reason, DateTime damagedDate})>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: _EquipmentDialogHeader(
+                icon: Icons.build_circle_outlined,
+                title: equipment.isDamaged
+                    ? 'Edit damage details'
+                    : 'Mark equipment damaged',
+                color: AppColors.danger,
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${equipment.name} (${equipment.uniqueId}) will be marked damaged and kept unavailable for distribution.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDate = picked;
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.04),
+                          border: Border.all(
+                            color: AppColors.danger.withValues(alpha: 0.25),
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              size: 18,
+                              color: AppColors.danger,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Date of Damage *',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    DateFormat(
+                                      'd MMMM yyyy',
+                                    ).format(selectedDate),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.text,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.arrow_drop_down,
+                              color: Colors.grey,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: reasonController,
+                      minLines: 2,
+                      maxLines: 4,
+                      maxLength: 500,
+                      decoration: const InputDecoration(
+                        labelText: 'Damage reason (optional)',
+                        hintText: 'Describe the damage or fault',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                AppSecondaryButton(
+                  label: 'Cancel',
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+                AppDangerButton(
+                  label: equipment.isDamaged ? 'Save changes' : 'Mark damaged',
+                  icon: Icons.build_circle_outlined,
+                  onPressed: () {
+                    Navigator.pop(dialogContext, (
+                      reason: reasonController.text.trim(),
+                      damagedDate: selectedDate,
+                    ));
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    reasonController.dispose();
+    if (result == null || !mounted) return;
+
+    try {
+      final updated = await EquipmentService.markDamaged(
+        equipment.id!,
+        result.reason,
+        damagedAt: result.damagedDate,
+      );
+      if (!mounted) return;
+      final appliedDate = updated.damagedAt ?? result.damagedDate;
+      setState(() {
+        final index = _availableItems.indexWhere((e) => e.id == equipment.id);
+        if (index != -1) {
+          _availableItems[index] = _availableItems[index].copyWith(
+            status: 'maintenance',
+            damageReason: result.reason,
+            damagedAt: appliedDate,
+          );
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Equipment marked as damaged')),
+      );
+      await _fetchAvailableEquipment(search: _searchQuery);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst(RegExp(r'^Exception:\s*'), ''),
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _markEquipmentRepaired(Equipment equipment) async {
+    if (equipment.id == null) return;
+    var selectedDate = DateTime.now();
+    final damagedAt = equipment.damagedAt;
+    final firstDate = damagedAt == null
+        ? DateTime(2000)
+        : DateTime(damagedAt.year, damagedAt.month, damagedAt.day);
+    final repairedAt = await showDialog<DateTime>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const _EquipmentDialogHeader(
+            icon: Icons.home_repair_service_outlined,
+            title: 'Mark equipment repaired',
+            color: AppColors.success,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Confirm that ${equipment.name} (${equipment.uniqueId}) has been repaired and can be distributed again.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: firstDate,
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setDialogState(() => selectedDate = picked);
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.05),
+                    border: Border.all(
+                      color: AppColors.success.withValues(alpha: 0.28),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 18,
+                        color: AppColors.success,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Repair date *',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('d MMMM yyyy').format(selectedDate),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_drop_down,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            AppSecondaryButton(
+              label: 'Cancel',
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            AppPrimaryButton(
+              label: 'Mark repaired',
+              icon: Icons.home_repair_service_outlined,
+              onPressed: () => Navigator.pop(dialogContext, selectedDate),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (repairedAt == null || !mounted) return;
+
+    try {
+      await EquipmentService.clearDamage(equipment.id!, repairedAt: repairedAt);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Equipment marked repaired and made available'),
+        ),
+      );
+      await _fetchAvailableEquipment(search: _searchQuery);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst(RegExp(r'^Exception:\s*'), ''),
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _returnSupply(EquipmentSupply supply) async {

@@ -667,9 +667,7 @@ class _patientrigisterState extends State<patientrigister> {
                   TextFormField(
                     controller: nameController,
                     textCapitalization: TextCapitalization.words,
-                    inputFormatters: const [
-                      CapitalizeWordsInputFormatter(),
-                    ],
+                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                     decoration: _buildInputDecoration(
                       "Patient Name",
                       Icons.person,
@@ -765,9 +763,9 @@ class _patientrigisterState extends State<patientrigister> {
                         return FilterChip(
                           label: Text(disease),
                           selected: isSelected,
+                          showCheckmark: false,
                           selectedColor: _patientPrimary,
                           backgroundColor: AppColors.surface1,
-                          checkmarkColor: AppColors.textInverse,
                           side: BorderSide(
                             color: isSelected
                                 ? _patientPrimary

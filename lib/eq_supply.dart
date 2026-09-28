@@ -141,7 +141,7 @@ class _EqSupplyState extends State<EqSupply> {
 
   Future<void> _fetchAvailableEquipment() async {
     try {
-      final list = await EquipmentService.getAvailableEquipment();
+      final list = await EquipmentService.getInventoryEquipment();
       setState(() {
         _availableEquipment = list;
       });
@@ -159,14 +159,18 @@ class _EqSupplyState extends State<EqSupply> {
   }
 
   Future<void> _submit() async {
-    if (_selectedEquipment == null) {
+    if (_selectedEquipment == null || _selectedEquipment!.isDamaged) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               const Icon(Icons.warning_amber_rounded, color: Colors.white),
               const SizedBox(width: 8),
-              const Text('Please select a equipment'),
+              Text(
+                _selectedEquipment == null
+                    ? 'Please select a equipment'
+                    : 'Selected equipment is damaged and cannot be distributed',
+              ),
             ],
           ),
           backgroundColor: AppColors.warning,
@@ -321,10 +325,11 @@ class _EqSupplyState extends State<EqSupply> {
                                         }
                                         try {
                                           final searchResults =
-                                              await EquipmentService.searchEquipment(
-                                                textEditingValue.text,
-                                                status: 'available',
-                                              );
+                                              await EquipmentService
+                                                  .getInventoryEquipment(
+                                                    search:
+                                                        textEditingValue.text,
+                                                  );
                                           return searchResults;
                                         } catch (e) {
                                           return _availableEquipment.where((
@@ -343,6 +348,17 @@ class _EqSupplyState extends State<EqSupply> {
                                   displayStringForOption: (Equipment equipment) =>
                                       '${equipment.uniqueId} - ${equipment.name.toUpperCase()}',
                                   onSelected: (Equipment equipment) {
+                                    if (equipment.isDamaged) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Cannot select damaged equipment for distribution',
+                                          ),
+                                          backgroundColor: AppColors.danger,
+                                        ),
+                                      );
+                                      return;
+                                    }
                                     setState(() {
                                       _selectedEquipment = equipment;
                                       final minimumSupplyDate =
@@ -404,15 +420,18 @@ class _EqSupplyState extends State<EqSupply> {
                                                   padding: EdgeInsets.zero,
                                                   shrinkWrap: true,
                                                   itemCount: options.length,
-                                                  itemBuilder: (BuildContext context, int index) {
+                                                   itemBuilder: (BuildContext context, int index) {
                                                     final Equipment equipment =
                                                         options.elementAt(
                                                           index,
                                                         );
+                                                    final bool isDamaged = equipment.isDamaged;
                                                     return InkWell(
-                                                      onTap: () {
-                                                        onSelected(equipment);
-                                                      },
+                                                      onTap: isDamaged
+                                                          ? null
+                                                          : () {
+                                                              onSelected(equipment);
+                                                            },
                                                       child: Container(
                                                         padding:
                                                             const EdgeInsets.symmetric(
@@ -420,6 +439,9 @@ class _EqSupplyState extends State<EqSupply> {
                                                               vertical: 12,
                                                             ),
                                                         decoration: BoxDecoration(
+                                                          color: isDamaged
+                                                              ? AppColors.danger.withValues(alpha: 0.04)
+                                                              : null,
                                                           border: Border(
                                                             bottom: BorderSide(
                                                               color: Colors
@@ -431,66 +453,104 @@ class _EqSupplyState extends State<EqSupply> {
                                                         child: Row(
                                                           children: [
                                                             Icon(
-                                                              Icons.inventory_2,
+                                                              isDamaged
+                                                                  ? Icons.build_circle_outlined
+                                                                  : Icons.inventory_2,
                                                               size: 18,
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade600,
+                                                              color: isDamaged
+                                                                  ? AppColors.danger
+                                                                  : Colors.grey.shade600,
                                                             ),
                                                             const SizedBox(
                                                               width: 12,
                                                             ),
                                                             Expanded(
-                                                              child: Row(
+                                                              child: Column(
+                                                                crossAxisAlignment: CrossAxisAlignment.start,
                                                                 children: [
-                                                                  Container(
-                                                                    padding: const EdgeInsets.symmetric(
-                                                                      horizontal:
-                                                                          8,
-                                                                      vertical:
-                                                                          2,
-                                                                    ),
-                                                                    decoration: BoxDecoration(
-                                                                      color: Colors
-                                                                          .orange
-                                                                          .withValues(
-                                                                            alpha:
-                                                                                0.15,
+                                                                  Row(
+                                                                    children: [
+                                                                      Container(
+                                                                        padding: const EdgeInsets.symmetric(
+                                                                          horizontal: 8,
+                                                                          vertical: 2,
+                                                                        ),
+                                                                        decoration: BoxDecoration(
+                                                                          color: isDamaged
+                                                                              ? AppColors.danger.withValues(alpha: 0.12)
+                                                                              : Colors.orange.withValues(alpha: 0.15),
+                                                                          borderRadius:
+                                                                              BorderRadius.circular(6),
+                                                                        ),
+                                                                        child: Text(
+                                                                          equipment.uniqueId,
+                                                                          style: TextStyle(
+                                                                            fontSize: 11,
+                                                                            fontWeight: FontWeight.w600,
+                                                                            color: isDamaged
+                                                                                ? AppColors.danger
+                                                                                : Colors.orange,
                                                                           ),
-                                                                      borderRadius:
-                                                                          BorderRadius.circular(
-                                                                            6,
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(width: 8),
+                                                                      Expanded(
+                                                                        child: Text(
+                                                                          equipment.name.toUpperCase(),
+                                                                          style: TextStyle(
+                                                                            fontSize: 14,
+                                                                            fontWeight: FontWeight.w500,
+                                                                            color: isDamaged
+                                                                                ? AppColors.textMuted
+                                                                                : AppColors.text,
                                                                           ),
-                                                                    ),
-                                                                    child: Text(
-                                                                      equipment
-                                                                          .uniqueId,
-                                                                      style: const TextStyle(
-                                                                        fontSize:
-                                                                            11,
-                                                                        fontWeight:
-                                                                            FontWeight.w600,
-                                                                        color: Colors
-                                                                            .orange,
+                                                                          overflow: TextOverflow.ellipsis,
+                                                                        ),
                                                                       ),
+                                                                    ],
+                                                                  ),
+                                                                  if (isDamaged) ...[
+                                                                    const SizedBox(height: 4),
+                                                                    Row(
+                                                                      children: [
+                                                                        Container(
+                                                                          padding: const EdgeInsets.symmetric(
+                                                                            horizontal: 7,
+                                                                            vertical: 2,
+                                                                          ),
+                                                                          decoration: BoxDecoration(
+                                                                            color: AppColors.danger.withValues(alpha: 0.09),
+                                                                            borderRadius: BorderRadius.circular(999),
+                                                                            border: Border.all(
+                                                                              color: AppColors.danger.withValues(alpha: 0.18),
+                                                                            ),
+                                                                          ),
+                                                                          child: Row(
+                                                                            mainAxisSize: MainAxisSize.min,
+                                                                            children: [
+                                                                              const Icon(
+                                                                                Icons.block,
+                                                                                size: 10,
+                                                                                color: AppColors.danger,
+                                                                              ),
+                                                                              const SizedBox(width: 3),
+                                                                              Text(
+                                                                                equipment.damagedAt != null
+                                                                                    ? 'DAMAGED (${DateFormat("d MMM yyyy").format(equipment.damagedAt!)}) – Cannot select'
+                                                                                    : 'DAMAGED – Cannot select',
+                                                                                style: const TextStyle(
+                                                                                  fontSize: 10,
+                                                                                  fontWeight: FontWeight.w700,
+                                                                                  color: AppColors.danger,
+                                                                                  letterSpacing: 0.2,
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        ),
+                                                                      ],
                                                                     ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    width: 8,
-                                                                  ),
-                                                                  Expanded(
-                                                                    child: Text(
-                                                                      equipment
-                                                                          .name
-                                                                          .toUpperCase(),
-                                                                      style: const TextStyle(
-                                                                        fontSize:
-                                                                            14,
-                                                                        fontWeight:
-                                                                            FontWeight.w500,
-                                                                      ),
-                                                                    ),
-                                                                  ),
+                                                                  ],
                                                                 ],
                                                               ),
                                                             ),
@@ -511,29 +571,79 @@ class _EqSupplyState extends State<EqSupply> {
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: _equipmentSupplyIconSurface,
+                                      color: _selectedEquipment!.isDamaged
+                                          ? AppColors.danger.withValues(alpha: 0.06)
+                                          : _equipmentSupplyIconSurface,
                                       borderRadius: AppRadius.sm,
                                       border: Border.all(
-                                        color: _equipmentSupplyStrong
-                                            .withValues(alpha: 0.16),
+                                        color: _selectedEquipment!.isDamaged
+                                            ? AppColors.danger.withValues(alpha: 0.22)
+                                            : _equipmentSupplyStrong.withValues(alpha: 0.16),
                                       ),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
-                                          Icons.check_circle,
-                                          color: _equipmentSupplyStrong,
+                                        Icon(
+                                          _selectedEquipment!.isDamaged
+                                              ? Icons.build_circle_outlined
+                                              : Icons.check_circle,
+                                          color: _selectedEquipment!.isDamaged
+                                              ? AppColors.danger
+                                              : _equipmentSupplyStrong,
                                           size: 20,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          child: Text(
-                                            '${_selectedEquipment!.name.toUpperCase()} (${_selectedEquipment!.place})',
-                                            style: const TextStyle(
-                                              color: _equipmentSupplyStrong,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 13,
-                                            ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${_selectedEquipment!.name.toUpperCase()} (${_selectedEquipment!.place})',
+                                                style: TextStyle(
+                                                  color: _selectedEquipment!.isDamaged
+                                                      ? AppColors.danger
+                                                      : _equipmentSupplyStrong,
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              if (_selectedEquipment!.isDamaged) ...[
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.danger.withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(999),
+                                                    border: Border.all(
+                                                      color: AppColors.danger.withValues(alpha: 0.2),
+                                                    ),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.cancel_outlined,
+                                                        size: 11,
+                                                        color: AppColors.danger,
+                                                      ),
+                                                      SizedBox(width: 4),
+                                                      Text(
+                                                        'DAMAGED — Cannot be distributed',
+                                                        style: TextStyle(
+                                                          color: AppColors.danger,
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w700,
+                                                          letterSpacing: 0.2,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -934,9 +1044,12 @@ class _EqSupplyState extends State<EqSupply> {
                               fullWidth: true,
                               loading: _submitting,
                               onPressed:
-                                  _submitting || _availableEquipment.isEmpty
-                                  ? null
-                                  : _submit,
+                                  _submitting ||
+                                          !_availableEquipment.any(
+                                            (e) => e.isAvailable,
+                                          )
+                                      ? null
+                                      : _submit,
                             ),
                           ),
                         ],

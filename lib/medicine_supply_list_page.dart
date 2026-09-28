@@ -6,6 +6,8 @@ import 'package:oruma_app/medicine_supply_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/models/medicine_supply_activity.dart';
 import 'package:oruma_app/models/medicine_supply.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/medicine_supply_service.dart';
@@ -165,7 +167,17 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         ),
         centerTitle: true,
         actions: [
+          if (auth.canAccessReports)
+            IconButton(
+              tooltip: 'Medicine supply report',
+              icon: const Icon(Icons.assessment_outlined),
+              onPressed: () => openReports(
+                context,
+                initialReport: ReportType.medicineSupplies,
+              ),
+            ),
           IconButton(
+            tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
             onPressed: () => _loadData(forceRefresh: true),
           ),
@@ -733,14 +745,11 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                       style: TextStyle(color: Colors.grey.shade700),
                     )
                   else
-                    ...currentSupply.items.map(
-                      (item) => _buildSupplyItemRow(
-                        currentSupply,
-                        item,
-                        auth,
-                        (updated) =>
-                            setModalState(() => currentSupply = updated),
-                      ),
+                    ..._buildGroupedMedicineSections(
+                      currentSupply,
+                      auth,
+                      (updated) =>
+                          setModalState(() => currentSupply = updated),
                     ),
                   if (returnActivities.isNotEmpty) ...[
                     const SizedBox(height: 14),
@@ -865,6 +874,110 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Map<DateTime, List<MedicineSupplyItem>> _groupItemsBySupplyDate(
+    MedicineSupply supply,
+  ) {
+    final grouped = <DateTime, List<MedicineSupplyItem>>{};
+    for (final item in supply.items) {
+      final date = item.givenAt ?? supply.givenAt;
+      final dayKey = DateTime(date.year, date.month, date.day);
+      grouped.putIfAbsent(dayKey, () => <MedicineSupplyItem>[]).add(item);
+    }
+    return grouped;
+  }
+
+  List<Widget> _buildGroupedMedicineSections(
+    MedicineSupply currentSupply,
+    AuthService auth,
+    ValueChanged<MedicineSupply> onUpdated,
+  ) {
+    final grouped = _groupItemsBySupplyDate(currentSupply);
+    final sortedDates = grouped.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    final widgets = <Widget>[];
+    for (var i = 0; i < sortedDates.length; i++) {
+      final date = sortedDates[i];
+      final items = grouped[date]!;
+      if (i > 0) {
+        widgets.add(const SizedBox(height: 10));
+      }
+      widgets.add(_buildSupplyDateSectionHeading(date, items.length));
+      for (final item in items) {
+        widgets.add(
+          _buildSupplyItemRow(
+            currentSupply,
+            item,
+            auth,
+            onUpdated,
+          ),
+        );
+      }
+    }
+    return widgets;
+  }
+
+  Widget _buildSupplyDateSectionHeading(DateTime date, int count) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 2, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _iconBg.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: _medicineGreen.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _medicineGreen.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(
+              Icons.event_available_outlined,
+              color: _medicineGreen,
+              size: 15,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Supply Date: ${_formatDateShort(date)}',
+              style: const TextStyle(
+                color: _medicineGreen,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: _cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _medicineGreen.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Text(
+              '$count ${count == 1 ? 'item' : 'items'}',
+              style: const TextStyle(
+                color: _medicineGreen,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1344,8 +1457,8 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                             visualDensity: VisualDensity.compact,
                           ),
                           icon: const Icon(
-                            Icons.assignment_return_outlined,
-                            size: 19,
+                            Icons.u_turn_left_rounded,
+                            size: 20,
                             semanticLabel: 'Return',
                           ),
                         ),

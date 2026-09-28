@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/homevisit.dart';
 import 'package:oruma_app/models/home_visit.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
@@ -424,10 +426,12 @@ class _HomeVisitSearchPageState extends State<HomeVisitSearchPage> {
         ? AppColors.textSecondary
         : AppColors.primary;
 
+    final canViewDetails = context.read<AuthService>().canViewHomeVisitDetails;
+
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       surfaceLevel: AppSurfaceLevel.elevated,
-      onTap: () => _showVisitDetails(visit),
+      onTap: canViewDetails ? () => _showVisitDetails(visit) : null,
       child: Row(
         children: [
           Container(
@@ -513,12 +517,14 @@ class _HomeVisitSearchPageState extends State<HomeVisitSearchPage> {
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.xs),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: AppColors.textMuted,
-            size: AppIcons.large,
-          ),
+          if (canViewDetails) ...[
+            const SizedBox(width: AppSpacing.xs),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textMuted,
+              size: AppIcons.large,
+            ),
+          ],
         ],
       ),
     );
@@ -660,7 +666,7 @@ class _HomeVisitSearchPageState extends State<HomeVisitSearchPage> {
                     ),
                   const SizedBox(height: AppSpacing.xl),
                   AppPrimaryButton(
-                    label: 'Edit Details',
+                    label: 'Edit',
                     icon: Icons.edit_outlined,
                     fullWidth: true,
                     onPressed: () async {
@@ -849,6 +855,7 @@ class _HomeVisitSearchPageState extends State<HomeVisitSearchPage> {
             final selected = selectedValue == option.value;
             return FilterChip(
               selected: selected,
+              showCheckmark: false,
               avatar: Icon(
                 option.icon,
                 size: AppIcons.small,
@@ -857,7 +864,6 @@ class _HomeVisitSearchPageState extends State<HomeVisitSearchPage> {
               label: Text(option.label),
               selectedColor: _homeVisitPrimary,
               backgroundColor: AppColors.surface1,
-              checkmarkColor: AppColors.textInverse,
               side: BorderSide(
                 color: selected ? _homeVisitPrimary : AppColors.border,
               ),

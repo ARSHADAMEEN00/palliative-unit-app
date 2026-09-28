@@ -76,14 +76,14 @@ class AppSecondaryButton extends StatelessWidget {
       isCompact: isCompact,
     );
     final button = OutlinedButton(
-      style: height != null
-          ? OutlinedButton.styleFrom(
-              minimumSize: Size(0, height!),
-              padding: EdgeInsets.symmetric(
-                horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
-              ),
-            )
-          : null,
+      style: OutlinedButton.styleFrom(
+        minimumSize: Size(0, height ?? 44),
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
+        ),
+        backgroundColor: AppColors.surface1,
+        side: const BorderSide(color: AppColors.border),
+      ),
       onPressed: loading ? null : onPressed,
       child: child,
     );
@@ -123,8 +123,9 @@ class AppDangerButton extends StatelessWidget {
     final button = OutlinedButton(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.danger,
-        side: const BorderSide(color: AppColors.danger),
-        minimumSize: height != null ? Size(0, height!) : null,
+        backgroundColor: AppColors.danger.withValues(alpha: 0.06),
+        side: BorderSide(color: AppColors.danger.withValues(alpha: 0.18)),
+        minimumSize: Size(0, height ?? 44),
         padding: EdgeInsets.symmetric(
           horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
         ),
@@ -165,11 +166,7 @@ class _ButtonContent extends StatelessWidget {
         : null;
 
     if (icon == null) {
-      return Text(
-        label,
-        style: textStyle,
-        overflow: TextOverflow.ellipsis,
-      );
+      return Text(label, style: textStyle, overflow: TextOverflow.ellipsis);
     }
 
     return Row(
@@ -179,11 +176,7 @@ class _ButtonContent extends StatelessWidget {
         Icon(icon, size: isCompact ? 16 : AppIcons.normal),
         SizedBox(width: isCompact ? 6 : AppSpacing.xs),
         Flexible(
-          child: Text(
-            label,
-            style: textStyle,
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(label, style: textStyle, overflow: TextOverflow.ellipsis),
         ),
       ],
     );

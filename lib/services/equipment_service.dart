@@ -97,6 +97,13 @@ class EquipmentService {
     return getAllEquipment(status: 'available', search: search);
   }
 
+  /// Get equipment kept in inventory, including damaged items under repair.
+  /// Supplied items are shown in the distribution tab instead.
+  static Future<List<Equipment>> getInventoryEquipment({String? search}) async {
+    final equipment = await getAllEquipment(search: search);
+    return equipment.where((item) => item.status != 'supplied').toList();
+  }
+
   /// Get a single equipment by ID (not cached — low repeat rate).
   static Future<Equipment> getEquipmentById(String id) async {
     final result = await ApiService.get<Map<String, dynamic>>(
@@ -191,6 +198,44 @@ class EquipmentService {
     throw Exception(result.error ?? 'Failed to update equipment status');
   }
 
+  /// Mark equipment as damaged and unavailable for distribution.
+  static Future<Equipment> markDamaged(
+    String id,
+    String reason, {
+    DateTime? damagedAt,
+  }) async {
+    final result = await ApiService.patch<Map<String, dynamic>>(
+      '${ApiConfig.equipmentEndpoint}/$id/damage',
+      body: {
+        'reason': reason.trim(),
+        if (damagedAt != null) 'damagedAt': _dateOnly(damagedAt),
+      },
+    );
+
+    if (result.isSuccess && result.data != null) {
+      AppCache.invalidatePrefix(_prefix);
+      return Equipment.fromJson(result.data!);
+    }
+    throw Exception(result.error ?? 'Failed to mark equipment as damaged');
+  }
+
+  /// Clear the damaged state once repairs are complete.
+  static Future<Equipment> clearDamage(
+    String id, {
+    required DateTime repairedAt,
+  }) async {
+    final result = await ApiService.patch<Map<String, dynamic>>(
+      '${ApiConfig.equipmentEndpoint}/$id/damage/clear',
+      body: {'repairedAt': _dateOnly(repairedAt)},
+    );
+
+    if (result.isSuccess && result.data != null) {
+      AppCache.invalidatePrefix(_prefix);
+      return Equipment.fromJson(result.data!);
+    }
+    throw Exception(result.error ?? 'Failed to clear equipment damage');
+  }
+
   /// Delete an equipment and invalidate the equipment cache.
   static Future<bool> deleteEquipment(String id) async {
     final result = await ApiService.delete(
@@ -210,5 +255,11 @@ class EquipmentService {
     String? status,
   }) async {
     return getAllEquipment(status: status, search: query);
+  }
+
+  static String _dateOnly(DateTime value) {
+    return '${value.year.toString().padLeft(4, '0')}-'
+        '${value.month.toString().padLeft(2, '0')}-'
+        '${value.day.toString().padLeft(2, '0')}';
   }
 }

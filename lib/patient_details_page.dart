@@ -560,15 +560,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               if (auth.canDelete)
                 const PopupMenuItem(
                   value: _PatientAction.delete,
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, color: AppColors.danger),
-                      SizedBox(width: 12),
-                      Text(
-                        'Delete patient',
-                        style: TextStyle(color: AppColors.danger),
-                      ),
-                    ],
+                  child: AppMenuActionLabel(
+                    icon: Icons.delete_outline,
+                    label: 'Delete patient',
+                    color: AppColors.danger,
                   ),
                 ),
             ],
@@ -801,6 +796,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   }
 
   Widget _buildOverviewTab() {
+    final auth = context.watch<AuthService>();
     return RefreshIndicator(
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
@@ -825,35 +821,38 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 'Full name',
                 _displayName(_currentPatient.name),
               ),
-              _infoRow(
-                Icons.call_outlined,
-                'Phone',
-                _value(_currentPatient.phone),
-                trailing: _phoneButton(_currentPatient.phone),
-              ),
+              if (auth.canViewContactNumbers)
+                _infoRow(
+                  Icons.call_outlined,
+                  'Phone',
+                  _value(_currentPatient.phone),
+                  trailing: auth.canCall ? _phoneButton(_currentPatient.phone) : null,
+                ),
               _infoRow(
                 Icons.family_restroom_outlined,
                 'Caregiver / relation',
                 _value(_currentPatient.relation),
               ),
-              _infoRow(
-                Icons.phone_android_outlined,
-                'Caregiver phone',
-                _value(_currentPatient.phone2),
-                trailing: _phoneButton(_currentPatient.phone2),
-              ),
+              if (auth.canViewContactNumbers)
+                _infoRow(
+                  Icons.phone_android_outlined,
+                  'Caregiver phone',
+                  _value(_currentPatient.phone2),
+                  trailing: auth.canCall ? _phoneButton(_currentPatient.phone2) : null,
+                ),
               if (_currentPatient.volunteerName?.trim().isNotEmpty == true)
                 _infoRow(
                   Icons.volunteer_activism_outlined,
                   'Volunteer name',
                   _value(_currentPatient.volunteerName),
                 ),
-              if (_currentPatient.volunteerContact?.trim().isNotEmpty == true)
+              if (auth.canViewContactNumbers &&
+                  _currentPatient.volunteerContact?.trim().isNotEmpty == true)
                 _infoRow(
                   Icons.call_outlined,
                   'Volunteer contact',
                   _value(_currentPatient.volunteerContact),
-                  trailing: _phoneButton(_currentPatient.volunteerContact),
+                  trailing: auth.canCall ? _phoneButton(_currentPatient.volunteerContact) : null,
                 ),
               _infoRow(
                 Icons.wc_outlined,
@@ -1644,12 +1643,14 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
             'Volunteer',
             _value(support.volunteerName),
           ),
-          const SizedBox(height: 10),
-          _detailLine(
-            Icons.call_outlined,
-            'Contact',
-            _value(support.volunteerContact),
-          ),
+          if (context.read<AuthService>().canViewContactNumbers) ...[
+            const SizedBox(height: 10),
+            _detailLine(
+              Icons.call_outlined,
+              'Contact',
+              _value(support.volunteerContact),
+            ),
+          ],
           if (support.note?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
             _detailLine(Icons.notes_outlined, 'Note', support.note!),
@@ -1877,6 +1878,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   }
 
   Widget? _phoneButton(String? phone) {
+    if (!context.read<AuthService>().canCall) return null;
     if (phone == null || phone.trim().isEmpty) return null;
 
     return IconButton(

@@ -243,10 +243,14 @@ class AppTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: surface,
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
-        shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
-        textStyle: textTheme.bodyMedium,
+        elevation: 3,
+        shadowColor: Colors.black.withValues(alpha: 0.1),
+        menuPadding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.md,
+          side: BorderSide(color: border),
+        ),
+        textStyle: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
       ),
       extensions: <ThemeExtension<dynamic>>[
         AppSurfaceTokens(
