@@ -5,6 +5,7 @@ import 'package:oruma_app/privacy_policy_screen.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/loading_screen.dart';
+import 'package:oruma_app/widgets/unit_registration_dialog.dart';
 import 'package:provider/provider.dart';
 
 class Loginscreen extends StatefulWidget {
@@ -219,6 +220,39 @@ class _LoginCard extends StatelessWidget {
               fullWidth: true,
               loading: isLoading,
               onPressed: isLoading ? null : onSubmit,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.md,
+                ),
+                side: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                ),
+                backgroundColor: AppColors.primary.withValues(alpha: 0.04),
+              ),
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const UnitRegistrationDialog(),
+                      );
+                    },
+              icon: const Icon(
+                Icons.domain_add_rounded,
+                size: 20,
+                color: AppColors.primary,
+              ),
+              label: const Text(
+                'Register New Unit (Enquiry)',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             const _SupportStrip(),

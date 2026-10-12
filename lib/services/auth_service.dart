@@ -396,4 +396,60 @@ class AuthService with ChangeNotifier {
         .where((item) => item.isNotEmpty)
         .toSet();
   }
+
+  Future<Map<String, dynamic>> submitUnitRegistrationEnquiry({
+    required String unitName,
+    required String contactPerson,
+    required String email,
+    required String phone,
+    String? district,
+    String? village,
+    String? address,
+    String? notes,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConfig.unitRegistrationEnquiryEndpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'unitName': unitName.trim(),
+          'contactPerson': contactPerson.trim(),
+          'email': email.trim(),
+          'phone': phone.trim(),
+          if (district != null && district.trim().isNotEmpty)
+            'district': district.trim(),
+          if (village != null && village.trim().isNotEmpty)
+            'village': village.trim(),
+          if (address != null && address.trim().isNotEmpty)
+            'address': address.trim(),
+          if (notes != null && notes.trim().isNotEmpty)
+            'notes': notes.trim(),
+        }),
+      );
+
+      final dynamic data = jsonDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          'success': true,
+          'message': (data is Map && data['message'] != null)
+              ? data['message']
+              : 'Enquiry submitted successfully.',
+          'data': data is Map ? data['enquiry'] : null,
+        };
+      } else {
+        return {
+          'success': false,
+          'error': (data is Map && (data['error'] != null || data['message'] != null))
+              ? (data['error'] ?? data['message'])
+              : 'Failed to submit enquiry.',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Network error. Please check your connection and try again.',
+      };
+    }
+  }
 }
+
