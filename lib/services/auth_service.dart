@@ -64,7 +64,8 @@ class AuthService with ChangeNotifier {
   bool get canDelete => _role == 'admin';
   bool get canCall => !isUser || isVolunteerApproved;
   bool get canViewContactNumbers => !isUser || isVolunteerApproved;
-  bool get canViewHomeVisitDetails => !isUser || isVolunteerApproved;
+  bool get canViewPatientDetails => !isUser;
+  bool get canViewHomeVisitDetails => !isUser;
   bool get canAccessPatients => hasFeature(AppFeature.patients);
   bool get canAccessHomeVisits => hasFeature(AppFeature.homeVisits);
   bool get canAccessVolunteers => hasFeature(AppFeature.volunteers);
@@ -130,6 +131,7 @@ class AuthService with ChangeNotifier {
     final credentials = await CredentialStore.read();
     _token = credentials.token;
     _role = credentials.role;
+    AppCache.currentUnitId = credentials.unitId;
 
     final prefs = await SharedPreferences.getInstance();
     final cachedUserJson = prefs.getString(_cachedUserKey);
@@ -139,6 +141,10 @@ class AuthService with ChangeNotifier {
         if (decoded is Map<String, dynamic>) {
           _user = decoded;
           _applyFeaturePermissions(decoded);
+          final userUnit = _cleanString(decoded['unitId'] ?? decoded['unit']?['id']);
+          if (userUnit != null && userUnit.isNotEmpty) {
+            AppCache.currentUnitId = userUnit;
+          }
         }
       } catch (_) {}
     }
@@ -168,6 +174,9 @@ class AuthService with ChangeNotifier {
         _loginErrorMessage = null;
         _token = data['token'];
         _role = data['role']; // Get role from response
+        final loginUnitId = _cleanString(data['unitId'] ?? data['unit']?['id']);
+        AppCache.currentUnitId = loginUnitId;
+        AppCache.clear();
 
         final prefs = await SharedPreferences.getInstance();
 
@@ -177,7 +186,11 @@ class AuthService with ChangeNotifier {
             prefs.getBool('has_logged_in_before') ?? false;
         _isFirstLogin = !wasLoggedInBefore;
 
-        await CredentialStore.write(token: _token!, role: _role);
+        await CredentialStore.write(
+          token: _token!,
+          role: _role,
+          unitId: loginUnitId,
+        );
         await prefs.setBool('has_logged_in_before', true);
 
         if (kDebugMode) {
@@ -293,6 +306,21 @@ class AuthService with ChangeNotifier {
         _user = data;
         _applyFeaturePermissions(data);
 
+        final userUnitId = _cleanString(data['unitId'] ?? data['unit']?['id']);
+        if (userUnitId != null && userUnitId.isNotEmpty) {
+          if (AppCache.currentUnitId != userUnitId) {
+            AppCache.currentUnitId = userUnitId;
+            AppCache.clear();
+          }
+          if (_token != null) {
+            await CredentialStore.write(
+              token: _token!,
+              role: _role,
+              unitId: userUnitId,
+            );
+          }
+        }
+
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_cachedUserKey, jsonEncode(data));
@@ -336,6 +364,7 @@ class AuthService with ChangeNotifier {
     _accessBlockedMessage = null;
     _accessBlockedSupport = null;
     _loginErrorMessage = null;
+    AppCache.currentUnitId = null;
     // Clear all cached data so stale data cannot leak to another user session
     AppCache.clear();
     await CredentialStore.clear();
@@ -348,10 +377,15 @@ class AuthService with ChangeNotifier {
 
   // Helper to get headers for other services
   Map<String, String> get headers {
-    return {
+    final map = {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $_token',
     };
+    final currentUnit = unitId ?? AppCache.currentUnitId;
+    if (currentUnit != null && currentUnit.isNotEmpty) {
+      map['X-Unit-Id'] = currentUnit;
+    }
+    return map;
   }
 
   Future<void> _handleAuthFailure(http.Response response) async {

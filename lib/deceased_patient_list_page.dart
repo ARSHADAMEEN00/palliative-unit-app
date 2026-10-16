@@ -7,6 +7,8 @@ import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:oruma_app/services/auth_service.dart';
 
 class DeceasedPatientListPage extends StatefulWidget {
   const DeceasedPatientListPage({super.key});
@@ -214,24 +216,29 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
   }
 
   Widget _buildPatientCard(BuildContext context, Patient patient) {
+    final canViewDetails =
+        Provider.of<AuthService>(context, listen: false).canViewPatientDetails;
+
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       surfaceLevel: AppSurfaceLevel.elevated,
       borderColor: AppColors.borderStrong,
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ModuleTheme(
-              palette: ModulePalettes.patients,
-              child: PatientDetailsPage(patient: patient),
-            ),
-          ),
-        );
-        if (result == true) {
-          _loadPatients();
-        }
-      },
+      onTap: canViewDetails
+          ? () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ModuleTheme(
+                    palette: ModulePalettes.patients,
+                    child: PatientDetailsPage(patient: patient),
+                  ),
+                ),
+              );
+              if (result == true) {
+                _loadPatients();
+              }
+            }
+          : null,
       child: Row(
         children: [
           Container(
@@ -279,12 +286,14 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          const Icon(
-            Icons.chevron_right,
-            color: AppColors.textMuted,
-            size: AppIcons.large,
-          ),
+          if (canViewDetails) ...[
+            const SizedBox(width: AppSpacing.sm),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textMuted,
+              size: AppIcons.large,
+            ),
+          ],
         ],
       ),
     );

@@ -593,6 +593,7 @@ class _PatientListPageState extends State<PatientListPage> {
   Widget _buildPatientCard(BuildContext context, Patient patient) {
     final authService = Provider.of<AuthService>(context, listen: false);
     final canViewContacts = authService.canViewContactNumbers;
+    final canViewDetails = authService.canViewPatientDetails;
     final details = <String>[
       '${patient.age} years',
       patient.gender,
@@ -605,20 +606,22 @@ class _PatientListPageState extends State<PatientListPage> {
           ? AppSurfaceLevel.surface
           : AppSurfaceLevel.elevated,
       borderColor: patient.isDead ? AppColors.borderStrong : AppColors.border,
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ModuleTheme(
-              palette: ModulePalettes.patients,
-              child: PatientDetailsPage(patient: patient),
-            ),
-          ),
-        );
-        if (result == true) {
-          _loadPatients();
-        }
-      },
+      onTap: canViewDetails
+          ? () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ModuleTheme(
+                    palette: ModulePalettes.patients,
+                    child: PatientDetailsPage(patient: patient),
+                  ),
+                ),
+              );
+              if (result == true) {
+                _loadPatients();
+              }
+            }
+          : null,
       child: Row(
         children: [
           _PatientAvatar(patient: patient),
@@ -714,12 +717,14 @@ class _PatientListPageState extends State<PatientListPage> {
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          const Icon(
-            Icons.chevron_right,
-            color: AppColors.textMuted,
-            size: AppIcons.large,
-          ),
+          if (canViewDetails) ...[
+            const SizedBox(width: AppSpacing.sm),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textMuted,
+              size: AppIcons.large,
+            ),
+          ],
         ],
       ),
     );

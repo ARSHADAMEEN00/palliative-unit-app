@@ -20,13 +20,17 @@ class ApiResult<T> {
 class ApiService {
   static final http.Client _client = http.Client();
 
-  /// Helper to get headers with Authorization token
+  /// Helper to get headers with Authorization token and Unit ID
   static Future<Map<String, String>> _getHeaders() async {
     final token = await CredentialStore.readToken();
+    final unitId = await CredentialStore.readUnitId();
 
     final headers = Map<String, String>.from(ApiConfig.headers);
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
+    }
+    if (unitId != null && unitId.isNotEmpty) {
+      headers['X-Unit-Id'] = unitId;
     }
     return headers;
   }
