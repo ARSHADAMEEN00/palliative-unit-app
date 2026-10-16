@@ -22,8 +22,11 @@ class VolunteerListPage extends StatefulWidget {
   State<VolunteerListPage> createState() => _VolunteerListPageState();
 }
 
-class _VolunteerListPageState extends State<VolunteerListPage> {
+class _VolunteerListPageState extends State<VolunteerListPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   final _searchController = TextEditingController();
+  final Set<String> _reviewingIds = {};
   List<Volunteer> _volunteers = [];
   List<String> _villages = [];
   List<WardConfig> _allWards = [];
@@ -36,12 +39,19 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging && mounted) {
+        setState(() {});
+      }
+    });
     _searchController.addListener(() => setState(() {}));
     _loadData();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -101,6 +111,21 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   List<Volunteer> get _filteredVolunteers {
     final query = _searchController.text.trim();
     return _volunteers.where((volunteer) {
+      if (volunteer.applicationStatus != 'approved') return false;
+      if (_selectedVillage != 'All' && volunteer.village != _selectedVillage) {
+        return false;
+      }
+      if (_selectedWard != 'All' && volunteer.ward != _selectedWard) {
+        return false;
+      }
+      return volunteer.matches(query);
+    }).toList();
+  }
+
+  List<Volunteer> get _pendingVolunteers {
+    final query = _searchController.text.trim();
+    return _volunteers.where((volunteer) {
+      if (volunteer.applicationStatus != 'pending') return false;
       if (_selectedVillage != 'All' && volunteer.village != _selectedVillage) {
         return false;
       }
@@ -188,6 +213,12 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final totalApproved = _volunteers
+        .where((item) => item.applicationStatus == 'approved')
+        .length;
+    final totalPending = _volunteers
+        .where((item) => item.applicationStatus == 'pending')
+        .length;
 
     return ModuleTheme(
       palette: ModulePalettes.volunteers,
@@ -214,7 +245,8 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
             ),
           ],
         ),
-        floatingActionButton: auth.canCreate
+        floatingActionButton: auth.canCreate &&
+                (!auth.isAdmin || _tabController.index == 0)
             ? RevealActionFab(
                 onPressed: () => _openForm(),
                 backgroundColor: _volunteerPrimary,
@@ -226,9 +258,97 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
         contentMaxWidth: 820,
         body: Column(
           children: [
+            if (auth.isAdmin) _buildTabs(totalApproved, totalPending),
             _buildFilters(),
             Expanded(child: _buildBody(auth)),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabs(int approvedCount, int pendingCount) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppInsets.screenHorizontal(context),
+        AppSpacing.sm,
+        AppInsets.screenHorizontal(context),
+        0,
+      ),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.button,
+          border: Border.all(color: AppColors.border),
+          boxShadow: AppShadow.small,
+        ),
+        child: TabBar(
+          controller: _tabController,
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          labelColor: _volunteerPrimary,
+          unselectedLabelColor: AppColors.textSecondary,
+          indicator: const BoxDecoration(
+            color: _volunteerIconSurface,
+            borderRadius: AppRadius.md,
+          ),
+          tabs: [
+            Tab(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.people_alt_outlined, size: 18),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Text('Volunteers'),
+                  if (approvedCount > 0) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    _countBadge(approvedCount, isWarning: false),
+                  ],
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.how_to_reg_outlined, size: 18),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Text('New Enquiries'),
+                  if (pendingCount > 0) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    _countBadge(pendingCount, isWarning: true),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countBadge(int count, {bool isWarning = false}) {
+    final bg = isWarning ? AppColors.warning : _volunteerPrimary;
+    return Container(
+      height: 20,
+      constraints: const BoxConstraints(minWidth: 20),
+      padding: EdgeInsets.symmetric(horizontal: count > 9 ? 6 : 0),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        shape: count <= 9 ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: count > 9 ? BorderRadius.circular(10) : null,
+      ),
+      child: Text(
+        '$count',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          height: 1.15,
         ),
       ),
     );
@@ -324,15 +444,29 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
       return _errorState();
     }
 
+    if (!auth.isAdmin) {
+      return _buildApprovedVolunteersList(auth);
+    }
+
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildApprovedVolunteersList(auth),
+        _buildEnquiriesList(),
+      ],
+    );
+  }
+
+  Widget _buildApprovedVolunteersList(AuthService auth) {
     final volunteers = _filteredVolunteers;
     if (volunteers.isEmpty) {
-      return _emptyState();
+      return _emptyApprovedState();
     }
 
     return RefreshIndicator(
       color: _volunteerPrimary,
       onRefresh: () => _loadData(showLoading: false),
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           AppInsets.screenHorizontal(context),
@@ -340,12 +474,267 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
           AppInsets.screenHorizontal(context),
           112,
         ),
-        itemCount: volunteers.length,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-        itemBuilder: (context, index) =>
-            _volunteerCard(volunteers[index], auth),
+        children: [
+          _listSectionHeader(
+            'Approved volunteers',
+            '${volunteers.length} active',
+            Icons.verified_outlined,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ...volunteers.map(
+            (volunteer) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: _volunteerCard(volunteer, auth),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildEnquiriesList() {
+    final pending = _pendingVolunteers;
+    if (pending.isEmpty) {
+      return _emptyEnquiriesState();
+    }
+
+    return RefreshIndicator(
+      color: _volunteerPrimary,
+      onRefresh: () => _loadData(showLoading: false),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          AppInsets.screenHorizontal(context),
+          AppSpacing.xs,
+          AppInsets.screenHorizontal(context),
+          112,
+        ),
+        children: [
+          _listSectionHeader(
+            'New registrations',
+            '${pending.length} awaiting approval',
+            Icons.how_to_reg_outlined,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ...pending.map(
+            (volunteer) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: _registrationCard(volunteer),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _listSectionHeader(String title, String subtitle, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: _volunteerPrimary, size: 20),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                subtitle,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _registrationCard(Volunteer volunteer) {
+    final isReviewing =
+        volunteer.id != null && _reviewingIds.contains(volunteer.id);
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      borderColor: AppColors.warning.withValues(alpha: 0.28),
+      surfaceLevel: AppSurfaceLevel.elevated,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _avatar(size: 44),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      volunteer.name,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      volunteer.email.isNotEmpty
+                          ? volunteer.email
+                          : volunteer.phone,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xxs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.10),
+                  borderRadius: AppRadius.xs,
+                ),
+                child: const Text(
+                  'Pending',
+                  style: TextStyle(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _inlineDetail(Icons.place_outlined, volunteer.locationLabel),
+          if (volunteer.address.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xxs),
+            _inlineDetail(Icons.home_outlined, volunteer.address.trim()),
+          ],
+          const SizedBox(height: AppSpacing.xxs),
+          _inlineDetail(Icons.call_outlined, volunteer.phone),
+          if (volunteer.phone2.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xxs),
+            _inlineDetail(
+              Icons.phone_iphone_outlined,
+              volunteer.phone2.trim(),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          if (isReviewing)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _reviewApplication(volunteer, 'declined'),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Decline'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _reviewApplication(volunteer, 'approved'),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Accept'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _reviewApplication(Volunteer volunteer, String status) async {
+    final id = volunteer.id;
+    if (id == null || _reviewingIds.contains(id)) return;
+
+    if (status == 'declined') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+          title: const _VolunteerDialogHeader(
+            icon: Icons.cancel_outlined,
+            title: 'Decline application?',
+            color: AppColors.danger,
+          ),
+          content: Text(
+            'Are you sure you want to decline the volunteer registration for ${volunteer.name}?',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              child: const Text('Decline'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() => _reviewingIds.add(id));
+    try {
+      await VolunteerService.reviewApplication(id, status);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'approved'
+                ? '${volunteer.name} approved as a volunteer'
+                : '${volunteer.name} application declined',
+          ),
+          backgroundColor: status == 'approved'
+              ? AppColors.success
+              : AppColors.danger,
+        ),
+      );
+      await _loadData(showLoading: false);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyError(error)),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _reviewingIds.remove(id));
+      }
+    }
   }
 
   Widget _volunteerCard(Volunteer volunteer, AuthService auth) {
@@ -383,7 +772,10 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                   _inlineDetail(Icons.call_outlined, volunteer.phone),
                   if (volunteer.phone2.trim().isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.xxs),
-                    _inlineDetail(Icons.phone_iphone_outlined, volunteer.phone2),
+                    _inlineDetail(
+                      Icons.phone_iphone_outlined,
+                      volunteer.phone2,
+                    ),
                   ],
                 ],
                 if (volunteer.address.trim().isNotEmpty) ...[
@@ -514,7 +906,8 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                             ),
                             if (auth.canViewContactNumbers)
                               InkWell(
-                                onTap: (!auth.canCall ||
+                                onTap:
+                                    (!auth.canCall ||
                                         volunteer.phone.trim().isEmpty)
                                     ? null
                                     : () => _callPhone(volunteer.phone.trim()),
@@ -693,7 +1086,7 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
     );
   }
 
-  Widget _emptyState() {
+  Widget _emptyApprovedState() {
     final hasFilters =
         _searchController.text.isNotEmpty ||
         _selectedVillage != 'All' ||
@@ -716,6 +1109,38 @@ class _VolunteerListPageState extends State<VolunteerListPage> {
                 message: hasFilters
                     ? 'Try changing the search, village, or ward filter.'
                     : 'Volunteer profiles will appear here once added.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _emptyEnquiriesState() {
+    final hasFilters =
+        _searchController.text.isNotEmpty ||
+        _selectedVillage != 'All' ||
+        _selectedWard != 'All';
+
+    return RefreshIndicator(
+      onRefresh: () => _loadData(showLoading: false),
+      color: _volunteerPrimary,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              height: constraints.maxHeight,
+              child: AppEmptyState(
+                icon: hasFilters
+                    ? Icons.search_off_outlined
+                    : Icons.how_to_reg_outlined,
+                title:
+                    hasFilters ? 'No matching enquiries' : 'No pending enquiries',
+                message: hasFilters
+                    ? 'Try changing the search, village, or ward filter.'
+                    : 'New volunteer registration requests will appear here for approval.',
               ),
             ),
           );

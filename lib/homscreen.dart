@@ -24,6 +24,8 @@ import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/notification_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
+import 'package:oruma_app/models/volunteer_activity.dart';
+import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -58,6 +60,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   List<AppNotification> _notifications = [];
   bool _notificationsLoading = true;
   final Set<String> _dismissedMaintenanceBannerKeys = {};
+  VolunteerActivity? _volunteerActivity;
+  bool _volunteerActivityLoading = false;
+  bool _checkingApproval = false;
 
   @override
   void initState() {
@@ -77,15 +82,25 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      context.read<AuthService>().fetchUserProfile();
-      _loadNotifications(refresh: true);
+      _bootstrapAccess();
     }
   }
 
-  Future<void> _bootstrapAccess() async {
+  DateTime? _lastBootstrapAt;
+
+  Future<void> _bootstrapAccess({bool force = false}) async {
+    final now = DateTime.now();
+    if (!force &&
+        _lastBootstrapAt != null &&
+        now.difference(_lastBootstrapAt!) < const Duration(minutes: 3)) {
+      return;
+    }
+    _lastBootstrapAt = now;
+
     final auth = context.read<AuthService>();
     await auth.fetchUserProfile();
-    if (!mounted || auth.isAccessBlocked) return;
+    if (!mounted || auth.isAccessBlocked || !auth.isVolunteerApproved) return;
+    if (auth.isVolunteer) _loadVolunteerActivity();
     if (auth.canAccessEquipmentDistribution) {
       _loadActiveSupplies();
     } else {
@@ -94,7 +109,56 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         _activeSuppliesLoading = false;
       });
     }
-    _loadNotifications(refresh: true);
+    _loadNotifications(refresh: force);
+  }
+
+  Future<void> _checkApprovalStatus() async {
+    if (_checkingApproval) return;
+    setState(() => _checkingApproval = true);
+    try {
+      await _bootstrapAccess(force: true);
+      if (!mounted) return;
+      final auth = context.read<AuthService>();
+      if (auth.isVolunteer &&
+          !auth.isVolunteerApproved &&
+          !auth.isVolunteerDeclined) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Approval is still pending with the unit.'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to check approval status. Please try again.'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _checkingApproval = false);
+      }
+    }
+  }
+
+  Future<void> _loadVolunteerActivity() async {
+    if (!mounted) return;
+    setState(() => _volunteerActivityLoading = true);
+    try {
+      final activity = await VolunteerApplicationService.getMyActivity();
+      if (!mounted) return;
+      setState(() => _volunteerActivity = activity);
+    } catch (_) {
+      // The dashboard remains usable if activity history is temporarily offline.
+    } finally {
+      if (mounted) setState(() => _volunteerActivityLoading = false);
+    }
   }
 
   Future<void> _loadActiveSupplies() async {
@@ -138,6 +202,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   bool _canShowNotification(AppNotification notification, AuthService auth) {
+    if (_isBillingNotification(notification)) return auth.isAdmin;
     if (notification.type == 'equipment_overdue') {
       return auth.canAccessEquipmentDistribution;
     }
@@ -402,6 +467,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Future<void> _handleNotificationTap(AppNotification notification) async {
     if (_isBillingNotification(notification)) {
+      if (!context.read<AuthService>().isAdmin) return;
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const BillingPlanScreen()),
@@ -691,32 +757,42 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       ),
                     ),
                   const SizedBox(height: AppSpacing.md),
+                  if (auth.isVolunteer && _volunteerActivity != null) ...[
+                    _buildVolunteerAchievementCard(
+                      context,
+                      _volunteerActivity!,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   _buildUnitDetailsCard(context, auth),
                   const SizedBox(height: AppSpacing.lg),
-                  _buildProfileMenuItem(
-                    icon: Icons.settings_outlined,
-                    title: "Settings & Staff Management",
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const ConfigPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.receipt_long_outlined,
-                    title: "Billing & Plan",
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const BillingPlanScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                  if (auth.isAdmin) ...[
+                    _buildProfileMenuItem(
+                      icon: Icons.settings_outlined,
+                      title: "Settings",
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ConfigPage(mode: ConfigPageMode.settings),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildProfileMenuItem(
+                      icon: Icons.receipt_long_outlined,
+                      title: "Billing & Plan",
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const BillingPlanScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                   _buildProfileMenuItem(
                     icon: Icons.help_outline,
                     title: "Help & Support",
@@ -889,7 +965,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withValues(alpha: 0.1),
+                                  color: AppColors.success.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: AppRadius.sm,
                                 ),
                                 child: const Icon(
@@ -1247,6 +1325,66 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildVolunteerAchievementCard(
+    BuildContext context,
+    VolunteerActivity activity,
+  ) {
+    final color = _achievementColor(activity.achievementTier);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: AppRadius.card,
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.workspace_premium_rounded, color: color),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${activity.achievementTier} achievement',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  '${activity.totalSocialWorks} social works completed',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _achievementColor(String tier) {
+    return switch (tier.toLowerCase()) {
+      'platinum' => const Color(0xFF536878),
+      'gold' => const Color(0xFFB7791F),
+      'silver' => const Color(0xFF64748B),
+      'bronze' => const Color(0xFF9A5B35),
+      _ => AppColors.primary,
+    };
+  }
+
   Widget _buildProfileMenuItem({
     required IconData icon,
     required String title,
@@ -1290,11 +1428,280 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildVolunteerApprovalCard(AuthService auth) {
+    final declined = auth.isVolunteerDeclined;
+    final color = declined ? AppColors.danger : AppColors.warning;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: AppCard(
+          surfaceLevel: AppSurfaceLevel.elevated,
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  declined
+                      ? Icons.cancel_outlined
+                      : Icons.hourglass_top_rounded,
+                  color: color,
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                declined ? 'Application declined' : 'Approval is pending',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                declined
+                    ? 'Your volunteer application was not approved. Please contact the palliative care unit if you need help.'
+                    : 'Your volunteer registration was received. The palliative care unit must approve it before the app modules become available.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+              ),
+              if (!declined) ...[
+                const SizedBox(height: AppSpacing.lg),
+                if (_checkingApproval) ...[
+                  const SizedBox(
+                    width: 220,
+                    child: ClipRRect(
+                      borderRadius: AppRadius.sm,
+                      child: LinearProgressIndicator(
+                        minHeight: 4,
+                        backgroundColor: AppColors.primaryLight,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                TextButton.icon(
+                  onPressed: _checkingApproval ? null : _checkApprovalStatus,
+                  icon: _checkingApproval
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                  label: Text(
+                    _checkingApproval
+                        ? 'Checking approval status...'
+                        : 'Check approval status',
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                ),
+                onPressed: () {
+                  auth.logout();
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const Loginscreen(),
+                    ),
+                    (route) => false,
+                  );
+                },
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Logout'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolunteerActivitySection(BuildContext context) {
+    if (_volunteerActivityLoading && _volunteerActivity == null) {
+      return const AppCard(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final activity = _volunteerActivity;
+    if (activity == null) {
+      return AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off_outlined, color: AppColors.textMuted),
+            const SizedBox(width: AppSpacing.sm),
+            const Expanded(child: Text('Activity history is unavailable.')),
+            IconButton(
+              tooltip: 'Retry',
+              onPressed: _loadVolunteerActivity,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final tierColor = _achievementColor(activity.achievementTier);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDashboardSectionHeader(
+          context,
+          title: 'My Social Work',
+          subtitle: 'Your contribution milestones and recent activity.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: AppCard(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                borderColor: AppColors.primary.withValues(alpha: 0.18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.volunteer_activism_rounded,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      activity.totalSocialWorks.toString(),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      'Social works',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: AppCard(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                borderColor: tierColor.withValues(alpha: 0.22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.workspace_premium_rounded, color: tierColor),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      activity.achievementTier,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: tierColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      activity.nextTierAt == null
+                          ? 'Highest reward'
+                          : '${activity.nextTierAt! - activity.totalSocialWorks} to next reward',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (activity.history.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          ...activity.history
+              .take(3)
+              .map(
+                (item) => AppCard(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: AppRadius.md,
+                        ),
+                        child: const Icon(
+                          Icons.favorite_outline_rounded,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.supportTypes
+                                  .map(_socialWorkTypeLabel)
+                                  .join(', '),
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            Text(
+                              '${item.patientName} • ${DateFormat('d MMM yyyy').format(item.givenAt.toLocal())}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ],
+    );
+  }
+
+  String _socialWorkTypeLabel(String type) {
+    return switch (type) {
+      'ration_kit' => 'Ration kit',
+      'vegetables' => 'Vegetables',
+      'medicine' => 'Medicine',
+      _ => type.replaceAll('_', ' '),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     debugPrint('User Role: ${context.read<AuthService>().role}');
     final auth = context.watch<AuthService>();
-    final maintenanceNotification = auth.isTrialUnit
+    final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
+    final maintenanceNotification = !auth.isAdmin || auth.isTrialUnit
         ? null
         : _visibleMaintenanceDueNotification();
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -1317,10 +1724,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ),
       child: AdaptiveAppScaffold(
         scaffoldKey: _scaffoldKey,
-        drawer: _buildProfessionalDrawer(context),
+        drawer: isPendingApproval ? null : _buildProfessionalDrawer(context),
         backgroundColor: Colors.transparent,
-        currentSection: AppBottomSection.home,
-        onNavigationSelected: _handleBottomNavigation,
+        currentSection: isPendingApproval ? null : AppBottomSection.home,
+        onNavigationSelected: isPendingApproval ? null : _handleBottomNavigation,
         contentMaxWidth: 1040,
         body: SafeArea(
           bottom: false,
@@ -1336,9 +1743,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildDashboardHeader(context, auth, isCompact: isCompact),
-                if (maintenanceNotification != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  _buildMaintenanceDueBanner(context, maintenanceNotification),
+                if (isPendingApproval) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildVolunteerApprovalCard(auth),
+                ] else ...[
+                  if (maintenanceNotification != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _buildMaintenanceDueBanner(context, maintenanceNotification),
+                  ],
+                if (auth.isVolunteer) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildVolunteerActivitySection(context),
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 _buildDashboardSectionHeader(
@@ -1497,7 +1912,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   _buildActiveSuppliesList(context),
                 ],
               ],
-            ),
+            ],
+          ),
           ),
         ),
       ),
@@ -1638,6 +2054,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     bool isCompact = false,
   }) {
     final textTheme = Theme.of(context).textTheme;
+    final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
 
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
@@ -1648,12 +2065,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           Row(
             children: [
               _buildShellIconButton(
-                tooltip: 'Open menu',
+                tooltip: isPendingApproval ? 'Menu disabled' : 'Open menu',
                 icon: Icons.menu_rounded,
-                onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                onTap: isPendingApproval
+                    ? null
+                    : () => _scaffoldKey.currentState?.openDrawer(),
               ),
               const Spacer(),
-              if (auth.unitSupportQr != null) ...[
+              if (auth.unitSupportQr != null && !isPendingApproval) ...[
                 _buildShellIconButton(
                   tooltip: 'Show QR',
                   icon: Icons.qr_code_2_rounded,
@@ -1662,14 +2081,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 const SizedBox(width: AppSpacing.xs),
               ],
               _buildShellIconButton(
-                tooltip: 'Notifications',
+                tooltip: isPendingApproval
+                    ? 'Notifications unavailable'
+                    : 'Notifications',
                 icon: Icons.notifications_none_rounded,
-                onTap: _openNotifications,
-                badgeLabel: _notificationCount > 99
-                    ? '99+'
-                    : _notificationCount > 0
-                    ? _notificationCount.toString()
-                    : null,
+                onTap: isPendingApproval ? null : _openNotifications,
+                badgeLabel: isPendingApproval || _notificationCount <= 0
+                    ? null
+                    : (_notificationCount > 99
+                        ? '99+'
+                        : _notificationCount.toString()),
               ),
               if (auth.canCreate) ...[
                 const SizedBox(width: AppSpacing.xs),
@@ -1732,13 +2153,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   Widget _buildShellIconButton({
     required String tooltip,
     required IconData icon,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     String? badgeLabel,
   }) {
+    final enabled = onTap != null;
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: AppColors.surface1,
+        color: enabled
+            ? AppColors.surface1
+            : AppColors.surface1.withValues(alpha: 0.5),
         borderRadius: AppRadius.md,
         child: InkWell(
           onTap: onTap,
@@ -1748,7 +2172,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             children: [
               const SizedBox.square(dimension: 44),
               Positioned.fill(
-                child: Icon(icon, color: AppColors.text, size: AppIcons.large),
+                child: Icon(
+                  icon,
+                  color: enabled ? AppColors.text : AppColors.textMuted,
+                  size: AppIcons.large,
+                ),
               ),
               if (badgeLabel != null)
                 Positioned(
@@ -2262,6 +2690,22 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     onTap: () => Navigator.pop(context),
                     isSelected: true,
                   ),
+                  if (auth.isAdmin)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.manage_accounts_outlined,
+                      title: 'Staff Management',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ConfigPage(mode: ConfigPageMode.staff),
+                          ),
+                        );
+                      },
+                    ),
                   if (auth.canAccessPatients)
                     _buildDrawerItem(
                       context,
@@ -2524,7 +2968,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const ConfigPage(),
+                            builder: (context) =>
+                                const ConfigPage(mode: ConfigPageMode.settings),
                           ),
                         );
                       },

@@ -34,17 +34,23 @@ class HomeVisitService {
     throw Exception(result.error ?? 'Failed to fetch home visits');
   }
 
-  /// Get a single home visit by ID (not cached).
+  /// Get a single home visit by ID. Cached for [_ttl].
   static Future<HomeVisit> getHomeVisitById(String id) async {
-    final result = await ApiService.get<Map<String, dynamic>>(
-      '${ApiConfig.homeVisitsEndpoint}/$id',
+    return AppCache.get<HomeVisit>(
+      '$_prefix$id',
+      ttl: _ttl,
+      loader: () async {
+        final result = await ApiService.get<Map<String, dynamic>>(
+          '${ApiConfig.homeVisitsEndpoint}/$id',
+        );
+
+        if (result.isSuccess && result.data != null) {
+          return HomeVisit.fromJson(result.data!);
+        }
+
+        throw Exception(result.error ?? 'Failed to fetch home visit');
+      },
     );
-
-    if (result.isSuccess && result.data != null) {
-      return HomeVisit.fromJson(result.data!);
-    }
-
-    throw Exception(result.error ?? 'Failed to fetch home visit');
   }
 
   /// Get a single home visit by ID, returning null when it was deleted.

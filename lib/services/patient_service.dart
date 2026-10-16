@@ -94,17 +94,23 @@ class PatientService {
     throw Exception(result.error ?? 'Failed to fetch patients');
   }
 
-  /// Get a single patient by ID (not cached — low repeat rate).
+  /// Get a single patient by ID. Cached for [_ttl].
   static Future<Patient> getPatientById(String id) async {
-    final result = await ApiService.get<Map<String, dynamic>>(
-      '${ApiConfig.patientsEndpoint}/$id?populate=createdBy',
+    return AppCache.get<Patient>(
+      '$_prefix$id',
+      ttl: _ttl,
+      loader: () async {
+        final result = await ApiService.get<Map<String, dynamic>>(
+          '${ApiConfig.patientsEndpoint}/$id?populate=createdBy',
+        );
+
+        if (result.isSuccess && result.data != null) {
+          return Patient.fromJson(result.data!);
+        }
+
+        throw Exception(result.error ?? 'Failed to fetch patient');
+      },
     );
-
-    if (result.isSuccess && result.data != null) {
-      return Patient.fromJson(result.data!);
-    }
-
-    throw Exception(result.error ?? 'Failed to fetch patient');
   }
 
   /// Create a new patient and invalidate the patients cache.

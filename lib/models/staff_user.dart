@@ -3,6 +3,8 @@ class StaffUser {
   final String name;
   final String email;
   final String role;
+  final List<String> permittedModuleIds;
+  final bool hasExplicitModulePermissions;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -11,6 +13,8 @@ class StaffUser {
     required this.name,
     required this.email,
     required this.role,
+    this.permittedModuleIds = const [],
+    this.hasExplicitModulePermissions = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -21,6 +25,11 @@ class StaffUser {
       name: json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       role: json['role']?.toString() ?? 'staff',
+      permittedModuleIds:
+          (json['permittedModuleIds'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList(),
+      hasExplicitModulePermissions: json.containsKey('permittedModuleIds'),
       createdAt: _parseDate(json['createdAt']),
       updatedAt: _parseDate(json['updatedAt']),
     );
@@ -31,6 +40,8 @@ class StaffUser {
     String? name,
     String? email,
     String? role,
+    List<String>? permittedModuleIds,
+    bool? hasExplicitModulePermissions,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -39,6 +50,9 @@ class StaffUser {
       name: name ?? this.name,
       email: email ?? this.email,
       role: role ?? this.role,
+      permittedModuleIds: permittedModuleIds ?? this.permittedModuleIds,
+      hasExplicitModulePermissions:
+          hasExplicitModulePermissions ?? this.hasExplicitModulePermissions,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

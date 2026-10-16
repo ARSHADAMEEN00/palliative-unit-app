@@ -104,15 +104,21 @@ class EquipmentService {
     return equipment.where((item) => item.status != 'supplied').toList();
   }
 
-  /// Get a single equipment by ID (not cached — low repeat rate).
+  /// Get a single equipment by ID. Cached for [_ttl].
   static Future<Equipment> getEquipmentById(String id) async {
-    final result = await ApiService.get<Map<String, dynamic>>(
-      '${ApiConfig.equipmentEndpoint}/$id',
+    return AppCache.get<Equipment>(
+      '$_prefix$id',
+      ttl: _ttl,
+      loader: () async {
+        final result = await ApiService.get<Map<String, dynamic>>(
+          '${ApiConfig.equipmentEndpoint}/$id',
+        );
+        if (result.isSuccess && result.data != null) {
+          return Equipment.fromJson(result.data!);
+        }
+        throw Exception(result.error ?? 'Failed to fetch equipment');
+      },
     );
-    if (result.isSuccess && result.data != null) {
-      return Equipment.fromJson(result.data!);
-    }
-    throw Exception(result.error ?? 'Failed to fetch equipment');
   }
 
   /// Create new equipment and invalidate the equipment cache.

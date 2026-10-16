@@ -12,6 +12,8 @@ class NotificationService {
   static const _prefix = 'notifications:';
   static const _keyActive = 'notifications:active';
   static const _ttlActive = Duration(minutes: 2);
+  static const _keyBilling = 'billing:portal_notifications';
+  static const _ttlBilling = Duration(minutes: 5);
   static final NumberFormat _currency = NumberFormat.currency(
     locale: 'en_IN',
     symbol: '₹',
@@ -24,6 +26,7 @@ class NotificationService {
   }) async {
     if (refresh) {
       AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidate(_keyBilling);
     }
 
     return AppCache.get<List<AppNotification>>(
@@ -80,6 +83,14 @@ class NotificationService {
   }
 
   static Future<List<AppNotification>?> _fetchBillingNotifications() async {
+    return AppCache.get<List<AppNotification>?>(
+      _keyBilling,
+      ttl: _ttlBilling,
+      loader: _loadBillingNotificationsFromApi,
+    );
+  }
+
+  static Future<List<AppNotification>?> _loadBillingNotificationsFromApi() async {
     final result = await ApiService.get<BillingPortal>(
       ApiConfig.billingPortalEndpoint,
       fromJson: (json) => BillingPortal.fromJson(json as Map<String, dynamic>),

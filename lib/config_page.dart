@@ -7,13 +7,23 @@ import 'package:oruma_app/models/staff_user.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/services/staff_service.dart';
+import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
 
+enum ConfigPageMode { combined, settings, staff }
+
 class ConfigPage extends StatefulWidget {
-  const ConfigPage({super.key});
+  const ConfigPage({
+    super.key,
+    this.initialTab = 0,
+    this.mode = ConfigPageMode.combined,
+  });
+
+  final int initialTab;
+  final ConfigPageMode mode;
 
   @override
   State<ConfigPage> createState() => _ConfigPageState();
@@ -31,17 +41,39 @@ class _ConfigPageState extends State<ConfigPage>
   static const _chipLineColor = AppColors.border;
   static const _softAccentColor = AppColors.primaryLight;
   static const _removeIconColor = AppColors.textMuted;
-  static const _roles = ['admin', 'staff', 'member', 'user'];
+  static const _roles = ['admin', 'staff', 'member'];
+  static const _permissionRoles = [..._roles, 'user'];
+  static const _staffModuleIds = [
+    AppFeature.patients,
+    AppFeature.homeVisits,
+    AppFeature.volunteers,
+    AppFeature.socialSupport,
+    AppFeature.equipment,
+    AppFeature.equipmentDistribution,
+    AppFeature.medicineMaster,
+    AppFeature.medicineStock,
+    AppFeature.medicineSupply,
+    AppFeature.nhcAssessment,
+    AppFeature.advancedReports,
+  ];
 
   late final TabController _tabController;
 
   Config? _config;
   List<StaffUser> _staff = [];
+  Map<String, Set<String>> _rolePermissionDefaults = {
+    for (final role in _permissionRoles)
+      role: {..._defaultModulesForRole(role)},
+  };
+  Set<String> _subscribedModuleIds = {..._staffModuleIds};
+  String _selectedStaffSection = 'staff';
+  String _selectedPermissionRole = 'staff';
   final Set<String> _updatingStaffIds = <String>{};
 
   bool _isLoadingConfig = true;
   bool _isLoadingStaff = true;
   bool _isSavingConfig = false;
+  bool _isSavingRolePermissions = false;
   String? _configErrorMessage;
   String? _staffErrorMessage;
 
@@ -69,31 +101,32 @@ class _ConfigPageState extends State<ConfigPage>
       filled: true,
       fillColor: _fieldFillColor,
       contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
       ),
       prefixIcon: prefixIcon == null
           ? null
           : Container(
-              width: 36,
-              height: 36,
-              margin: const EdgeInsets.all(6),
+              width: 32,
+              height: 32,
+              margin: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
                 color: _softAccentColor,
                 borderRadius: AppRadius.sm,
               ),
-              child: Icon(prefixIcon, color: _primaryColor, size: 20),
+              child: Icon(prefixIcon, color: _primaryColor, size: 18),
             ),
       prefixIconConstraints: prefixIcon == null
           ? null
-          : const BoxConstraints(minWidth: 50, minHeight: 50),
+          : const BoxConstraints(minWidth: 44, minHeight: 44),
       suffixIcon: suffixIcon,
       prefixIconColor: _mutedInkColor,
       suffixIconColor: _mutedInkColor,
-      hintStyle: const TextStyle(color: _mutedInkColor, fontSize: 15),
-      labelStyle: const TextStyle(color: _mutedInkColor),
+      hintStyle: const TextStyle(color: _mutedInkColor, fontSize: 13),
+      labelStyle: const TextStyle(color: _mutedInkColor, fontSize: 12),
       floatingLabelStyle: const TextStyle(
         color: _primaryColor,
+        fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
       enabledBorder: enabledBorder,
@@ -117,16 +150,20 @@ class _ConfigPageState extends State<ConfigPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this)
-      ..addListener(() {
-        if (!_tabController.indexIsChanging && mounted) setState(() {});
-      });
+    _tabController =
+        TabController(
+          length: 2,
+          vsync: this,
+          initialIndex: widget.initialTab.clamp(0, 1).toInt(),
+        )..addListener(() {
+          if (!_tabController.indexIsChanging && mounted) setState(() {});
+        });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (context.read<AuthService>().isAdmin) {
-        _fetchConfig();
-        _fetchStaff();
+        if (widget.mode != ConfigPageMode.staff) _fetchConfig();
+        if (widget.mode != ConfigPageMode.settings) _fetchStaff();
       } else {
         setState(() {
           _isLoadingConfig = false;
@@ -188,10 +225,20 @@ class _ConfigPageState extends State<ConfigPage>
     });
 
     try {
-      final staff = await StaffService.getStaff();
+      final results = await Future.wait([
+        StaffService.getStaff(),
+        StaffService.getRolePermissions(),
+      ]);
+      final staff = results[0] as List<StaffUser>;
+      final permissions = results[1] as RolePermissionSettings;
       if (!mounted) return;
       setState(() {
         _staff = staff;
+        _rolePermissionDefaults = {
+          for (final role in _permissionRoles)
+            role: {...?permissions.rolePermissions[role]},
+        };
+        _subscribedModuleIds = {...permissions.subscribedModuleIds};
         _isLoadingStaff = false;
       });
     } catch (e) {
@@ -334,12 +381,222 @@ class _ConfigPageState extends State<ConfigPage>
     }
   }
 
+  Future<void> _saveRolePermissions() async {
+    if (_isSavingRolePermissions) return;
+    final role = _selectedPermissionRole;
+    final selected = _rolePermissionDefaults[role] ?? <String>{};
+    setState(() => _isSavingRolePermissions = true);
+    try {
+      final saved = await StaffService.updateRolePermissions(
+        role: role,
+        permittedModuleIds: selected.toList(),
+      );
+      if (!mounted) return;
+      setState(() => _rolePermissionDefaults[role] = {...saved});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_roleLabel(role)} defaults saved'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save role defaults: $error'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSavingRolePermissions = false);
+    }
+  }
+
+  Widget _permissionChip({
+    required String moduleId,
+    required bool selected,
+    required bool disabled,
+    required ValueChanged<bool> onSelected,
+    bool readOnly = false,
+  }) {
+    final chip = FilterChip(
+      selected: !disabled && selected,
+      avatar: disabled
+          ? const Icon(
+              Icons.lock_outline_rounded,
+              size: 14,
+              color: AppColors.textMuted,
+            )
+          : selected
+          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+          : null,
+      label: Text(AppFeature.label(moduleId)),
+      labelStyle: TextStyle(
+        color: disabled ? AppColors.textMuted : AppColors.text,
+        fontSize: 11.5,
+        fontWeight: FontWeight.w500,
+      ),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      showCheckmark: false,
+      onSelected: disabled || readOnly ? null : onSelected,
+    );
+    if (!disabled) return chip;
+    return Tooltip(
+      message: 'Not included in the current subscription',
+      child: chip,
+    );
+  }
+
+  Widget _buildRolePermissionDefaults() {
+    final selectedModules =
+        _rolePermissionDefaults[_selectedPermissionRole] ?? <String>{};
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _IconBadge(
+                icon: Icons.rule_folder_outlined,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Role permissions',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Accounts receive these defaults when a role is assigned.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: _permissionRoles.map((role) {
+              final selected = _selectedPermissionRole == role;
+              return ChoiceChip(
+                selected: selected,
+                avatar: Icon(
+                  _roleIcon(role),
+                  size: 17,
+                  color: selected ? Colors.white : _roleColor(role),
+                ),
+                label: Text(_roleLabel(role)),
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : AppColors.text,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+                selectedColor: AppColors.primary,
+                backgroundColor: AppColors.surface1,
+                disabledColor: AppColors.surface2,
+                side: BorderSide(
+                  color: selected ? AppColors.primary : AppColors.border,
+                  width: selected ? 1.5 : 1,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                showCheckmark: false,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onSelected: _isSavingRolePermissions
+                    ? null
+                    : (_) => setState(() => _selectedPermissionRole = role),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Default permitted modules',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: AppColors.text,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            'Locked modules are not included in the current subscription.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
+              fontSize: 11.5,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: _staffModuleIds.map((moduleId) {
+              final disabled = !_subscribedModuleIds.contains(moduleId);
+              return _permissionChip(
+                moduleId: moduleId,
+                selected: selectedModules.contains(moduleId),
+                disabled: disabled,
+                readOnly: _isSavingRolePermissions,
+                onSelected: (enabled) => setState(() {
+                  final updated = {...selectedModules};
+                  if (enabled) {
+                    updated.add(moduleId);
+                  } else {
+                    updated.remove(moduleId);
+                  }
+                  _rolePermissionDefaults[_selectedPermissionRole] = updated;
+                }),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 42),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: _isSavingRolePermissions ? null : _saveRolePermissions,
+              icon: _isSavingRolePermissions
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined, size: 17),
+              label: const Text(
+                'Save role defaults',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showAddStaffSheet() async {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     var selectedRole = 'staff';
+    var selectedModules = <String>{..._modulesForRole('staff')};
     var obscurePassword = true;
     var isSubmitting = false;
     String? formError;
@@ -371,6 +628,7 @@ class _ConfigPageState extends State<ConfigPage>
                     email: emailController.text,
                     password: passwordController.text,
                     role: selectedRole,
+                    permittedModuleIds: selectedModules.toList(),
                   );
                   if (!mounted) return;
                   setState(() {
@@ -440,9 +698,13 @@ class _ConfigPageState extends State<ConfigPage>
                                 Expanded(
                                   child: Text(
                                     'Add Staff',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          color: AppColors.text,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -450,6 +712,10 @@ class _ConfigPageState extends State<ConfigPage>
                             const SizedBox(height: AppSpacing.lg),
                             TextFormField(
                               controller: nameController,
+                              style: const TextStyle(
+                                color: _inkColor,
+                                fontSize: 14,
+                              ),
                               textInputAction: TextInputAction.next,
                               decoration: _fieldDecoration(
                                 labelText: 'Full name',
@@ -463,6 +729,10 @@ class _ConfigPageState extends State<ConfigPage>
                             const SizedBox(height: AppSpacing.sm),
                             TextFormField(
                               controller: emailController,
+                              style: const TextStyle(
+                                color: _inkColor,
+                                fontSize: 14,
+                              ),
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               decoration: _fieldDecoration(
@@ -481,6 +751,10 @@ class _ConfigPageState extends State<ConfigPage>
                             const SizedBox(height: AppSpacing.sm),
                             TextFormField(
                               controller: passwordController,
+                              style: const TextStyle(
+                                color: _inkColor,
+                                fontSize: 14,
+                              ),
                               obscureText: obscurePassword,
                               textInputAction: TextInputAction.done,
                               decoration: _fieldDecoration(
@@ -505,8 +779,8 @@ class _ConfigPageState extends State<ConfigPage>
                                 if (password.trim().isEmpty) {
                                   return 'Password is required';
                                 }
-                                if (password.length < 6) {
-                                  return 'Use at least 6 characters';
+                                if (password.length < 8) {
+                                  return 'Use at least 8 characters';
                                 }
                                 return null;
                               },
@@ -515,7 +789,11 @@ class _ConfigPageState extends State<ConfigPage>
                             const SizedBox(height: AppSpacing.sm),
                             DropdownButtonFormField<String>(
                               initialValue: selectedRole,
-                              style: AppTypography.dropdownTextStyle(context),
+                              style: const TextStyle(
+                                color: _inkColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                               decoration: _fieldDecoration(
                                 labelText: 'Role',
                                 prefixIcon: Icons.admin_panel_settings,
@@ -524,15 +802,66 @@ class _ConfigPageState extends State<ConfigPage>
                                   .map(
                                     (role) => DropdownMenuItem(
                                       value: role,
-                                      child: Text(_roleLabel(role)),
+                                      child: Text(
+                                        _roleLabel(role),
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
                                     ),
                                   )
                                   .toList(),
                               onChanged: isSubmitting
                                   ? null
-                                  : (value) => setSheetState(
-                                      () => selectedRole = value ?? 'staff',
-                                    ),
+                                  : (value) => setSheetState(() {
+                                      selectedRole = value ?? 'staff';
+                                      selectedModules = <String>{
+                                        ..._modulesForRole(selectedRole),
+                                      };
+                                    }),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Permitted modules',
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: AppColors.text,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            Text(
+                              'Locked modules are not included in the current subscription.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textMuted,
+                                    fontSize: 11.5,
+                                  ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Wrap(
+                              spacing: AppSpacing.xs,
+                              runSpacing: AppSpacing.xs,
+                              children: _staffModuleIds.map((moduleId) {
+                                final selected = selectedModules.contains(
+                                  moduleId,
+                                );
+                                return _permissionChip(
+                                  moduleId: moduleId,
+                                  selected: selected,
+                                  disabled: !_subscribedModuleIds.contains(
+                                    moduleId,
+                                  ),
+                                  readOnly: isSubmitting,
+                                  onSelected: (enabled) {
+                                    if (isSubmitting) return;
+                                    setSheetState(() {
+                                      if (enabled) {
+                                        selectedModules.add(moduleId);
+                                      } else {
+                                        selectedModules.remove(moduleId);
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
                             ),
                             if (formError != null) ...[
                               const SizedBox(height: AppSpacing.sm),
@@ -586,25 +915,316 @@ class _ConfigPageState extends State<ConfigPage>
     }
   }
 
+  Future<void> _showEditStaffDialog(StaffUser staff) async {
+    final nameController = TextEditingController(text: staff.name);
+    final emailController = TextEditingController(text: staff.email);
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    var selectedRole = staff.role;
+    var selectedModules = <String>{
+      ...(staff.hasExplicitModulePermissions
+          ? staff.permittedModuleIds
+          : _modulesForRole(staff.role)),
+    };
+    var obscurePassword = true;
+    var saving = false;
+    String? errorMessage;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> save() async {
+              if (saving || !(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+              setDialogState(() {
+                saving = true;
+                errorMessage = null;
+              });
+              try {
+                final updated = await StaffService.updateStaff(
+                  id: staff.id,
+                  name: nameController.text,
+                  email: emailController.text,
+                  role: selectedRole,
+                  permittedModuleIds: selectedModules.toList(),
+                  password: passwordController.text.trim().isEmpty
+                      ? null
+                      : passwordController.text,
+                );
+                if (!mounted) return;
+                setState(() {
+                  final index = _staff.indexWhere(
+                    (item) => item.id == updated.id,
+                  );
+                  if (index >= 0) _staff[index] = updated;
+                  _staff.sort(_compareStaffUsers);
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: Text('${updated.name} updated'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              } catch (error) {
+                setDialogState(() {
+                  saving = false;
+                  errorMessage = error.toString();
+                });
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: const RoundedRectangleBorder(
+                borderRadius: AppRadius.dialog,
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.manage_accounts_outlined, size: 21),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Edit staff access',
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 560,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: nameController,
+                          enabled: !saving,
+                          style: const TextStyle(
+                            color: _inkColor,
+                            fontSize: 14,
+                          ),
+                          decoration: _fieldDecoration(
+                            labelText: 'Full name',
+                            prefixIcon: Icons.person_outline,
+                          ),
+                          validator: (value) => value?.trim().isEmpty ?? true
+                              ? 'Name is required'
+                              : null,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        TextFormField(
+                          controller: emailController,
+                          enabled: !saving,
+                          style: const TextStyle(
+                            color: _inkColor,
+                            fontSize: 14,
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: _fieldDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icons.mail_outline,
+                          ),
+                          validator: (value) {
+                            final email = value?.trim() ?? '';
+                            if (email.isEmpty) return 'Email is required';
+                            if (!email.contains('@')) {
+                              return 'Enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        TextFormField(
+                          controller: passwordController,
+                          enabled: !saving,
+                          style: const TextStyle(
+                            color: _inkColor,
+                            fontSize: 14,
+                          ),
+                          obscureText: obscurePassword,
+                          decoration: _fieldDecoration(
+                            labelText: 'New password (optional)',
+                            prefixIcon: Icons.lock_reset_outlined,
+                            suffixIcon: IconButton(
+                              tooltip: obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () => setDialogState(
+                                () => obscurePassword = !obscurePassword,
+                              ),
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').isNotEmpty && value!.length < 8) {
+                              return 'Use at least 8 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedRole,
+                          style: const TextStyle(
+                            color: _inkColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          decoration: _fieldDecoration(
+                            labelText: 'Role',
+                            prefixIcon: Icons.admin_panel_settings_outlined,
+                          ),
+                          items: _roles
+                              .map(
+                                (role) => DropdownMenuItem(
+                                  value: role,
+                                  child: Text(
+                                    _roleLabel(role),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: saving
+                              ? null
+                              : (value) => setDialogState(() {
+                                  selectedRole = value ?? staff.role;
+                                  selectedModules = {
+                                    ..._modulesForRole(selectedRole),
+                                  };
+                                }),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'Permitted modules',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: AppColors.text,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        Text(
+                          'Locked modules are not included in the current subscription.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppColors.textMuted,
+                                fontSize: 11.5,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: _staffModuleIds.map((moduleId) {
+                            return _permissionChip(
+                              moduleId: moduleId,
+                              selected: selectedModules.contains(moduleId),
+                              disabled: !_subscribedModuleIds.contains(
+                                moduleId,
+                              ),
+                              readOnly: saving,
+                              onSelected: (enabled) {
+                                if (saving) return;
+                                setDialogState(() {
+                                  if (enabled) {
+                                    selectedModules.add(moduleId);
+                                  } else {
+                                    selectedModules.remove(moduleId);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        if (errorMessage != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            errorMessage!,
+                            style: const TextStyle(color: AppColors.danger),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: saving ? null : save,
+                  icon: saving
+                      ? const SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined, size: 15),
+                  label: const Text(
+                    'Save changes',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } finally {
+      nameController.dispose();
+      emailController.dispose();
+      passwordController.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
-    final activeIndex = _tabController.index;
+    final activeIndex = switch (widget.mode) {
+      ConfigPageMode.settings => 0,
+      ConfigPageMode.staff => 1,
+      ConfigPageMode.combined => _tabController.index,
+    };
+    final pageTitle = switch (widget.mode) {
+      ConfigPageMode.settings => 'Settings',
+      ConfigPageMode.staff => 'Staff Management',
+      ConfigPageMode.combined => 'System Config',
+    };
 
     return AdaptiveAppScaffold(
       backgroundColor: _surfaceColor,
       appBar: AppBar(
         toolbarHeight: 76,
         titleSpacing: AppSpacing.md,
-        title: Text(
-          'System Config',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        title: Text(pageTitle, style: Theme.of(context).textTheme.titleLarge),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.text,
         elevation: 0,
         scrolledUnderElevation: 0,
-        bottom: auth.isAdmin
+        bottom: auth.isAdmin && widget.mode == ConfigPageMode.combined
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(66),
                 child: Padding(
@@ -622,10 +1242,15 @@ class _ConfigPageState extends State<ConfigPage>
       body: auth.isAdmin
           ? Stack(
               children: [
-                TabBarView(
-                  controller: _tabController,
-                  children: [_buildConfigurationView(), _buildStaffView()],
-                ),
+                if (widget.mode == ConfigPageMode.settings)
+                  _buildConfigurationView()
+                else if (widget.mode == ConfigPageMode.staff)
+                  _buildStaffView()
+                else
+                  TabBarView(
+                    controller: _tabController,
+                    children: [_buildConfigurationView(), _buildStaffView()],
+                  ),
                 if (_isSavingConfig)
                   Container(
                     color: AppColors.scrim.withValues(alpha: 0.08),
@@ -654,7 +1279,8 @@ class _ConfigPageState extends State<ConfigPage>
               ],
             )
           : _buildAccessDenied(),
-      floatingActionButton: auth.isAdmin
+      floatingActionButton:
+          auth.isAdmin && !(activeIndex == 1 && _selectedStaffSection == 'role')
           ? RevealActionFab(
               onPressed: activeIndex == 0
                   ? (_isLoadingConfig || _config == null || _isSavingConfig
@@ -703,11 +1329,7 @@ class _ConfigPageState extends State<ConfigPage>
     return RefreshIndicator(
       onRefresh: _fetchConfig,
       child: ListView(
-        padding: AppInsets.screen(
-          context,
-          top: AppSpacing.md,
-          bottom: 112,
-        ),
+        padding: AppInsets.screen(context, top: AppSpacing.md, bottom: 112),
         children: [
           _buildOverviewHeader(config),
           const SizedBox(height: AppSpacing.sm),
@@ -903,6 +1525,64 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  Widget _buildStaffSectionTabs() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: AppRadius.input,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          for (final item in const [
+            (value: 'staff', label: 'Staff', icon: Icons.groups_2_outlined),
+            (value: 'role', label: 'Role', icon: Icons.rule_folder_outlined),
+          ])
+            Expanded(
+              child: Material(
+                color: _selectedStaffSection == item.value
+                    ? AppColors.surface
+                    : Colors.transparent,
+                borderRadius: AppRadius.sm,
+                child: InkWell(
+                  borderRadius: AppRadius.sm,
+                  onTap: () =>
+                      setState(() => _selectedStaffSection = item.value),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 16,
+                          color: _selectedStaffSection == item.value
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            color: _selectedStaffSection == item.value
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStaffView() {
     if (_isLoadingStaff && _staff.isEmpty) {
       return _buildLoadingList();
@@ -920,62 +1600,64 @@ class _ConfigPageState extends State<ConfigPage>
     return RefreshIndicator(
       onRefresh: _fetchStaff,
       child: ListView(
-        padding: AppInsets.screen(
-          context,
-          top: AppSpacing.md,
-          bottom: 112,
-        ),
+        padding: AppInsets.screen(context, top: AppSpacing.md, bottom: 112),
         children: [
-          _SectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const _IconBadge(
-                      icon: Icons.groups_2_outlined,
-                      color: _primaryColor,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Staff Module',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Refresh',
-                      onPressed: _isLoadingStaff ? null : _fetchStaff,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _MetricPill(
-                      label: 'Total',
-                      value: _staff.length.toString(),
-                      icon: Icons.badge_outlined,
-                    ),
-                    for (final role in _roles)
-                      _MetricPill(
-                        label: _roleLabel(role),
-                        value: roleCounts[role].toString(),
-                        icon: _roleIcon(role),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _buildStaffSectionTabs(),
           const SizedBox(height: AppSpacing.sm),
-          if (_staff.isEmpty)
-            const _EmptyStaffState()
-          else
-            ..._staff.map(_buildStaffCard),
+          if (_selectedStaffSection == 'role')
+            _buildRolePermissionDefaults()
+          else ...[
+            _SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const _IconBadge(
+                        icon: Icons.groups_2_outlined,
+                        color: _primaryColor,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'Staff Module',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh',
+                        onPressed: _isLoadingStaff ? null : _fetchStaff,
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _MetricPill(
+                        label: 'Total',
+                        value: _staff.length.toString(),
+                        icon: Icons.badge_outlined,
+                      ),
+                      for (final role in _roles)
+                        _MetricPill(
+                          label: _roleLabel(role),
+                          value: roleCounts[role].toString(),
+                          icon: _roleIcon(role),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (_staff.isEmpty)
+              const _EmptyStaffState()
+            else
+              ..._staff.map(_buildStaffCard),
+          ],
         ],
       ),
     );
@@ -1021,7 +1703,11 @@ class _ConfigPageState extends State<ConfigPage>
                       staff.name.isEmpty ? 'Unnamed staff' : staff.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
@@ -1042,6 +1728,52 @@ class _ConfigPageState extends State<ConfigPage>
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: 'Edit staff, password and permissions',
+                onPressed: isUpdating
+                    ? null
+                    : () => _showEditStaffDialog(staff),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ],
+          );
+
+          final visibleModules = staff.hasExplicitModulePermissions
+              ? staff.permittedModuleIds
+              : _modulesForRole(staff.role);
+          final permissions = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Permitted modules',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              if (visibleModules.isEmpty)
+                Text(
+                  'No modules permitted',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.danger),
+                )
+              else
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: visibleModules
+                      .map(
+                        (moduleId) => Chip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: const Icon(Icons.check_rounded, size: 15),
+                          label: Text(AppFeature.label(moduleId)),
+                        ),
+                      )
+                      .toList(),
+                ),
             ],
           );
 
@@ -1050,7 +1782,11 @@ class _ConfigPageState extends State<ConfigPage>
             child: DropdownButtonFormField<String>(
               key: ValueKey('${staff.id}:${staff.role}'),
               initialValue: _roles.contains(staff.role) ? staff.role : 'staff',
-              style: AppTypography.dropdownTextStyle(context),
+              style: const TextStyle(
+                color: _inkColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
               decoration: _fieldDecoration(
                 labelText: 'Role',
                 prefixIcon: isUpdating ? null : _roleIcon(staff.role),
@@ -1069,7 +1805,10 @@ class _ConfigPageState extends State<ConfigPage>
                   .map(
                     (role) => DropdownMenuItem(
                       value: role,
-                      child: Text(_roleLabel(role)),
+                      child: Text(
+                        _roleLabel(role),
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
                   )
                   .toList(),
@@ -1084,16 +1823,27 @@ class _ConfigPageState extends State<ConfigPage>
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [profile, const SizedBox(height: 14), roleControl],
+              children: [
+                profile,
+                const SizedBox(height: 14),
+                roleControl,
+                permissions,
+              ],
             );
           }
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: profile),
-              const SizedBox(width: 16),
-              roleControl,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: profile),
+                  const SizedBox(width: 16),
+                  roleControl,
+                ],
+              ),
+              permissions,
             ],
           );
         },
@@ -1117,9 +1867,36 @@ class _ConfigPageState extends State<ConfigPage>
         return 'Staff';
       case 'member':
         return 'Member';
+      case 'user':
+        return 'Volunteer';
       default:
         return 'User';
     }
+  }
+
+  static List<String> _defaultModulesForRole(String role) {
+    if (role == 'admin') return List<String>.from(_staffModuleIds);
+    if (role == 'member' || role == 'user') {
+      return const [
+        AppFeature.patients,
+        AppFeature.homeVisits,
+        AppFeature.volunteers,
+        AppFeature.socialSupport,
+      ];
+    }
+    return _staffModuleIds
+        .where((moduleId) => moduleId != AppFeature.advancedReports)
+        .toList();
+  }
+
+  List<String> _modulesForRole(String role) {
+    final saved = _rolePermissionDefaults[role];
+    if (saved != null) {
+      return saved.where(_subscribedModuleIds.contains).toList(growable: false);
+    }
+    return _defaultModulesForRole(
+      role,
+    ).where(_subscribedModuleIds.contains).toList(growable: false);
   }
 
   static IconData _roleIcon(String role) {
@@ -1130,6 +1907,8 @@ class _ConfigPageState extends State<ConfigPage>
         return Icons.medical_services_outlined;
       case 'member':
         return Icons.volunteer_activism_outlined;
+      case 'user':
+        return Icons.favorite_outline_rounded;
       default:
         return Icons.person_outline;
     }
@@ -1143,6 +1922,8 @@ class _ConfigPageState extends State<ConfigPage>
         return const Color(0xFF0F6E56);
       case 'member':
         return const Color(0xFF8A2454);
+      case 'user':
+        return const Color(0xFFDB2777);
       default:
         return const Color(0xFF656A73);
     }

@@ -37,7 +37,26 @@ void main() {
       }
     });
 
-    test('other roles continue to use unit feature permissions', () {
+    test('volunteers default to core care modules only', () {
+      for (final featureId in [
+        AppFeature.patients,
+        AppFeature.homeVisits,
+        AppFeature.volunteers,
+        AppFeature.socialSupport,
+      ]) {
+        expect(FeatureAccessPolicy.roleAllows('user', featureId), isTrue);
+      }
+      for (final featureId in [
+        AppFeature.equipment,
+        AppFeature.medicineSupply,
+        AppFeature.nhcAssessment,
+        AppFeature.advancedReports,
+      ]) {
+        expect(FeatureAccessPolicy.roleAllows('user', featureId), isFalse);
+      }
+    });
+
+    test('staff and admins continue to use unit feature permissions', () {
       expect(
         FeatureAccessPolicy.roleAllows('staff', AppFeature.medicineSupply),
         isTrue,

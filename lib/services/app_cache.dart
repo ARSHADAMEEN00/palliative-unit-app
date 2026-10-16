@@ -45,9 +45,19 @@ class AppCache {
     if (entry != null && !entry.isExpired) {
       return entry.data as T;
     }
+
+    if (_store.length > 50) {
+      purgeExpired();
+    }
+
     final data = await loader();
     _store[key] = _CacheEntry<T>(data: data, ttl: ttl);
     return data;
+  }
+
+  /// Remove all expired entries to prevent memory bloat.
+  static void purgeExpired() {
+    _store.removeWhere((_, entry) => entry.isExpired);
   }
 
   /// Remove a single cache entry by exact key.

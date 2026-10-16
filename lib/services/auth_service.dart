@@ -43,14 +43,28 @@ class AuthService with ChangeNotifier {
   bool get isStaff => _role == 'staff';
   bool get isUser => _role == 'user';
   bool get isMember => _role == 'member';
+  bool get isVolunteer => isUser;
+
+  String get approvalStatus =>
+      _cleanString(_user?['approvalStatus'])?.toLowerCase() ?? 'approved';
+  bool get isVolunteerApproved => !isVolunteer || approvalStatus == 'approved';
+  bool get isVolunteerPending => isVolunteer && approvalStatus == 'pending';
+  bool get isVolunteerDeclined => isVolunteer && approvalStatus == 'declined';
+  String? get volunteerId => _cleanString(_user?['volunteerId']);
+
+  Set<String>? get permittedModuleIds {
+    final value = _user?['permittedModuleIds'];
+    if (value is! List) return null;
+    return value.map((item) => item.toString()).toSet();
+  }
 
   bool get canCreate =>
       _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canEdit => _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canDelete => _role == 'admin';
-  bool get canCall => !isUser;
-  bool get canViewContactNumbers => !isUser;
-  bool get canViewHomeVisitDetails => !isUser;
+  bool get canCall => !isUser || isVolunteerApproved;
+  bool get canViewContactNumbers => !isUser || isVolunteerApproved;
+  bool get canViewHomeVisitDetails => !isUser || isVolunteerApproved;
   bool get canAccessPatients => hasFeature(AppFeature.patients);
   bool get canAccessHomeVisits => hasFeature(AppFeature.homeVisits);
   bool get canAccessVolunteers => hasFeature(AppFeature.volunteers);
@@ -68,8 +82,14 @@ class AuthService with ChangeNotifier {
   bool get canAccessNHC => hasFeature(AppFeature.nhcAssessment);
   bool get canAccessNHCReport => hasFeature(AppFeature.nhcPdf);
   bool get canAccessPatientPdf => hasFeature(AppFeature.patientPdf);
-  bool get canAccessReports =>
-      (isAdmin || isMember) && hasFeature(AppFeature.advancedReports);
+  bool get canAccessReports {
+    final explicitModules = permittedModuleIds;
+    if (explicitModules == null) {
+      return (isAdmin || isMember || isUser) &&
+          hasFeature(AppFeature.advancedReports);
+    }
+    return hasFeature(AppFeature.advancedReports);
+  }
 
   Set<String> get enabledFeatureIds =>
       _featurePermissions?.enabledFeatureIds ??
@@ -77,17 +97,52 @@ class AuthService with ChangeNotifier {
 
   bool hasFeature(String featureId) {
     if (_role == 'superadmin') return true;
-    if (!FeatureAccessPolicy.roleAllows(_role, featureId)) return false;
+    if (!isVolunteerApproved) return false;
+    final explicitModules = permittedModuleIds;
+    final permissionModule = _permissionModuleForFeature(featureId);
+    if (explicitModules != null &&
+        !explicitModules.contains(permissionModule)) {
+      return false;
+    }
+    if (explicitModules == null &&
+        !FeatureAccessPolicy.roleAllows(_role, featureId)) {
+      return false;
+    }
     if (_featurePermissionsLoaded) {
       return _featurePermissions?.has(featureId) ?? false;
     }
     return _legacyFeatureAccess(featureId);
   }
 
+  String _permissionModuleForFeature(String featureId) {
+    return switch (featureId) {
+      AppFeature.patientPdf => AppFeature.patients,
+      AppFeature.nhcPdf => AppFeature.nhcAssessment,
+      AppFeature.analytics ||
+      AppFeature.backupExport => AppFeature.advancedReports,
+      _ => featureId,
+    };
+  }
+
+  static const _cachedUserKey = 'cached_user_profile';
+
   Future<void> init() async {
     final credentials = await CredentialStore.read();
     _token = credentials.token;
     _role = credentials.role;
+
+    final prefs = await SharedPreferences.getInstance();
+    final cachedUserJson = prefs.getString(_cachedUserKey);
+    if (cachedUserJson != null) {
+      try {
+        final decoded = jsonDecode(cachedUserJson);
+        if (decoded is Map<String, dynamic>) {
+          _user = decoded;
+          _applyFeaturePermissions(decoded);
+        }
+      } catch (_) {}
+    }
+
     if (kDebugMode) {
       debugPrint('Auth service initialized. Role: $_role');
     }
@@ -237,6 +292,12 @@ class AuthService with ChangeNotifier {
         final data = jsonDecode(response.body);
         _user = data;
         _applyFeaturePermissions(data);
+
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_cachedUserKey, jsonEncode(data));
+        } catch (_) {}
+
         await refreshFeaturePermissions(notify: false);
         _isAccessBlocked = false;
         _accessBlockedMessage = null;
@@ -278,6 +339,10 @@ class AuthService with ChangeNotifier {
     // Clear all cached data so stale data cannot leak to another user session
     AppCache.clear();
     await CredentialStore.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cachedUserKey);
+    } catch (_) {}
     notifyListeners();
   }
 
@@ -336,15 +401,6 @@ class AuthService with ChangeNotifier {
   }
 
   bool _legacyFeatureAccess(String featureId) {
-    if (isUser) {
-      return switch (featureId) {
-        AppFeature.patients ||
-        AppFeature.homeVisits ||
-        AppFeature.volunteers ||
-        AppFeature.socialSupport => true,
-        _ => false,
-      };
-    }
     return switch (featureId) {
       AppFeature.patients ||
       AppFeature.homeVisits ||
@@ -422,8 +478,7 @@ class AuthService with ChangeNotifier {
             'village': village.trim(),
           if (address != null && address.trim().isNotEmpty)
             'address': address.trim(),
-          if (notes != null && notes.trim().isNotEmpty)
-            'notes': notes.trim(),
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
         }),
       );
 
@@ -439,7 +494,9 @@ class AuthService with ChangeNotifier {
       } else {
         return {
           'success': false,
-          'error': (data is Map && (data['error'] != null || data['message'] != null))
+          'error':
+              (data is Map &&
+                  (data['error'] != null || data['message'] != null))
               ? (data['error'] ?? data['message'])
               : 'Failed to submit enquiry.',
         };
@@ -452,4 +509,3 @@ class AuthService with ChangeNotifier {
     }
   }
 }
-

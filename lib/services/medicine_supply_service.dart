@@ -309,9 +309,76 @@ class MedicineSupplyService {
       AppCache.invalidatePrefix(_prefix);
       AppCache.invalidatePrefix('medicines:');
       AppCache.invalidatePrefix('medicine_stock_entries:');
+      AppCache.invalidatePrefix('patients:');
       return true;
     }
 
     throw Exception(result.error ?? 'Failed to delete medicine supply');
+  }
+
+  /// Delete a single medicine supply item (Admin only).
+  /// Completely removes the item from the supply document and restores stock.
+  /// If the supply has no other items left, the entire supply document is deleted.
+  static Future<MedicineSupply?> deleteMedicineSupplyItem(
+    String supplyId,
+    String itemId,
+  ) async {
+    final result = await ApiService.delete(
+      '${ApiConfig.v2MedicineSuppliesEndpoint}/$supplyId/items/$itemId',
+    );
+
+    if (result.isSuccess) {
+      AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidatePrefix('medicines:');
+      AppCache.invalidatePrefix('medicine_stock_entries:');
+      AppCache.invalidatePrefix('patients:');
+
+      try {
+        return await getMedicineSupplyById(supplyId);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    throw Exception(result.error ?? 'Failed to delete medicine item');
+  }
+
+  /// Delete all medicine supplies for a patient (Admin only).
+  /// Restores all stock and removes all supply records for this patient.
+  static Future<bool> deletePatientSupplies(MedicineSupply supply) async {
+    final patientId = supply.patientDbId;
+    bool deletedAny = false;
+
+    if (patientId != null && patientId.isNotEmpty) {
+      final res = await ApiService.delete(
+        '${ApiConfig.v2MedicineSuppliesEndpoint}/patient/$patientId',
+      );
+      if (res.isSuccess) {
+        deletedAny = true;
+      }
+    }
+
+    final supplyIds = <String>{};
+    if (supply.id != null && supply.id!.isNotEmpty) {
+      supplyIds.add(supply.id!);
+    }
+    for (final item in supply.items) {
+      if (item.supplyId != null && item.supplyId!.isNotEmpty) {
+        supplyIds.add(item.supplyId!);
+      }
+    }
+
+    for (final sId in supplyIds) {
+      try {
+        await deleteMedicineSupply(sId);
+        deletedAny = true;
+      } catch (_) {}
+    }
+
+    AppCache.invalidatePrefix(_prefix);
+    AppCache.invalidatePrefix('medicines:');
+    AppCache.invalidatePrefix('medicine_stock_entries:');
+    AppCache.invalidatePrefix('patients:');
+    return deletedAny;
   }
 }

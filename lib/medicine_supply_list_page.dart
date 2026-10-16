@@ -521,6 +521,144 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     return null;
   }
 
+  void _removeSupply(MedicineSupply target) {
+    if (!mounted) return;
+    final targetKey = _supplyPatientIdentityKey(target) ?? target.id;
+    setState(() {
+      _supplies = _supplies.where((supply) {
+        final key = _supplyPatientIdentityKey(supply) ?? supply.id;
+        if (targetKey != null && key == targetKey) return false;
+        if (supply.id != null &&
+            (supply.id == target.id ||
+                target.items.any((it) => it.supplyId == supply.id))) {
+          return false;
+        }
+        return true;
+      }).toList();
+    });
+  }
+
+  Future<bool> _confirmAndDeletePatientSupplies(MedicineSupply supply) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete supplies for ${supply.patientName}?'),
+        content: Text(
+          'Delete all medicine supplies issued to ${supply.patientName}?\n\n'
+          '• All supplied quantities will be restored to inventory stock.\n'
+          '• Medicine supply history will be removed.\n'
+          '• The Patient profile (${supply.patientName}) will NOT be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _dangerRed,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Supplies Only'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return false;
+
+    try {
+      await MedicineSupplyService.deletePatientSupplies(supply);
+      if (!mounted) return true;
+      _removeSupply(supply);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleted medicine supplies for ${supply.patientName} (Patient kept)'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting supply: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<MedicineSupply?> _deleteSupplyItem(
+    MedicineSupply supply,
+    MedicineSupplyItem item,
+  ) async {
+    final sourceSupplyId = item.supplyId ?? supply.id;
+    if (sourceSupplyId == null || item.id == null) {
+      return null;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete ${item.medicineName}?'),
+        content: Text(
+          'Permanently delete this medicine item from the supply record?\n\n'
+          'Stock of ${_itemQuantity(item)} will be restored and no record will be saved in patient data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _dangerRed,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Medicine'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return null;
+
+    try {
+      final updated = await MedicineSupplyService.deleteMedicineSupplyItem(
+        sourceSupplyId,
+        item.id!,
+      );
+      if (!mounted) return null;
+
+      if (updated != null && updated.items.isNotEmpty) {
+        _replaceSupply(updated);
+      } else {
+        _removeSupply(supply);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Medicine item deleted'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      return updated;
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting medicine item: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
+  }
+
   void _replaceSupply(MedicineSupply updated) {
     if (!mounted) return;
     var replaced = false;
@@ -671,7 +809,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) {
+        builder: (modalContext, setModalState) {
           final returnActivities = _returnActivities(currentSupply);
           return Container(
             padding: const EdgeInsets.all(24),
@@ -732,6 +870,54 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                           ],
                         ),
                       ),
+                      if (auth.isAdmin)
+                        Tooltip(
+                          message: 'Delete medicine supplies for this patient',
+                          child: InkWell(
+                            onTap: () async {
+                              final deleted =
+                                  await _confirmAndDeletePatientSupplies(
+                                    currentSupply,
+                                  );
+                              if (deleted && modalContext.mounted) {
+                                Navigator.pop(modalContext);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _dangerRed.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _dangerRed.withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: _dangerRed,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Delete Supplies',
+                                    style: TextStyle(
+                                      color: _dangerRed,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -786,7 +972,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                       style: FilledButton.styleFrom(
                         backgroundColor: _medicineGreen,
                       ),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(modalContext),
                       child: const Text('Close'),
                     ),
                   ),
@@ -1489,6 +1675,44 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                             ),
                           ),
                           icon: const Icon(Icons.cancel_outlined, size: 19),
+                        ),
+                      ),
+                    ),
+                  if (auth.isAdmin)
+                    Tooltip(
+                      message: 'Delete',
+                      child: SizedBox.square(
+                        dimension: 30,
+                        child: IconButton(
+                          tooltip: 'Delete',
+                          onPressed: () async {
+                            final updated = await _deleteSupplyItem(
+                              supply,
+                              item,
+                            );
+                            if (updated != null && updated.items.isNotEmpty) {
+                              onUpdated(updated);
+                            } else {
+                              if (mounted && Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
+                            }
+                          },
+                          style: IconButton.styleFrom(
+                            foregroundColor: _dangerRed,
+                            minimumSize: const Size.square(30),
+                            fixedSize: const Size.square(30),
+                            padding: EdgeInsets.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),

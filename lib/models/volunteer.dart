@@ -9,6 +9,9 @@ class Volunteer {
   final String name;
   final String phone;
   final String phone2;
+  final String email;
+  final String applicationStatus;
+  final DateTime? reviewedAt;
   final dynamic createdBy;
   final dynamic updatedBy;
   final DateTime? createdAt;
@@ -23,6 +26,9 @@ class Volunteer {
     required this.name,
     required this.phone,
     this.phone2 = '',
+    this.email = '',
+    this.applicationStatus = 'approved',
+    this.reviewedAt,
     this.createdBy,
     this.updatedBy,
     this.createdAt,
@@ -39,6 +45,11 @@ class Volunteer {
       name: json['name']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       phone2: json['phone2']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      applicationStatus: json['applicationStatus']?.toString() ?? 'approved',
+      reviewedAt: json['reviewedAt'] != null
+          ? DateTime.tryParse(json['reviewedAt'].toString())
+          : null,
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
       createdAt: json['createdAt'] != null
@@ -71,6 +82,9 @@ class Volunteer {
     String? name,
     String? phone,
     String? phone2,
+    String? email,
+    String? applicationStatus,
+    DateTime? reviewedAt,
     dynamic createdBy,
     dynamic updatedBy,
     DateTime? createdAt,
@@ -85,6 +99,9 @@ class Volunteer {
       name: name ?? this.name,
       phone: phone ?? this.phone,
       phone2: phone2 ?? this.phone2,
+      email: email ?? this.email,
+      applicationStatus: applicationStatus ?? this.applicationStatus,
+      reviewedAt: reviewedAt ?? this.reviewedAt,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
       createdAt: createdAt ?? this.createdAt,

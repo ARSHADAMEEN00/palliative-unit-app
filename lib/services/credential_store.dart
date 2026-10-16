@@ -19,7 +19,14 @@ class CredentialStore {
   static const _roleKey = 'auth_role';
   static const _storage = FlutterSecureStorage();
 
+  static String? _cachedToken;
+  static String? _cachedRole;
+
   static Future<StoredCredentials> read() async {
+    if (_cachedToken != null) {
+      return StoredCredentials(token: _cachedToken, role: _cachedRole);
+    }
+
     var token = await _storage.read(key: _tokenKey);
     var role = await _storage.read(key: _roleKey);
 
@@ -41,12 +48,22 @@ class CredentialStore {
       await preferences.remove(_roleKey);
     }
 
+    _cachedToken = token;
+    _cachedRole = role;
+
     return StoredCredentials(token: token, role: role);
   }
 
-  static Future<String?> readToken() => _storage.read(key: _tokenKey);
+  static Future<String?> readToken() async {
+    if (_cachedToken != null) return _cachedToken;
+    _cachedToken = await _storage.read(key: _tokenKey);
+    return _cachedToken;
+  }
 
   static Future<void> write({required String token, String? role}) async {
+    _cachedToken = token;
+    _cachedRole = role;
+
     await _storage.write(key: _tokenKey, value: token);
     if (role == null) {
       await _storage.delete(key: _roleKey);
@@ -56,6 +73,9 @@ class CredentialStore {
   }
 
   static Future<void> clear() async {
+    _cachedToken = null;
+    _cachedRole = null;
+
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _roleKey);
 

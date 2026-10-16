@@ -424,6 +424,8 @@ class MedicineSupply {
     return 0;
   }
 
+  String? get patientDbId => _getId(patientId);
+
   List<String> get patientDiseases {
     if (patientId is Map && patientId['disease'] is List) {
       return List<String>.from(patientId['disease'] as List);

@@ -59,14 +59,12 @@ class FeatureAccessPolicy {
     AppFeature.medicineSupply,
   };
 
-  static const Set<String> _userRestrictedFeatures = {
-    AppFeature.nhcAssessment,
-    AppFeature.nhcPdf,
-    AppFeature.medicineMaster,
-    AppFeature.medicineStock,
-    AppFeature.medicineSupply,
-    AppFeature.equipment,
-    AppFeature.equipmentDistribution,
+  static const Set<String> _volunteerDefaultFeatures = {
+    AppFeature.patients,
+    AppFeature.homeVisits,
+    AppFeature.volunteers,
+    AppFeature.socialSupport,
+    AppFeature.patientPdf,
   };
 
   static bool roleAllows(String? role, String featureId) {
@@ -75,7 +73,7 @@ class FeatureAccessPolicy {
       return !_memberRestrictedFeatures.contains(featureId);
     }
     if (normalized == 'user') {
-      return !_userRestrictedFeatures.contains(featureId);
+      return _volunteerDefaultFeatures.contains(featureId);
     }
     return true;
   }

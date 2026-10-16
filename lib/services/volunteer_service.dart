@@ -102,4 +102,16 @@ class VolunteerService {
     }
     throw Exception(result.error ?? 'Failed to delete volunteer');
   }
+
+  static Future<Volunteer> reviewApplication(String id, String status) async {
+    final result = await ApiService.patch<Map<String, dynamic>>(
+      '${ApiConfig.v2VolunteersEndpoint}/$id/application',
+      body: {'status': status},
+    );
+    if (result.isSuccess && result.data != null) {
+      AppCache.invalidatePrefix(_prefix);
+      return Volunteer.fromJson(result.data!);
+    }
+    throw Exception(result.error ?? 'Failed to review volunteer application');
+  }
 }
