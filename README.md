@@ -162,3 +162,5 @@ apk build
 flutter build apk --release
 
 flutter build apk --release --no-tree-shake-icons
+
+open ios/Runner.xcworkspace

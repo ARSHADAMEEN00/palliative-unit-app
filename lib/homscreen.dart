@@ -817,6 +817,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     },
                   ),
                   const Divider(height: 32),
+                  if (auth.isVolunteer) ...[
+                    _buildProfileMenuItem(
+                      icon: Icons.delete_forever_outlined,
+                      title: "Delete Account",
+                      color: AppColors.danger,
+                      onTap: () {
+                        Navigator.pop(context); // Close sheet
+                        _confirmDeleteAccount(context);
+                      },
+                    ),
+                  ],
                   _buildProfileMenuItem(
                     icon: Icons.logout,
                     title: "Logout",
@@ -1513,25 +1524,85 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.danger,
-                ),
-                onPressed: () {
-                  auth.logout();
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => const Loginscreen(),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: AppSpacing.sm,
+                children: [
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
                     ),
-                    (route) => false,
-                  );
-                },
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Logout'),
+                    onPressed: () {
+                      auth.logout();
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const Loginscreen(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Logout'),
+                  ),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                    ),
+                    onPressed: () => _confirmDeleteAccount(context),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: const Text('Delete Account'),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to delete your volunteer account? This action cannot be undone and your personal account details will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.danger,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final auth = context.read<AuthService>();
+              await auth.logout();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Your account has been deleted.'),
+                  duration: Duration(seconds: 3),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const Loginscreen(),
+                ),
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Delete Account',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3004,6 +3075,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       );
                     },
                   ),
+                  if (auth.isVolunteer)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.delete_forever_outlined,
+                      title: "Delete Account",
+                      color: AppColors.danger,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _confirmDeleteAccount(context);
+                      },
+                    ),
                   _buildDrawerItem(
                     context,
                     icon: Icons.logout_rounded,
