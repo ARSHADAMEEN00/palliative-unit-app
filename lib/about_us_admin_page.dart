@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/services/about_us_service.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
+import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:provider/provider.dart';
 
@@ -224,16 +224,12 @@ class _AboutUsAdminPageState extends State<AboutUsAdminPage> {
                       child: Text(
                         title,
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.chilanka(
-                          fontSize: 26,
-                          height: 1.55,
-                          color: const Color(0xFF24446A),
-                        ).copyWith(
-                          fontFamilyFallback: const [
-                            'Manjari',
-                            'NotoSansMalayalam',
-                            'sans-serif',
-                          ],
+                        style: const TextStyle(
+                          fontFamily: 'NotoSansMalayalam',
+                          fontSize: 22,
+                          height: 1.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF24446A),
                         ),
                       ),
                     ),
@@ -242,17 +238,13 @@ class _AboutUsAdminPageState extends State<AboutUsAdminPage> {
                       backgroundColor: const Color(0xFFFFFEFA),
                       borderColor: const Color(0xFFE7E0D2),
                       padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: SelectableText(
+                      child: Text(
                         rendered,
-                        style: GoogleFonts.manjari(
+                        style: const TextStyle(
+                          fontFamily: 'NotoSansMalayalam',
                           fontSize: 16,
-                          height: 1.85,
+                          height: 1.8,
                           color: AppColors.text,
-                        ).copyWith(
-                          fontFamilyFallback: const [
-                            'NotoSansMalayalam',
-                            'sans-serif',
-                          ],
                         ),
                       ),
                     ),
@@ -272,6 +264,19 @@ class _AboutUsAdminPageState extends State<AboutUsAdminPage> {
     return AdaptiveAppScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const Homescreen()),
+              );
+            }
+          },
+        ),
         title: const Text('About Our Unit'),
         actions: [
           IconButton(
@@ -364,16 +369,12 @@ class _AboutUsAdminPageState extends State<AboutUsAdminPage> {
                   maxLength: 180,
                   maxLines: 2,
                   onChanged: (_) => setState(() {}),
-                  style: GoogleFonts.chilanka(
-                    fontSize: 19,
-                    height: 1.45,
+                  style: const TextStyle(
+                    fontFamily: 'NotoSansMalayalam',
+                    fontSize: 18,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
                     color: AppColors.text,
-                  ).copyWith(
-                    fontFamilyFallback: const [
-                      'Manjari',
-                      'NotoSansMalayalam',
-                      'sans-serif',
-                    ],
                   ),
                   decoration: _fieldDecoration(
                     labelText: 'Poster title',
@@ -390,15 +391,11 @@ class _AboutUsAdminPageState extends State<AboutUsAdminPage> {
                   maxLines: null,
                   keyboardType: TextInputType.multiline,
                   onChanged: (_) => setState(() {}),
-                  style: GoogleFonts.manjari(
+                  style: const TextStyle(
+                    fontFamily: 'NotoSansMalayalam',
                     fontSize: 15,
-                    height: 1.7,
+                    height: 1.65,
                     color: AppColors.text,
-                  ).copyWith(
-                    fontFamilyFallback: const [
-                      'NotoSansMalayalam',
-                      'sans-serif',
-                    ],
                   ),
                   decoration: _fieldDecoration(
                     labelText: 'Unit story',

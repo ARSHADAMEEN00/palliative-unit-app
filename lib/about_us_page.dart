@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
@@ -7,6 +6,7 @@ import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/services/about_us_service.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
+import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 
 class AboutUsPage extends StatefulWidget {
@@ -61,17 +61,25 @@ class _AboutUsPageState extends State<AboutUsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
-    final unitName = _aboutUs?.unitName.isNotEmpty == true
-        ? _aboutUs!.unitName
-        : auth.unitName;
-
     return AdaptiveAppScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const Homescreen()),
+              );
+            }
+          },
+        ),
+        title: const Text(
           'About Our Unit',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         centerTitle: false,
         backgroundColor: AppColors.surface,
@@ -84,11 +92,11 @@ class _AboutUsPageState extends State<AboutUsPage> {
           ),
         ],
       ),
-      body: _buildBody(unitName),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildBody(String unitName) {
+  Widget _buildBody() {
     if (_isLoading) {
       return const SingleChildScrollView(
         padding: EdgeInsets.all(AppSpacing.md),
@@ -164,8 +172,6 @@ class _AboutUsPageState extends State<AboutUsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildHeroBanner(unitName),
-                  const SizedBox(height: AppSpacing.md),
                   _buildPosterTitle(posterTitle),
                   const SizedBox(height: AppSpacing.md),
                   _buildStoryCard(content),
@@ -178,78 +184,6 @@ class _AboutUsPageState extends State<AboutUsPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeroBanner(String unitName) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary,
-            AppColors.primary.withValues(alpha: 0.85),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: AppRadius.md,
-        boxShadow: AppShadow.small,
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: AppRadius.sm,
-            ),
-            child: const Icon(
-              Icons.favorite_rounded,
-              color: Colors.white,
-              size: 21,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'OUR MISSION & STORY',
-                  style: GoogleFonts.outfit(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                Text(
-                  unitName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ).copyWith(
-                        fontFamilyFallback: const [
-                          'NotoSansMalayalam',
-                          'Manjari',
-                        ],
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -309,19 +243,13 @@ class _AboutUsPageState extends State<AboutUsPage> {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style:
-                    GoogleFonts.chilanka(
-                      color: ink,
-                      fontSize: 27,
-                      height: 1.55,
-                      fontWeight: FontWeight.w400,
-                    ).copyWith(
-                      fontFamilyFallback: const [
-                        'Manjari',
-                        'NotoSansMalayalam',
-                        'sans-serif',
-                      ],
-                    ),
+                style: const TextStyle(
+                  fontFamily: 'NotoSansMalayalam',
+                  color: ink,
+                  fontSize: 24,
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -384,10 +312,10 @@ class _AboutUsPageState extends State<AboutUsPage> {
                           color: Color(0xFF5E8072),
                         ),
                         const SizedBox(width: 7),
-                        Text(
+                        const Text(
                           'OUR STORY',
-                          style: GoogleFonts.outfit(
-                            color: const Color(0xFF5E8072),
+                          style: TextStyle(
+                            color: Color(0xFF5E8072),
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.5,
@@ -400,20 +328,15 @@ class _AboutUsPageState extends State<AboutUsPage> {
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    SelectableText(
+                    Text(
                       content,
-                      style:
-                          GoogleFonts.manjari(
-                            fontSize: 16.5,
-                            height: 1.9,
-                            fontWeight: FontWeight.w400,
-                            color: AppColors.text,
-                          ).copyWith(
-                            fontFamilyFallback: const [
-                              'NotoSansMalayalam',
-                              'sans-serif',
-                            ],
-                          ),
+                      style: const TextStyle(
+                        fontFamily: 'NotoSansMalayalam',
+                        fontSize: 16.5,
+                        height: 1.85,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.text,
+                      ),
                     ),
                   ],
                 ),
