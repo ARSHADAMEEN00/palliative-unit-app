@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oruma_app/models/staff_user.dart';
 import 'package:oruma_app/models/volunteer.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
+import 'package:oruma_app/models/volunteer_home_visit_request.dart';
 
 void main() {
   test('volunteer application status and email are parsed', () {
@@ -59,5 +60,31 @@ void main() {
     expect(activity.totalSocialWorks, 12);
     expect(activity.achievementTier, 'Silver');
     expect(activity.history.single.patientName, 'Patient One');
+  });
+
+  test('home visit volunteer request parses visit and volunteer details', () {
+    final request = VolunteerHomeVisitRequest.fromJson({
+      'id': 'request-1',
+      'status': 'pending',
+      'requestedAt': '2026-10-19T10:00:00.000Z',
+      'homeVisit': {
+        'id': 'visit-1',
+        'patientName': 'Abdul Rahman',
+        'address': 'Rahma Manzil, Mundakkode',
+        'visitDate': '2026-10-20',
+        'visitMode': 'monthly',
+      },
+      'volunteer': {
+        'id': 'volunteer-1',
+        'name': 'Asha',
+        'phone': '9999999999',
+        'place': 'Centre',
+      },
+    });
+
+    expect(request.status, 'pending');
+    expect(request.homeVisit?.id, 'visit-1');
+    expect(request.homeVisit?.address, 'Rahma Manzil, Mundakkode');
+    expect(request.volunteer?.name, 'Asha');
   });
 }

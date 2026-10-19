@@ -12,6 +12,8 @@ class AppNotification {
   final DateTime? readAt;
   final DateTime? resolvedAt;
   final Map<String, dynamic> metadata;
+  final String audience;
+  final String? recipientVolunteerId;
 
   const AppNotification({
     this.id,
@@ -27,6 +29,8 @@ class AppNotification {
     this.readAt,
     this.resolvedAt,
     this.metadata = const {},
+    this.audience = 'unit',
+    this.recipientVolunteerId,
   });
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
@@ -46,6 +50,8 @@ class AppNotification {
       metadata: json['metadata'] is Map
           ? Map<String, dynamic>.from(json['metadata'] as Map)
           : const {},
+      audience: json['audience']?.toString() ?? 'unit',
+      recipientVolunteerId: json['recipientVolunteerId']?.toString(),
     );
   }
 

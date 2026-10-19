@@ -14,6 +14,7 @@ class AppCard extends StatelessWidget {
     this.surfaceLevel = AppSurfaceLevel.elevated,
     this.onTap,
     this.borderColor,
+    this.backgroundColor,
   });
 
   final Widget child;
@@ -22,6 +23,7 @@ class AppCard extends StatelessWidget {
   final AppSurfaceLevel surfaceLevel;
   final VoidCallback? onTap;
   final Color? borderColor;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,7 @@ class AppCard extends StatelessWidget {
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.surfaceFor(surfaceLevel, dark: dark),
+        color: backgroundColor ?? AppColors.surfaceFor(surfaceLevel, dark: dark),
         borderRadius: radius,
         border: Border.all(
           color:

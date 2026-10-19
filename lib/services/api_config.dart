@@ -50,13 +50,14 @@ class ApiConfig {
       '$baseUrl/settings/about-us/preview';
   static String get volunteerAssignmentsEndpoint =>
       '$baseUrl/volunteer/assignments';
+  static String get volunteerHomeVisitRequestsEndpoint =>
+      '$baseUrl/volunteer/home-visit-requests';
   static String get volunteerLeaderboardEndpoint =>
       '$baseUrl/volunteer/assignments/leaderboard';
   static String volunteerTaskAssignmentsEndpoint(
     String taskType,
     String taskId,
-  ) =>
-      '$baseUrl/volunteer-assignments/task/$taskType/$taskId';
+  ) => '$baseUrl/volunteer-assignments/task/$taskType/$taskId';
 
   /// Default headers for API requests
   static Map<String, String> get headers => {

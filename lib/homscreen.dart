@@ -176,16 +176,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _assignmentsLoading = true);
     try {
-      final all = await VolunteerAssignmentService.getAssignments(filter: 'all');
+      final all = await VolunteerAssignmentService.getAssignments(
+        filter: 'all',
+      );
       if (!mounted) return;
       setState(() {
         _todayAssignments = all.where((a) => a.isToday).toList();
         _overdueAssignments = all.where((a) => a.isOverdue).toList();
         _upcomingAssignments = all
-            .where((a) =>
-                !a.isToday &&
-                !a.isOverdue &&
-                ['assigned', 'accepted', 'in_progress'].contains(a.status))
+            .where(
+              (a) =>
+                  !a.isToday &&
+                  !a.isOverdue &&
+                  ['assigned', 'accepted', 'in_progress'].contains(a.status),
+            )
             .toList();
       });
     } catch (_) {
@@ -512,6 +516,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       NotificationService.markRead(
         notification.id!,
       ).then((_) => _loadNotifications(refresh: true)).catchError((_) {});
+    }
+
+    if (notification.type == 'volunteer_home_visit_request' ||
+        notification.type == 'volunteer_assignment' ||
+        notification.type == 'volunteer_request_update') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ModuleTheme(
+            palette: ModulePalettes.homeVisits,
+            child: HomeVisitListPage(),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (notification.type == 'volunteer_registration') {
+      if (!context.read<AuthService>().isAdmin) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ModuleTheme(
+            palette: ModulePalettes.volunteers,
+            child: VolunteerListPage(),
+          ),
+        ),
+      );
+      return;
     }
 
     if (notification.type == 'equipment_overdue') {
@@ -1493,9 +1526,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 declined ? 'Application declined' : 'Approval is pending',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
@@ -1504,9 +1537,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     : 'Your volunteer registration was received. The palliative care unit must approve it before the app modules become available.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
               ),
               if (!declined) ...[
                 const SizedBox(height: AppSpacing.lg),
@@ -1547,9 +1580,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ],
               const SizedBox(height: AppSpacing.sm),
               TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.danger,
-                ),
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
                 onPressed: () {
                   auth.logout();
                   Navigator.of(context).pushAndRemoveUntil(
@@ -1637,12 +1668,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         // 1. Overdue section if any
         if (_overdueAssignments.isNotEmpty) ...[
           _buildOverdueSection(context),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.md),
         ],
 
         // 2. Today's Tasks section
         _buildTodayTasksSection(context),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
 
         // 3. Upcoming section
         _buildUpcomingSection(context),
@@ -1654,22 +1685,26 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.danger.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+        color: AppColors.danger.withValues(alpha: 0.05),
+        borderRadius: AppRadius.card,
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 20),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.danger,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               const Text(
                 'Overdue Tasks',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.danger,
                 ),
               ),
@@ -1714,15 +1749,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 context,
                 title: "Today's Tasks",
                 subtitle: 'Tasks scheduled for today.',
+                compact: true,
               ),
             ),
             if (_todayAssignments.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Text(
                   '${_todayAssignments.length} ${_todayAssignments.length == 1 ? 'task' : 'tasks'} today',
@@ -1743,7 +1784,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         else if (_todayAssignments.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: AppColors.surfaceFloating,
               borderRadius: BorderRadius.circular(16),
@@ -1754,12 +1795,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
+                    color: AppColors.primary.withValues(alpha: 0.08),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.event_available_rounded,
-                    size: 32,
+                    size: 28,
                     color: AppColors.primary,
                   ),
                 ),
@@ -1767,8 +1808,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 const Text(
                   'No tasks assigned today',
                   style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.text,
                   ),
                 ),
@@ -1776,7 +1817,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 const Text(
                   'You have no visits or assignments scheduled for today.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -1806,33 +1850,31 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         width: double.infinity,
         decoration: BoxDecoration(
           color: AppColors.surfaceFloating,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.5), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: AppRadius.card,
+          border: Border.all(color: color.withValues(alpha: 0.22)),
         ),
         child: Column(
           children: [
             // Top Accent Bar
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [color.withOpacity(0.18), color.withOpacity(0.05)],
+                  colors: [
+                    color.withValues(alpha: 0.12),
+                    color.withValues(alpha: 0.03),
+                  ],
                 ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
+                ),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.2),
+                      color: color.withValues(alpha: 0.14),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, color: color, size: 16),
@@ -1841,14 +1883,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   Text(
                     assignment.typeLabel,
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
                       color: color,
                     ),
                   ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: color,
                       borderRadius: BorderRadius.circular(8),
@@ -1864,9 +1909,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.2),
+                      color: Colors.amber.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -1884,7 +1932,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
             // Card Body
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1898,8 +1946,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                             Text(
                               assignment.patient.name,
                               style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
                                 color: AppColors.text,
                               ),
                             ),
@@ -1931,9 +1979,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
+                          color: statusColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -1952,7 +2003,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     const Divider(height: 16, color: AppColors.border),
                     Row(
                       children: [
-                        const Icon(Icons.people_outline, size: 14, color: AppColors.textSecondary),
+                        const Icon(
+                          Icons.people_outline,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -2003,9 +2058,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         groups['Later']!.add(a);
         continue;
       }
-      final diff = DateTime(d.year, d.month, d.day)
-          .difference(DateTime(today.year, today.month, today.day))
-          .inDays;
+      final diff = DateTime(
+        d.year,
+        d.month,
+        d.day,
+      ).difference(DateTime(today.year, today.month, today.day)).inDays;
       if (diff == 1) {
         groups['Tomorrow']!.add(a);
       } else if (diff <= 7) {
@@ -2022,6 +2079,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           context,
           title: 'Upcoming Tasks',
           subtitle: 'Visits and activities planned ahead.',
+          compact: true,
         ),
         const SizedBox(height: AppSpacing.sm),
         for (final entry in groups.entries)
@@ -2040,7 +2098,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.border,
                       borderRadius: BorderRadius.circular(8),
@@ -2072,7 +2133,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     VolunteerAssignment assignment, {
     bool isOverdue = false,
   }) {
-    final color = isOverdue ? AppColors.danger : _taskColor(assignment.taskType);
+    final color = isOverdue
+        ? AppColors.danger
+        : _taskColor(assignment.taskType);
     final icon = _taskIcon(assignment.taskType);
     final statusColor = _statusColor(assignment.status);
 
@@ -2086,7 +2149,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           color: AppColors.surfaceFloating,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isOverdue ? AppColors.danger.withOpacity(0.4) : AppColors.border,
+            color: isOverdue
+                ? AppColors.danger.withValues(alpha: 0.4)
+                : AppColors.border,
           ),
         ),
         child: Row(
@@ -2094,7 +2159,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -2117,7 +2182,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     '${assignment.typeLabel} • ${_formatAssignmentDate(assignment.scheduledDate)}',
                     style: TextStyle(
                       fontSize: 12,
-                      color: isOverdue ? AppColors.danger : AppColors.textSecondary,
+                      color: isOverdue
+                          ? AppColors.danger
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -2127,9 +2194,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
+                    color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -2167,9 +2237,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
-      child: const Center(
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 
@@ -2207,6 +2275,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           context,
           title: 'My Social Work',
           subtitle: 'Your contribution milestones and recent activity.',
+          compact: true,
         ),
         const SizedBox(height: AppSpacing.md),
         Row(
@@ -2333,6 +2402,71 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     };
   }
 
+  Widget _buildVolunteerVisitCallout(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      borderColor: AppColors.primary.withValues(alpha: 0.16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ModuleTheme(
+              palette: ModulePalettes.homeVisits,
+              child: HomeVisitListPage(),
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: AppRadius.sm,
+            ),
+            child: const Icon(
+              Icons.volunteer_activism_outlined,
+              size: 21,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Volunteer for a home visit',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'See upcoming visits and share your availability.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_rounded,
+            size: 20,
+            color: AppColors.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     debugPrint('User Role: ${context.read<AuthService>().role}');
@@ -2346,216 +2480,243 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final horizontalPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFD8ECFD), // Serene palliative sky blue
-            Color(0xFFDEF5EB), // Soothing restorative mint / eucalyptus
-            Color(0xFFF5EDFA), // Gentle compassionate warm lavender
-            Color(0xFFEDF4FA), // Calming pearl base
-          ],
-          stops: [0.0, 0.35, 0.70, 1.0],
-        ),
-      ),
+      decoration: auth.isVolunteer
+          ? const BoxDecoration(color: AppColors.background)
+          : const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFD8ECFD),
+                  Color(0xFFDEF5EB),
+                  Color(0xFFF5EDFA),
+                  Color(0xFFEDF4FA),
+                ],
+                stops: [0.0, 0.35, 0.70, 1.0],
+              ),
+            ),
       child: AdaptiveAppScaffold(
         scaffoldKey: _scaffoldKey,
         drawer: isPendingApproval ? null : _buildProfessionalDrawer(context),
         backgroundColor: Colors.transparent,
         currentSection: isPendingApproval ? null : AppBottomSection.home,
-        onNavigationSelected: isPendingApproval ? null : _handleBottomNavigation,
+        onNavigationSelected: isPendingApproval
+            ? null
+            : _handleBottomNavigation,
         contentMaxWidth: 1040,
         body: SafeArea(
           bottom: false,
           child: RefreshIndicator(
             onRefresh: () => _bootstrapAccess(force: true),
             child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              isCompact ? AppSpacing.sm : AppSpacing.md,
-              horizontalPadding,
-              AppSpacing.xxl,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDashboardHeader(context, auth, isCompact: isCompact),
-                if (isPendingApproval) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildVolunteerApprovalCard(auth),
-                ] else ...[
-                  if (maintenanceNotification != null) ...[
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                isCompact ? AppSpacing.sm : AppSpacing.md,
+                horizontalPadding,
+                AppSpacing.xxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDashboardHeader(context, auth, isCompact: isCompact),
+                  if (isPendingApproval) ...[
                     const SizedBox(height: AppSpacing.md),
-                    _buildMaintenanceDueBanner(context, maintenanceNotification),
-                  ],
-                if (auth.isVolunteer) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildVolunteerTasksSection(context),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildVolunteerActivitySection(context),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                _buildDashboardSectionHeader(
-                  context,
-                  title: 'Care Modules',
-                  subtitle: 'Open the work area you need now.',
-                ),
-                const SizedBox(height: AppSpacing.md),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = constraints.maxWidth;
-                    final columns = width >= 900
-                        ? 4
-                        : width >= 620
-                        ? 3
-                        : 2;
-                    final cards = <Widget>[
-                      if (auth.canAccessPatients)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Patients',
-                          icon: Icons.people_alt_rounded,
-                          palette: ModulePalettes.patients,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.patients,
-                            child: PatientListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessNHC)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Visit Assessment',
-                          icon: Icons.assignment_rounded,
-                          palette: ModulePalettes.patients,
-                          page: const VisitAssessmentVisitPickerScreen(),
-                        ),
-                      if (auth.canAccessEquipmentDistribution)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Equipment Supply',
-                          icon: Icons.wheelchair_pickup_rounded,
-                          palette: ModulePalettes.equipmentSupply,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.equipmentSupply,
-                            child: EquipmentSupplyListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessMedicineSupply)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Medicine Supply',
-                          icon: Icons.medication_liquid_rounded,
-                          palette: ModulePalettes.medicineSupply,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.medicineSupply,
-                            child: MedicineSupplyListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessHomeVisits)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Home Visits',
-                          icon: Icons.home_rounded,
-                          palette: ModulePalettes.homeVisits,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.homeVisits,
-                            child: HomeVisitListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessSocialSupport)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Social Support',
-                          icon: Icons.food_bank_rounded,
-                          palette: ModulePalettes.socialSupport,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.socialSupport,
-                            child: SocialSupportListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessVolunteers)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Volunteers',
-                          icon: Icons.volunteer_activism_rounded,
-                          palette: ModulePalettes.volunteers,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.volunteers,
-                            child: VolunteerListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessReports)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Reports',
-                          icon: Icons.assessment_outlined,
-                          palette: ModulePalettes.reports,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.reports,
-                            child: ReportsPage(),
-                          ),
-                        ),
-                    ];
-
-                    if (cards.isEmpty) {
-                      return const AppCard(
-                        surfaceLevel: AppSurfaceLevel.elevated,
-                        child: AppEmptyState(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'No modules enabled',
-                          message:
-                              'Your unit administrator can enable care modules for this account.',
-                        ),
-                      );
-                    }
-
-                    return GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: columns,
-                      crossAxisSpacing: isCompact
-                          ? AppSpacing.sm
-                          : AppSpacing.md,
-                      mainAxisSpacing: isCompact
-                          ? AppSpacing.sm
-                          : AppSpacing.md,
-                      childAspectRatio: columns >= 4
-                          ? 1.42
-                          : columns == 3
-                          ? 1.28
-                          : 1.15,
-                      children: cards,
-                    );
-                  },
-                ),
-                if (auth.canAccessEquipmentDistribution) ...[
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildDashboardSectionHeader(
-                    context,
-                    title: 'Active Supplies',
-                    subtitle: 'Equipment currently assigned to patients.',
-                    actionLabel: 'View all',
-                    onAction: () {
-                      Navigator.push(
+                    _buildVolunteerApprovalCard(auth),
+                  ] else ...[
+                    if (maintenanceNotification != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _buildMaintenanceDueBanner(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const ModuleTheme(
-                            palette: ModulePalettes.equipmentSupply,
-                            child: EquipmentSupplyListPage(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _buildActiveSuppliesList(context),
+                        maintenanceNotification,
+                      ),
+                    ],
+                    if (auth.isVolunteer) ...[
+                      if (auth.canAccessHomeVisits) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _buildVolunteerVisitCallout(context),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      _buildVolunteerTasksSection(context),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildVolunteerActivitySection(context),
+                    ],
+                    SizedBox(
+                      height: auth.isVolunteer ? AppSpacing.md : AppSpacing.lg,
+                    ),
+                    _buildDashboardSectionHeader(
+                      context,
+                      title: auth.isVolunteer ? 'Explore' : 'Care Modules',
+                      subtitle: auth.isVolunteer
+                          ? 'Other areas available to you.'
+                          : 'Open the work area you need now.',
+                      compact: auth.isVolunteer,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        final columns = width >= 900
+                            ? 4
+                            : width >= 620
+                            ? 3
+                            : 2;
+                        final cards = <Widget>[
+                          if (auth.canAccessPatients)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Patients',
+                              icon: Icons.people_alt_rounded,
+                              palette: ModulePalettes.patients,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.patients,
+                                child: PatientListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessNHC)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Visit Assessment',
+                              icon: Icons.assignment_rounded,
+                              palette: ModulePalettes.patients,
+                              page: const VisitAssessmentVisitPickerScreen(),
+                            ),
+                          if (auth.canAccessEquipmentDistribution)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Equipment Supply',
+                              icon: Icons.wheelchair_pickup_rounded,
+                              palette: ModulePalettes.equipmentSupply,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.equipmentSupply,
+                                child: EquipmentSupplyListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessMedicineSupply)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Medicine Supply',
+                              icon: Icons.medication_liquid_rounded,
+                              palette: ModulePalettes.medicineSupply,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.medicineSupply,
+                                child: MedicineSupplyListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessHomeVisits)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Home Visits',
+                              icon: Icons.home_rounded,
+                              palette: ModulePalettes.homeVisits,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.homeVisits,
+                                child: HomeVisitListPage(),
+                              ),
+                            ),
+                          if (auth.isAdmin && auth.canAccessHomeVisits)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Volunteer Requests',
+                              icon: Icons.how_to_reg_outlined,
+                              palette: ModulePalettes.homeVisits,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.homeVisits,
+                                child: HomeVisitListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessSocialSupport)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Social Support',
+                              icon: Icons.food_bank_rounded,
+                              palette: ModulePalettes.socialSupport,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.socialSupport,
+                                child: SocialSupportListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessVolunteers)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Volunteers',
+                              icon: Icons.volunteer_activism_rounded,
+                              palette: ModulePalettes.volunteers,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.volunteers,
+                                child: VolunteerListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessReports)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Reports',
+                              icon: Icons.assessment_outlined,
+                              palette: ModulePalettes.reports,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.reports,
+                                child: ReportsPage(),
+                              ),
+                            ),
+                        ];
+
+                        if (cards.isEmpty) {
+                          return const AppCard(
+                            surfaceLevel: AppSurfaceLevel.elevated,
+                            child: AppEmptyState(
+                              icon: Icons.lock_outline_rounded,
+                              title: 'No modules enabled',
+                              message:
+                                  'Your unit administrator can enable care modules for this account.',
+                            ),
+                          );
+                        }
+
+                        return GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: columns,
+                          crossAxisSpacing: isCompact
+                              ? AppSpacing.sm
+                              : AppSpacing.md,
+                          mainAxisSpacing: isCompact
+                              ? AppSpacing.sm
+                              : AppSpacing.md,
+                          childAspectRatio: columns >= 4
+                              ? 1.42
+                              : columns == 3
+                              ? 1.28
+                              : 1.15,
+                          children: cards,
+                        );
+                      },
+                    ),
+                    if (auth.canAccessEquipmentDistribution) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildDashboardSectionHeader(
+                        context,
+                        title: 'Active Supplies',
+                        subtitle: 'Equipment currently assigned to patients.',
+                        actionLabel: 'View all',
+                        onAction: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ModuleTheme(
+                                palette: ModulePalettes.equipmentSupply,
+                                child: EquipmentSupplyListPage(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildActiveSuppliesList(context),
+                    ],
+                  ],
                 ],
-              ],
-            ],
-          ),
-          ),
+              ),
+            ),
           ),
         ),
       ),
@@ -2697,10 +2858,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }) {
     final textTheme = Theme.of(context).textTheme;
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
+    final compactVolunteer = auth.isVolunteer;
 
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
-      padding: EdgeInsets.all(isCompact ? AppSpacing.md : AppSpacing.lg),
+      padding: EdgeInsets.all(
+        compactVolunteer || isCompact ? AppSpacing.md : AppSpacing.lg,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2712,6 +2876,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 onTap: isPendingApproval
                     ? null
                     : () => _scaffoldKey.currentState?.openDrawer(),
+                compact: compactVolunteer,
               ),
               const Spacer(),
               if (auth.unitSupportQr != null && !isPendingApproval) ...[
@@ -2719,6 +2884,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Show QR',
                   icon: Icons.qr_code_2_rounded,
                   onTap: () => _showQRModal(context),
+                  compact: compactVolunteer,
                 ),
                 const SizedBox(width: AppSpacing.xs),
               ],
@@ -2731,8 +2897,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 badgeLabel: isPendingApproval || _notificationCount <= 0
                     ? null
                     : (_notificationCount > 99
-                        ? '99+'
-                        : _notificationCount.toString()),
+                          ? '99+'
+                          : _notificationCount.toString()),
+                compact: compactVolunteer,
               ),
               if (auth.canCreate) ...[
                 const SizedBox(width: AppSpacing.xs),
@@ -2740,13 +2907,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Quick add',
                   icon: Icons.add_rounded,
                   onTap: _showQuickAddOptions,
+                  compact: compactVolunteer,
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
                 onTap: () => _showUserProfile(context),
                 child: UnitBrandAvatar(
-                  size: 44,
+                  size: compactVolunteer ? 40 : 44,
                   preferAppIcon: true,
                   backgroundColor: AppColors.primaryLight,
                   iconColor: AppColors.primary,
@@ -2756,10 +2924,15 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          SizedBox(height: isCompact ? AppSpacing.md : AppSpacing.lg),
+          SizedBox(
+            height: compactVolunteer || isCompact
+                ? AppSpacing.sm
+                : AppSpacing.lg,
+          ),
           Text(
             _getGreeting(auth),
             style: textTheme.labelLarge?.copyWith(
+              fontSize: compactVolunteer ? 12 : null,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
@@ -2777,17 +2950,24 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     children: [
                       Text(
                         auth.unitName,
-                        style: GoogleFonts.outfit(
-                          textStyle: textTheme.headlineMedium,
-                          color: AppColors.text,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                          height: 1.15,
-                        ).copyWith(
-                          fontFamilyFallback: const ['NotoSansMalayalam'],
-                        ),
+                        style:
+                            GoogleFonts.outfit(
+                              textStyle: compactVolunteer
+                                  ? textTheme.titleLarge
+                                  : textTheme.headlineMedium,
+                              color: AppColors.text,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                              height: 1.15,
+                            ).copyWith(
+                              fontFamilyFallback: const ['NotoSansMalayalam'],
+                            ),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
+                      SizedBox(
+                        height: compactVolunteer
+                            ? AppSpacing.xs
+                            : AppSpacing.sm,
+                      ),
                       Wrap(
                         spacing: AppSpacing.xs,
                         runSpacing: AppSpacing.xs,
@@ -2797,6 +2977,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                             icon: Icons.location_on_outlined,
                             color: AppColors.primary,
                           ),
+                          if (auth.isVolunteer && _volunteerActivity != null)
+                            _ShellStatusPill(
+                              label: _volunteerActivity!.achievementTier,
+                              icon: Icons.workspace_premium_outlined,
+                              color: _achievementColor(
+                                _volunteerActivity!.achievementTier,
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -2880,6 +3068,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required IconData icon,
     VoidCallback? onTap,
     String? badgeLabel,
+    bool compact = false,
   }) {
     final enabled = onTap != null;
     return Tooltip(
@@ -2895,7 +3084,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              const SizedBox.square(dimension: 44),
+              SizedBox.square(dimension: compact ? 40 : 44),
               Positioned.fill(
                 child: Icon(
                   icon,
@@ -2942,6 +3131,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required String subtitle,
     String? actionLabel,
     VoidCallback? onAction,
+    bool compact = false,
   }) {
     final textTheme = Theme.of(context).textTheme;
 
@@ -2954,17 +3144,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             children: [
               Text(
                 title,
-                style: textTheme.titleLarge?.copyWith(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: (compact ? textTheme.titleMedium : textTheme.titleLarge)
+                    ?.copyWith(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 subtitle,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+                style: (compact ? textTheme.bodySmall : textTheme.bodyMedium)
+                    ?.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -3255,6 +3445,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         return Icons.home_repair_service_outlined;
       case 'billing_due':
         return Icons.receipt_long_outlined;
+      case 'volunteer_home_visit_request':
+        return Icons.how_to_reg_outlined;
+      case 'volunteer_assignment':
+        return Icons.assignment_turned_in_outlined;
+      case 'volunteer_request_update':
+        return Icons.volunteer_activism_outlined;
+      case 'volunteer_registration':
+        return Icons.person_add_alt_1_outlined;
       default:
         return Icons.notifications_outlined;
     }
