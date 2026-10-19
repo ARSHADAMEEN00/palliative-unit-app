@@ -37,6 +37,25 @@ void main() {
       }
     });
 
+    test('volunteers are a required module for members, volunteers, and staff', () {
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('member', AppFeature.volunteers),
+        isTrue,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('volunteer', AppFeature.volunteers),
+        isTrue,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('staff', AppFeature.volunteers),
+        isTrue,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('member', AppFeature.patients),
+        isFalse,
+      );
+    });
+
     test('volunteers default to core care modules only', () {
       for (final featureId in [
         AppFeature.patients,
@@ -44,7 +63,7 @@ void main() {
         AppFeature.volunteers,
         AppFeature.socialSupport,
       ]) {
-        expect(FeatureAccessPolicy.roleAllows('user', featureId), isTrue);
+        expect(FeatureAccessPolicy.roleAllows('volunteer', featureId), isTrue);
       }
       for (final featureId in [
         AppFeature.equipment,
@@ -52,7 +71,7 @@ void main() {
         AppFeature.nhcAssessment,
         AppFeature.advancedReports,
       ]) {
-        expect(FeatureAccessPolicy.roleAllows('user', featureId), isFalse);
+        expect(FeatureAccessPolicy.roleAllows('volunteer', featureId), isFalse);
       }
     });
 

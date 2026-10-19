@@ -11,6 +11,7 @@ class HomeVisit {
   final String visitMode; // 'monthly', 'emergency', 'new'
   final String? team;
   final String? notes;
+  final List<String> volunteerIds;
   final String? createdBy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -25,6 +26,7 @@ class HomeVisit {
     this.visitMode = 'new',
     this.team,
     this.notes,
+    this.volunteerIds = const [],
     this.createdBy,
     this.createdAt,
     this.updatedAt,
@@ -47,6 +49,11 @@ class HomeVisit {
       visitMode: json['visitMode']?.toString() ?? 'new',
       team: json['team']?.toString(),
       notes: json['notes']?.toString(),
+      volunteerIds: (json['volunteer_ids'] as List<dynamic>? ??
+              json['volunteerIds'] as List<dynamic>? ??
+              const [])
+          .map((e) => e.toString())
+          .toList(),
       createdBy: json['createdBy'] is Map
           ? json['createdBy']['name']?.toString()
           : json['createdBy']?.toString(),
@@ -66,6 +73,7 @@ class HomeVisit {
       'address': address,
       'visitDate': visitDate,
       'visitMode': visitMode,
+      'volunteerIds': volunteerIds,
     };
     if (patientId != null && patientId!.isNotEmpty) {
       map['patient'] = patientId;
@@ -90,6 +98,7 @@ class HomeVisit {
     String? visitMode,
     String? team,
     String? notes,
+    List<String>? volunteerIds,
   }) {
     return HomeVisit(
       id: id ?? this.id,
@@ -101,6 +110,7 @@ class HomeVisit {
       visitMode: visitMode ?? this.visitMode,
       team: team ?? this.team,
       notes: notes ?? this.notes,
+      volunteerIds: volunteerIds ?? this.volunteerIds,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

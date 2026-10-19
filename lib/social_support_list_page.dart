@@ -96,15 +96,16 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
       }
 
       if (query.isEmpty) return true;
+      final auth = context.read<AuthService>();
       final haystack = [
         record.patientName,
         record.patientRegisterId,
         record.patientPlace,
-        record.patientPhone,
+        if (auth.canViewContactNumbers) record.patientPhone,
         record.supportTypesLabel,
         record.note,
         record.volunteerName,
-        record.volunteerContact,
+        if (auth.canViewContactNumbers) record.volunteerContact,
       ].whereType<String>().join(' ').toLowerCase();
       return haystack.contains(query);
     }).toList();
@@ -580,7 +581,7 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
           _supportChips(record),
           const SizedBox(height: AppSpacing.sm),
           _detailLine(Icons.person_outline, 'Volunteer', record.volunteerName),
-          if (auth.canViewContactNumbers) ...[
+          if (auth.canViewContactNumbers && record.volunteerContact.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
             _detailLine(Icons.call_outlined, 'Contact', record.volunteerContact),
           ],
@@ -742,7 +743,7 @@ class _SocialSupportListPageState extends State<SocialSupportListPage> {
                   'Volunteer',
                   record.volunteerName,
                 ),
-                if (auth.canViewContactNumbers) ...[
+                if (auth.canViewContactNumbers && record.volunteerContact.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.sm),
                   _detailLine(
                     Icons.call_outlined,

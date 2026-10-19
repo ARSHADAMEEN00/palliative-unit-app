@@ -41,9 +41,8 @@ class AuthService with ChangeNotifier {
   bool get isAuthenticated => _token != null;
   bool get isAdmin => _role == 'admin';
   bool get isStaff => _role == 'staff';
-  bool get isUser => _role == 'user';
   bool get isMember => _role == 'member';
-  bool get isVolunteer => isUser;
+  bool get isVolunteer => _role == 'volunteer';
 
   String get approvalStatus =>
       _cleanString(_user?['approvalStatus'])?.toLowerCase() ?? 'approved';
@@ -62,10 +61,10 @@ class AuthService with ChangeNotifier {
       _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canEdit => _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canDelete => _role == 'admin';
-  bool get canCall => !isUser || isVolunteerApproved;
-  bool get canViewContactNumbers => !isUser || isVolunteerApproved;
-  bool get canViewPatientDetails => !isUser;
-  bool get canViewHomeVisitDetails => !isUser;
+  bool get canCall => !isVolunteer;
+  bool get canViewContactNumbers => !isVolunteer;
+  bool get canViewPatientDetails => !isVolunteer || isVolunteerApproved;
+  bool get canViewHomeVisitDetails => !isVolunteer || isVolunteerApproved;
   bool get canAccessPatients => hasFeature(AppFeature.patients);
   bool get canAccessHomeVisits => hasFeature(AppFeature.homeVisits);
   bool get canAccessVolunteers => hasFeature(AppFeature.volunteers);
@@ -86,7 +85,7 @@ class AuthService with ChangeNotifier {
   bool get canAccessReports {
     final explicitModules = permittedModuleIds;
     if (explicitModules == null) {
-      return (isAdmin || isMember || isUser) &&
+      return (isAdmin || isMember || isVolunteer) &&
           hasFeature(AppFeature.advancedReports);
     }
     return hasFeature(AppFeature.advancedReports);
@@ -102,7 +101,8 @@ class AuthService with ChangeNotifier {
     final explicitModules = permittedModuleIds;
     final permissionModule = _permissionModuleForFeature(featureId);
     if (explicitModules != null &&
-        !explicitModules.contains(permissionModule)) {
+        !explicitModules.contains(permissionModule) &&
+        !FeatureAccessPolicy.isRequiredForRole(_role, featureId)) {
       return false;
     }
     if (explicitModules == null &&
@@ -130,7 +130,7 @@ class AuthService with ChangeNotifier {
   Future<void> init() async {
     final credentials = await CredentialStore.read();
     _token = credentials.token;
-    _role = credentials.role;
+    _role = credentials.role == 'user' ? 'volunteer' : credentials.role;
     AppCache.currentUnitId = credentials.unitId;
 
     final prefs = await SharedPreferences.getInstance();
@@ -141,7 +141,9 @@ class AuthService with ChangeNotifier {
         if (decoded is Map<String, dynamic>) {
           _user = decoded;
           _applyFeaturePermissions(decoded);
-          final userUnit = _cleanString(decoded['unitId'] ?? decoded['unit']?['id']);
+          final userUnit = _cleanString(
+            decoded['unitId'] ?? decoded['unit']?['id'],
+          );
           if (userUnit != null && userUnit.isNotEmpty) {
             AppCache.currentUnitId = userUnit;
           }
@@ -229,6 +231,22 @@ class AuthService with ChangeNotifier {
     _user?['unitName'],
   ], fallback: 'Palliative App');
 
+  bool get hasAboutUs {
+    final flag = unit?['has_about_us'] ?? unit?['hasAboutUs'];
+    if (flag is bool) return flag;
+    if (flag is String) return flag.toLowerCase() == 'true';
+    return false;
+  }
+
+  void updateAboutUsStatus(bool hasStory) {
+    if (_user != null && _user!['unit'] is Map) {
+      if (hasAboutUs == hasStory) return;
+      (_user!['unit'] as Map)['has_about_us'] = hasStory;
+      (_user!['unit'] as Map)['hasAboutUs'] = hasStory;
+      notifyListeners();
+    }
+  }
+
   String get unitLocation {
     final locationParts = [
       _cleanString(unit?['village']),
@@ -304,6 +322,7 @@ class AuthService with ChangeNotifier {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _user = data;
+        _role = _cleanString(data['role']) ?? _role;
         _applyFeaturePermissions(data);
 
         final userUnitId = _cleanString(data['unitId'] ?? data['unit']?['id']);

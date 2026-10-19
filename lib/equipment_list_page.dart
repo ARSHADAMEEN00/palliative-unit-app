@@ -208,7 +208,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 76,
-          titleSpacing: AppSpacing.md,
+          titleSpacing: AppSpacing.sm,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
@@ -257,7 +257,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.md),
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -272,7 +272,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                         ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.xs),
+                    const SizedBox(width: AppSpacing.xxs),
                   ],
                   Tooltip(
                     message: 'Refresh',
@@ -2416,12 +2416,12 @@ class _EquipmentIconButton extends StatelessWidget {
         borderRadius: AppRadius.md,
         onTap: onPressed,
         child: SizedBox(
-          width: 48,
-          height: 48,
+          width: 40,
+          height: 40,
           child: Icon(
             icon,
             color: onPressed == null ? AppColors.textMuted : AppColors.text,
-            size: AppIcons.large,
+            size: AppIcons.normal,
           ),
         ),
       ),

@@ -14,6 +14,7 @@ class VolunteerService {
     String? search,
     String? village,
     String? ward,
+    bool forceRefresh = false,
   }) async {
     final hasFilters =
         (search?.trim().isNotEmpty ?? false) ||
@@ -24,6 +25,7 @@ class VolunteerService {
       return _fetchVolunteers(search: search, village: village, ward: ward);
     }
 
+    if (forceRefresh) AppCache.invalidate(_keyAll);
     return AppCache.get<List<Volunteer>>(
       _keyAll,
       ttl: _ttl,

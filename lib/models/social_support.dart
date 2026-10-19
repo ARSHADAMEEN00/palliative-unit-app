@@ -13,6 +13,7 @@ class SocialSupport {
   final String? note;
   final String volunteerName;
   final String volunteerContact;
+  final List<String> volunteerIds;
   final dynamic createdBy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -24,8 +25,9 @@ class SocialSupport {
     required this.supportTypes,
     required this.givenAt,
     this.note,
-    required this.volunteerName,
-    required this.volunteerContact,
+    this.volunteerName = '',
+    this.volunteerContact = '',
+    this.volunteerIds = const [],
     this.createdBy,
     this.createdAt,
     this.updatedAt,
@@ -45,6 +47,11 @@ class SocialSupport {
       note: json['note']?.toString(),
       volunteerName: json['volunteerName']?.toString() ?? '',
       volunteerContact: json['volunteerContact']?.toString() ?? '',
+      volunteerIds: (json['volunteer_ids'] as List<dynamic>? ??
+              json['volunteerIds'] as List<dynamic>? ??
+              const [])
+          .map((e) => e.toString())
+          .toList(),
       createdBy: json['createdBy'],
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
@@ -64,6 +71,7 @@ class SocialSupport {
       'note': note,
       'volunteerName': volunteerName,
       'volunteerContact': volunteerContact,
+      'volunteerIds': volunteerIds,
     };
   }
 

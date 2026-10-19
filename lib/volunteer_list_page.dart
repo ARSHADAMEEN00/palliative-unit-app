@@ -16,7 +16,9 @@ const _volunteerPrimary = Color(0xFF0F766E);
 const _volunteerIconSurface = Color(0xFFCCFBF1);
 
 class VolunteerListPage extends StatefulWidget {
-  const VolunteerListPage({super.key});
+  const VolunteerListPage({super.key, this.showPendingRegistrations = false});
+
+  final bool showPendingRegistrations;
 
   @override
   State<VolunteerListPage> createState() => _VolunteerListPageState();
@@ -39,7 +41,11 @@ class _VolunteerListPageState extends State<VolunteerListPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      initialIndex: widget.showPendingRegistrations ? 1 : 0,
+      vsync: this,
+    );
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging && mounted) {
         setState(() {});
@@ -245,8 +251,8 @@ class _VolunteerListPageState extends State<VolunteerListPage>
             ),
           ],
         ),
-        floatingActionButton: auth.canCreate &&
-                (!auth.isAdmin || _tabController.index == 0)
+        floatingActionButton:
+            auth.canCreate && (!auth.isAdmin || _tabController.index == 0)
             ? RevealActionFab(
                 onPressed: () => _openForm(),
                 backgroundColor: _volunteerPrimary,
@@ -288,39 +294,60 @@ class _VolunteerListPageState extends State<VolunteerListPage>
           controller: _tabController,
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
+          labelPadding: EdgeInsets.zero,
           labelColor: _volunteerPrimary,
           unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            height: 1.0,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            height: 1.0,
+          ),
           indicator: const BoxDecoration(
             color: _volunteerIconSurface,
             borderRadius: AppRadius.md,
           ),
           tabs: [
             Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.people_alt_outlined, size: 18),
-                  const SizedBox(width: AppSpacing.xs),
-                  const Text('Volunteers'),
-                  if (approvedCount > 0) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    _countBadge(approvedCount, isWarning: false),
+              height: 40,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.people_alt_outlined, size: 17),
+                    const SizedBox(width: 6),
+                    const Text('Volunteers'),
+                    if (approvedCount > 0) ...[
+                      const SizedBox(width: 6),
+                      _countBadge(approvedCount, isWarning: false),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.how_to_reg_outlined, size: 18),
-                  const SizedBox(width: AppSpacing.xs),
-                  const Text('New Enquiries'),
-                  if (pendingCount > 0) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    _countBadge(pendingCount, isWarning: true),
+              height: 40,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.how_to_reg_outlined, size: 17),
+                    const SizedBox(width: 6),
+                    const Text('New Enquiries'),
+                    if (pendingCount > 0) ...[
+                      const SizedBox(width: 6),
+                      _countBadge(pendingCount, isWarning: true),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ],
@@ -332,23 +359,23 @@ class _VolunteerListPageState extends State<VolunteerListPage>
   Widget _countBadge(int count, {bool isWarning = false}) {
     final bg = isWarning ? AppColors.warning : _volunteerPrimary;
     return Container(
-      height: 20,
-      constraints: const BoxConstraints(minWidth: 20),
-      padding: EdgeInsets.symmetric(horizontal: count > 9 ? 6 : 0),
+      height: 18,
+      constraints: const BoxConstraints(minWidth: 18),
+      padding: EdgeInsets.symmetric(horizontal: count > 9 ? 5 : 0),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: bg,
         shape: count <= 9 ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: count > 9 ? BorderRadius.circular(10) : null,
+        borderRadius: count > 9 ? BorderRadius.circular(9) : null,
       ),
       child: Text(
         '$count',
         textAlign: TextAlign.center,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 11,
+          fontSize: 10.5,
           fontWeight: FontWeight.w700,
-          height: 1.15,
+          height: 1.0,
         ),
       ),
     );
@@ -450,10 +477,7 @@ class _VolunteerListPageState extends State<VolunteerListPage>
 
     return TabBarView(
       controller: _tabController,
-      children: [
-        _buildApprovedVolunteersList(auth),
-        _buildEnquiriesList(),
-      ],
+      children: [_buildApprovedVolunteersList(auth), _buildEnquiriesList()],
     );
   }
 
@@ -619,10 +643,7 @@ class _VolunteerListPageState extends State<VolunteerListPage>
           _inlineDetail(Icons.call_outlined, volunteer.phone),
           if (volunteer.phone2.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xxs),
-            _inlineDetail(
-              Icons.phone_iphone_outlined,
-              volunteer.phone2.trim(),
-            ),
+            _inlineDetail(Icons.phone_iphone_outlined, volunteer.phone2.trim()),
           ],
           const SizedBox(height: AppSpacing.md),
           if (isReviewing)
@@ -671,39 +692,43 @@ class _VolunteerListPageState extends State<VolunteerListPage>
     final id = volunteer.id;
     if (id == null || _reviewingIds.contains(id)) return;
 
-    if (status == 'declined') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
-          title: const _VolunteerDialogHeader(
-            icon: Icons.cancel_outlined,
-            title: 'Decline application?',
-            color: AppColors.danger,
-          ),
-          content: Text(
-            'Are you sure you want to decline the volunteer registration for ${volunteer.name}?',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-              child: const Text('Decline'),
-            ),
-          ],
+    final approving = status == 'approved';
+    final actionColor = approving ? AppColors.success : AppColors.danger;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: _VolunteerDialogHeader(
+          icon: approving
+              ? Icons.verified_user_outlined
+              : Icons.cancel_outlined,
+          title: approving ? 'Approve registration?' : 'Decline application?',
+          color: actionColor,
         ),
-      );
-      if (confirmed != true) return;
-    }
+        content: Text(
+          approving
+              ? 'Approve ${volunteer.name} as a volunteer? They will receive volunteer access to this unit.'
+              : 'Are you sure you want to decline the volunteer registration for ${volunteer.name}?',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: actionColor),
+            child: Text(approving ? 'Approve' : 'Decline'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
 
     setState(() => _reviewingIds.add(id));
     try {
@@ -1136,8 +1161,9 @@ class _VolunteerListPageState extends State<VolunteerListPage>
                 icon: hasFilters
                     ? Icons.search_off_outlined
                     : Icons.how_to_reg_outlined,
-                title:
-                    hasFilters ? 'No matching enquiries' : 'No pending enquiries',
+                title: hasFilters
+                    ? 'No matching enquiries'
+                    : 'No pending enquiries',
                 message: hasFilters
                     ? 'Try changing the search, village, or ward filter.'
                     : 'New volunteer registration requests will appear here for approval.',

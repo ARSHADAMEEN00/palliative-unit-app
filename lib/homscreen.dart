@@ -15,6 +15,8 @@ import 'package:oruma_app/volunteer_list_page.dart';
 import 'package:oruma_app/pt_registration.dart' show patientrigister;
 import 'package:oruma_app/patient_list_page.dart';
 import 'package:oruma_app/privacy_policy_screen.dart';
+import 'package:oruma_app/about_us_page.dart';
+import 'package:oruma_app/about_us_admin_page.dart';
 import 'package:oruma_app/deceased_patient_list_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
@@ -25,7 +27,12 @@ import 'package:oruma_app/services/notification_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
+import 'package:oruma_app/models/volunteer_assignment.dart';
 import 'package:oruma_app/services/volunteer_application_service.dart';
+import 'package:oruma_app/services/volunteer_assignment_service.dart';
+import 'package:oruma_app/services/volunteer_home_visit_request_service.dart';
+import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/volunteer_assignment_detail_page.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -61,8 +68,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _notificationsLoading = true;
   final Set<String> _dismissedMaintenanceBannerKeys = {};
   VolunteerActivity? _volunteerActivity;
-  bool _volunteerActivityLoading = false;
+  List<VolunteerAssignment> _todayAssignments = [];
+  List<VolunteerAssignment> _upcomingAssignments = [];
+  List<VolunteerAssignment> _overdueAssignments = [];
+  bool _assignmentsLoading = false;
   bool _checkingApproval = false;
+  int _pendingVolunteerRegistrationCount = 0;
+  int _pendingHomeVisitRequestCount = 0;
+  bool _importantRequestsLoading = false;
 
   @override
   void initState() {
@@ -100,7 +113,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final auth = context.read<AuthService>();
     await auth.fetchUserProfile();
     if (!mounted || auth.isAccessBlocked || !auth.isVolunteerApproved) return;
-    if (auth.isVolunteer) _loadVolunteerActivity();
+    if (auth.isVolunteer) {
+      _loadVolunteerActivity();
+      _loadVolunteerAssignments();
+    }
+    if (auth.isAdmin) {
+      _loadImportantRequests();
+    }
     if (auth.canAccessEquipmentDistribution) {
       _loadActiveSupplies();
     } else {
@@ -110,6 +129,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       });
     }
     _loadNotifications(refresh: force);
+  }
+
+  Future<void> _loadImportantRequests() async {
+    if (!mounted || _importantRequestsLoading) return;
+    setState(() => _importantRequestsLoading = true);
+    try {
+      final counts = await Future.wait<int>([
+        VolunteerService.getVolunteers(forceRefresh: true).then(
+          (volunteers) => volunteers
+              .where(
+                (volunteer) =>
+                    volunteer.applicationStatus.toLowerCase() == 'pending',
+              )
+              .length,
+        ),
+        VolunteerHomeVisitRequestService.getRequests(
+          status: 'pending',
+        ).then((requests) => requests.length),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _pendingVolunteerRegistrationCount = counts[0];
+        _pendingHomeVisitRequestCount = counts[1];
+      });
+    } catch (_) {
+      // The dashboard remains usable if request summaries cannot be refreshed.
+    } finally {
+      if (mounted) setState(() => _importantRequestsLoading = false);
+    }
   }
 
   Future<void> _checkApprovalStatus() async {
@@ -149,15 +197,38 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Future<void> _loadVolunteerActivity() async {
     if (!mounted) return;
-    setState(() => _volunteerActivityLoading = true);
     try {
       final activity = await VolunteerApplicationService.getMyActivity();
       if (!mounted) return;
       setState(() => _volunteerActivity = activity);
     } catch (_) {
       // The dashboard remains usable if activity history is temporarily offline.
+    }
+  }
+
+  Future<void> _loadVolunteerAssignments() async {
+    if (!mounted) return;
+    setState(() => _assignmentsLoading = true);
+    try {
+      final all = await VolunteerAssignmentService.getAssignments(
+        filter: 'all',
+      );
+      if (!mounted) return;
+      setState(() {
+        _todayAssignments = all.where((a) => a.isToday).toList();
+        _overdueAssignments = all.where((a) => a.isOverdue).toList();
+        _upcomingAssignments = all
+            .where(
+              (a) =>
+                  !a.isToday &&
+                  !a.isOverdue &&
+                  ['assigned', 'accepted', 'in_progress'].contains(a.status),
+            )
+            .toList();
+      });
+    } catch (_) {
     } finally {
-      if (mounted) setState(() => _volunteerActivityLoading = false);
+      if (mounted) setState(() => _assignmentsLoading = false);
     }
   }
 
@@ -479,6 +550,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       NotificationService.markRead(
         notification.id!,
       ).then((_) => _loadNotifications(refresh: true)).catchError((_) {});
+    }
+
+    if (notification.type == 'volunteer_home_visit_request' ||
+        notification.type == 'volunteer_assignment' ||
+        notification.type == 'volunteer_request_update') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ModuleTheme(
+            palette: ModulePalettes.homeVisits,
+            child: HomeVisitListPage(),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (notification.type == 'volunteer_registration') {
+      if (!context.read<AuthService>().isAdmin) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ModuleTheme(
+            palette: ModulePalettes.volunteers,
+            child: VolunteerListPage(),
+          ),
+        ),
+      );
+      return;
     }
 
     if (notification.type == 'equipment_overdue') {
@@ -1396,6 +1496,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     };
   }
 
+  Color _achievementSurfaceColor(String tier) {
+    return switch (tier.toLowerCase()) {
+      'platinum' => const Color(0xFFEEF4F6),
+      'gold' => const Color(0xFFFFF7DC),
+      'silver' => const Color(0xFFF1F5F9),
+      'bronze' => const Color(0xFFFFF3EA),
+      _ => const Color(0xFFEEF4FF),
+    };
+  }
+
   Widget _buildProfileMenuItem({
     required IconData icon,
     required String title,
@@ -1471,9 +1581,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 declined ? 'Application declined' : 'Approval is pending',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
@@ -1482,9 +1592,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     : 'Your volunteer registration was received. The palliative care unit must approve it before the app modules become available.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
               ),
               if (!declined) ...[
                 const SizedBox(height: AppSpacing.lg),
@@ -1561,6 +1671,445 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Color _taskColor(String type) {
+    switch (type) {
+      case 'home_visit':
+        return const Color(0xFF0D9488); // Teal
+      case 'visit_assessment':
+        return const Color(0xFFD97706); // Amber
+      case 'social_support':
+        return const Color(0xFFBE185D); // Pink
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  IconData _taskIcon(String type) {
+    switch (type) {
+      case 'home_visit':
+        return Icons.home_work_rounded;
+      case 'visit_assessment':
+        return Icons.assignment_rounded;
+      case 'social_support':
+        return Icons.volunteer_activism_rounded;
+      default:
+        return Icons.task_alt_rounded;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AppColors.success;
+      case 'accepted':
+      case 'in_progress':
+        return AppColors.primary;
+      case 'cancelled':
+      case 'missed':
+        return AppColors.danger;
+      default:
+        return const Color(0xFF6B7280);
+    }
+  }
+
+  void _openAssignmentDetail(VolunteerAssignment assignment) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VolunteerAssignmentDetailPage(
+          assignmentId: assignment.id,
+          initialAssignment: assignment,
+        ),
+      ),
+    );
+    _loadVolunteerAssignments();
+    _loadVolunteerActivity();
+  }
+
+  String _formatAssignmentDate(String dateStr) {
+    final d = DateTime.tryParse(dateStr);
+    if (d == null) return dateStr;
+    return DateFormat('EEE, dd MMM yyyy').format(d);
+  }
+
+  Widget _buildVolunteerTasksSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Overdue section if any
+        if (_overdueAssignments.isNotEmpty) ...[
+          _buildOverdueSection(context),
+          const SizedBox(height: AppSpacing.md),
+        ],
+
+        // 2. Today's Tasks section
+        _buildTodayTasksSection(context),
+        const SizedBox(height: AppSpacing.md),
+
+        // 3. Upcoming section
+        _buildUpcomingSection(context),
+      ],
+    );
+  }
+
+  Widget _buildOverdueSection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.05),
+        borderRadius: AppRadius.card,
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.danger,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Overdue Tasks',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.danger,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${_overdueAssignments.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ..._overdueAssignments.map(
+            (a) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: _buildAssignmentItemCard(a, isOverdue: true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodayTasksSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildDashboardSectionHeader(
+                context,
+                title: "Today's Tasks",
+                subtitle: 'Tasks scheduled for today.',
+                compact: true,
+              ),
+            ),
+            if (_todayAssignments.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  '${_todayAssignments.length} ${_todayAssignments.length == 1 ? 'task' : 'tasks'} today',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+
+        // Content
+        if (_assignmentsLoading && _todayAssignments.isEmpty)
+          _buildTaskSkeleton()
+        else if (_todayAssignments.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceFloating,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.event_available_rounded,
+                    size: 28,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'No tasks assigned today',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'You have no visits or assignments scheduled for today.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            children: _todayAssignments.map((a) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _buildTodayTaskCard(a),
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTodayTaskCard(VolunteerAssignment assignment) {
+    final color = _taskColor(assignment.taskType);
+    final icon = _taskIcon(assignment.taskType);
+    final statusColor = _statusColor(assignment.status);
+
+    return InkWell(
+      onTap: () => _openAssignmentDetail(assignment),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceFloating,
+          borderRadius: AppRadius.card,
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: Column(
+          children: [
+            // Top Accent Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.12),
+                    color.withValues(alpha: 0.03),
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    assignment.typeLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: color,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'TODAY',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '+${assignment.expectedPoints} pts',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFB45309),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Card Body
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              assignment.patient.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    assignment.patient.place?.isNotEmpty == true
+                                        ? assignment.patient.place!
+                                        : assignment.patient.address,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          assignment.statusLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (assignment.coVolunteers.isNotEmpty ||
+                      (assignment.taskDetails.team?.isNotEmpty == true)) ...[
+                    const Divider(height: 16, color: AppColors.border),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.people_outline,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            assignment.coVolunteers.isNotEmpty
+                                ? 'Team: ${assignment.coVolunteers.map((c) => c.name).join(', ')}'
+                                : 'Team: ${assignment.taskDetails.team}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _confirmDeleteAccount(BuildContext context) {
     showDialog(
       context: context,
@@ -1575,9 +2124,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             child: const Text('Cancel'),
           ),
           TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.danger,
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () async {
               Navigator.pop(dialogContext);
               final auth = context.read<AuthService>();
@@ -1591,9 +2138,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ),
               );
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (context) => const Loginscreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const Loginscreen()),
                 (route) => false,
               );
             },
@@ -1607,169 +2152,432 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildVolunteerActivitySection(BuildContext context) {
-    if (_volunteerActivityLoading && _volunteerActivity == null) {
-      return const AppCard(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    final activity = _volunteerActivity;
-    if (activity == null) {
-      return AppCard(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            const Icon(Icons.cloud_off_outlined, color: AppColors.textMuted),
-            const SizedBox(width: AppSpacing.sm),
-            const Expanded(child: Text('Activity history is unavailable.')),
-            IconButton(
-              tooltip: 'Retry',
-              onPressed: _loadVolunteerActivity,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
-        ),
-      );
+  Widget _buildUpcomingSection(BuildContext context) {
+    if (_upcomingAssignments.isEmpty) {
+      return const SizedBox.shrink();
     }
 
-    final tierColor = _achievementColor(activity.achievementTier);
+    // Group upcoming tasks
+    final Map<String, List<VolunteerAssignment>> groups = {
+      'Tomorrow': [],
+      'This Week': [],
+      'Later': [],
+    };
+
+    final today = DateTime.now();
+    for (final a in _upcomingAssignments) {
+      final d = DateTime.tryParse(a.scheduledDate);
+      if (d == null) {
+        groups['Later']!.add(a);
+        continue;
+      }
+      final diff = DateTime(
+        d.year,
+        d.month,
+        d.day,
+      ).difference(DateTime(today.year, today.month, today.day)).inDays;
+      if (diff == 1) {
+        groups['Tomorrow']!.add(a);
+      } else if (diff <= 7) {
+        groups['This Week']!.add(a);
+      } else {
+        groups['Later']!.add(a);
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildDashboardSectionHeader(
           context,
-          title: 'My Social Work',
-          subtitle: 'Your contribution milestones and recent activity.',
+          title: 'Upcoming Tasks',
+          subtitle: 'Visits and activities planned ahead.',
+          compact: true,
         ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: AppCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                borderColor: AppColors.primary.withValues(alpha: 0.18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.volunteer_activism_rounded,
-                      color: AppColors.primary,
+        const SizedBox(height: AppSpacing.sm),
+        for (final entry in groups.entries)
+          if (entry.value.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 6),
+              child: Row(
+                children: [
+                  Text(
+                    entry.key,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary,
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      activity.totalSocialWorks.toString(),
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
                     ),
-                    Text(
-                      'Social works',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${entry.value.length}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: AppCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                borderColor: tierColor.withValues(alpha: 0.22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.workspace_premium_rounded, color: tierColor),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      activity.achievementTier,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: tierColor,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      activity.nextTierAt == null
-                          ? 'Highest reward'
-                          : '${activity.nextTierAt! - activity.totalSocialWorks} to next reward',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+            ...entry.value.map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: _buildAssignmentItemCard(a),
               ),
             ),
           ],
-        ),
-        if (activity.history.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          ...activity.history
-              .take(3)
-              .map(
-                (item) => AppCard(
-                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primaryLight,
-                          borderRadius: AppRadius.md,
-                        ),
-                        child: const Icon(
-                          Icons.favorite_outline_rounded,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.supportTypes
-                                  .map(_socialWorkTypeLabel)
-                                  .join(', '),
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            Text(
-                              '${item.patientName} • ${DateFormat('d MMM yyyy').format(item.givenAt.toLocal())}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-        ],
       ],
     );
   }
 
-  String _socialWorkTypeLabel(String type) {
-    return switch (type) {
-      'ration_kit' => 'Ration kit',
-      'vegetables' => 'Vegetables',
-      'medicine' => 'Medicine',
-      _ => type.replaceAll('_', ' '),
-    };
+  Widget _buildAssignmentItemCard(
+    VolunteerAssignment assignment, {
+    bool isOverdue = false,
+  }) {
+    final color = isOverdue
+        ? AppColors.danger
+        : _taskColor(assignment.taskType);
+    final icon = _taskIcon(assignment.taskType);
+    final statusColor = _statusColor(assignment.status);
+
+    return InkWell(
+      onTap: () => _openAssignmentDetail(assignment),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceFloating,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isOverdue
+                ? AppColors.danger.withValues(alpha: 0.4)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assignment.patient.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${assignment.typeLabel} • ${_formatAssignmentDate(assignment.scheduledDate)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isOverdue
+                          ? AppColors.danger
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    assignment.statusLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '+${assignment.expectedPoints} pts',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskSkeleton() {
+    return Container(
+      width: double.infinity,
+      height: 110,
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    );
+  }
+
+  Widget _buildVolunteerVisitCallout(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      borderColor: AppColors.primary.withValues(alpha: 0.16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ModuleTheme(
+              palette: ModulePalettes.homeVisits,
+              child: HomeVisitListPage(),
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: AppRadius.sm,
+            ),
+            child: const Icon(
+              Icons.volunteer_activism_outlined,
+              size: 21,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Volunteer for a home visit',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'See upcoming visits and share your availability.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_rounded,
+            size: 20,
+            color: AppColors.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImportantRequestsSection(BuildContext context) {
+    final total =
+        _pendingVolunteerRegistrationCount + _pendingHomeVisitRequestCount;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$total ${total == 1 ? 'request needs' : 'requests need'} your review.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoColumns = constraints.maxWidth >= 620;
+            final cardWidth = twoColumns
+                ? (constraints.maxWidth - AppSpacing.md) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              children: [
+                if (_pendingVolunteerRegistrationCount > 0)
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildImportantRequestCard(
+                      context,
+                      title: 'Volunteer registrations',
+                      subtitle:
+                          '$_pendingVolunteerRegistrationCount awaiting approval',
+                      count: _pendingVolunteerRegistrationCount,
+                      icon: Icons.how_to_reg_outlined,
+                      color: AppColors.warning,
+                      onTap: _openVolunteerRegistrationRequests,
+                    ),
+                  ),
+                if (_pendingHomeVisitRequestCount > 0)
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildImportantRequestCard(
+                      context,
+                      title: 'Home visit volunteers',
+                      subtitle:
+                          '$_pendingHomeVisitRequestCount availability ${_pendingHomeVisitRequestCount == 1 ? 'request' : 'requests'}',
+                      count: _pendingHomeVisitRequestCount,
+                      icon: Icons.home_work_outlined,
+                      color: AppColors.success,
+                      onTap: _openHomeVisitVolunteerRequests,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImportantRequestCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required int count,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      backgroundColor: color.withValues(alpha: 0.07),
+      borderColor: color.withValues(alpha: 0.26),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: AppRadius.md,
+            ),
+            child: Icon(icon, color: color, size: 23),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Icon(Icons.chevron_right_rounded, color: color),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openVolunteerRegistrationRequests() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ModuleTheme(
+          palette: ModulePalettes.volunteers,
+          child: VolunteerListPage(showPendingRegistrations: true),
+        ),
+      ),
+    );
+    if (mounted) await _loadImportantRequests();
+  }
+
+  Future<void> _openHomeVisitVolunteerRequests() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ModuleTheme(
+          palette: ModulePalettes.homeVisits,
+          child: HomeVisitListPage(),
+        ),
+      ),
+    );
+    if (mounted) await _loadImportantRequests();
   }
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('User Role: ${context.read<AuthService>().role}');
     final auth = context.watch<AuthService>();
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final maintenanceNotification = !auth.isAdmin || auth.isTrialUnit
@@ -1780,211 +2588,248 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final horizontalPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFD8ECFD), // Serene palliative sky blue
-            Color(0xFFDEF5EB), // Soothing restorative mint / eucalyptus
-            Color(0xFFF5EDFA), // Gentle compassionate warm lavender
-            Color(0xFFEDF4FA), // Calming pearl base
-          ],
-          stops: [0.0, 0.35, 0.70, 1.0],
-        ),
-      ),
+      decoration: auth.isVolunteer
+          ? const BoxDecoration(color: AppColors.background)
+          : const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFD8ECFD),
+                  Color(0xFFDEF5EB),
+                  Color(0xFFF5EDFA),
+                  Color(0xFFEDF4FA),
+                ],
+                stops: [0.0, 0.35, 0.70, 1.0],
+              ),
+            ),
       child: AdaptiveAppScaffold(
         scaffoldKey: _scaffoldKey,
         drawer: isPendingApproval ? null : _buildProfessionalDrawer(context),
         backgroundColor: Colors.transparent,
         currentSection: isPendingApproval ? null : AppBottomSection.home,
-        onNavigationSelected: isPendingApproval ? null : _handleBottomNavigation,
+        onNavigationSelected: isPendingApproval
+            ? null
+            : _handleBottomNavigation,
         contentMaxWidth: 1040,
         body: SafeArea(
           bottom: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              isCompact ? AppSpacing.sm : AppSpacing.md,
-              horizontalPadding,
-              AppSpacing.xxl,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDashboardHeader(context, auth, isCompact: isCompact),
-                if (isPendingApproval) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildVolunteerApprovalCard(auth),
-                ] else ...[
-                  if (maintenanceNotification != null) ...[
+          child: RefreshIndicator(
+            onRefresh: () => _bootstrapAccess(force: true),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                isCompact ? AppSpacing.sm : AppSpacing.md,
+                horizontalPadding,
+                AppSpacing.xxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDashboardHeader(context, auth, isCompact: isCompact),
+                  if (isPendingApproval) ...[
                     const SizedBox(height: AppSpacing.md),
-                    _buildMaintenanceDueBanner(context, maintenanceNotification),
-                  ],
-                if (auth.isVolunteer) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildVolunteerActivitySection(context),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                _buildDashboardSectionHeader(
-                  context,
-                  title: 'Care Modules',
-                  subtitle: 'Open the work area you need now.',
-                ),
-                const SizedBox(height: AppSpacing.md),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = constraints.maxWidth;
-                    final columns = width >= 900
-                        ? 4
-                        : width >= 620
-                        ? 3
-                        : 2;
-                    final cards = <Widget>[
-                      if (auth.canAccessPatients)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Patients',
-                          icon: Icons.people_alt_rounded,
-                          palette: ModulePalettes.patients,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.patients,
-                            child: PatientListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessNHC)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Visit Assessment',
-                          icon: Icons.assignment_rounded,
-                          palette: ModulePalettes.patients,
-                          page: const VisitAssessmentVisitPickerScreen(),
-                        ),
-                      if (auth.canAccessEquipmentDistribution)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Equipment Supply',
-                          icon: Icons.wheelchair_pickup_rounded,
-                          palette: ModulePalettes.equipmentSupply,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.equipmentSupply,
-                            child: EquipmentSupplyListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessMedicineSupply)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Medicine Supply',
-                          icon: Icons.medication_liquid_rounded,
-                          palette: ModulePalettes.medicineSupply,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.medicineSupply,
-                            child: MedicineSupplyListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessHomeVisits)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Home Visits',
-                          icon: Icons.home_rounded,
-                          palette: ModulePalettes.homeVisits,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.homeVisits,
-                            child: HomeVisitListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessSocialSupport)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Social Support',
-                          icon: Icons.food_bank_rounded,
-                          palette: ModulePalettes.socialSupport,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.socialSupport,
-                            child: SocialSupportListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessVolunteers)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Volunteers',
-                          icon: Icons.volunteer_activism_rounded,
-                          palette: ModulePalettes.volunteers,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.volunteers,
-                            child: VolunteerListPage(),
-                          ),
-                        ),
-                      if (auth.canAccessReports)
-                        _buildModernActionCard(
-                          context,
-                          title: 'Reports',
-                          icon: Icons.assessment_outlined,
-                          palette: ModulePalettes.reports,
-                          page: const ModuleTheme(
-                            palette: ModulePalettes.reports,
-                            child: ReportsPage(),
-                          ),
-                        ),
-                    ];
-
-                    if (cards.isEmpty) {
-                      return const AppCard(
-                        surfaceLevel: AppSurfaceLevel.elevated,
-                        child: AppEmptyState(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'No modules enabled',
-                          message:
-                              'Your unit administrator can enable care modules for this account.',
-                        ),
-                      );
-                    }
-
-                    return GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: columns,
-                      crossAxisSpacing: isCompact
-                          ? AppSpacing.sm
-                          : AppSpacing.md,
-                      mainAxisSpacing: isCompact
-                          ? AppSpacing.sm
-                          : AppSpacing.md,
-                      childAspectRatio: columns >= 4
-                          ? 1.42
-                          : columns == 3
-                          ? 1.28
-                          : 1.15,
-                      children: cards,
-                    );
-                  },
-                ),
-                if (auth.canAccessEquipmentDistribution) ...[
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildDashboardSectionHeader(
-                    context,
-                    title: 'Active Supplies',
-                    subtitle: 'Equipment currently assigned to patients.',
-                    actionLabel: 'View all',
-                    onAction: () {
-                      Navigator.push(
+                    _buildVolunteerApprovalCard(auth),
+                  ] else ...[
+                    if (maintenanceNotification != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _buildMaintenanceDueBanner(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const ModuleTheme(
-                            palette: ModulePalettes.equipmentSupply,
-                            child: EquipmentSupplyListPage(),
+                        maintenanceNotification,
+                      ),
+                    ],
+                    if (auth.isVolunteer) ...[
+                      if (auth.canAccessHomeVisits) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _buildVolunteerVisitCallout(context),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      _buildVolunteerTasksSection(context),
+                    ],
+                    if (auth.isAdmin &&
+                        (_pendingVolunteerRegistrationCount > 0 ||
+                            _pendingHomeVisitRequestCount > 0)) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildImportantRequestsSection(context),
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        final columns = width >= 900
+                            ? 4
+                            : width >= 620
+                            ? 3
+                            : 2;
+                        final cards = <Widget>[
+                          if (auth.canAccessPatients)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Patients',
+                              icon: Icons.people_alt_rounded,
+                              palette: ModulePalettes.patients,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.patients,
+                                child: PatientListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessNHC)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Visit Assessment',
+                              icon: Icons.assignment_rounded,
+                              palette: ModulePalettes.patients,
+                              page: const VisitAssessmentVisitPickerScreen(),
+                            ),
+                          if (auth.canAccessEquipmentDistribution)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Equipment Supply',
+                              icon: Icons.wheelchair_pickup_rounded,
+                              palette: ModulePalettes.equipmentSupply,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.equipmentSupply,
+                                child: EquipmentSupplyListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessMedicineSupply)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Medicine Supply',
+                              icon: Icons.medication_liquid_rounded,
+                              palette: ModulePalettes.medicineSupply,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.medicineSupply,
+                                child: MedicineSupplyListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessHomeVisits)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Home Visits',
+                              icon: Icons.home_rounded,
+                              palette: ModulePalettes.homeVisits,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.homeVisits,
+                                child: HomeVisitListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessSocialSupport)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Social Support',
+                              icon: Icons.food_bank_rounded,
+                              palette: ModulePalettes.socialSupport,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.socialSupport,
+                                child: SocialSupportListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessVolunteers)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Volunteers',
+                              icon: Icons.volunteer_activism_rounded,
+                              palette: ModulePalettes.volunteers,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.volunteers,
+                                child: VolunteerListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessReports)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Reports',
+                              icon: Icons.assessment_outlined,
+                              palette: ModulePalettes.reports,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.reports,
+                                child: ReportsPage(),
+                              ),
+                            ),
+                        ];
+
+                        if (cards.isEmpty) {
+                          return const AppCard(
+                            surfaceLevel: AppSurfaceLevel.elevated,
+                            child: AppEmptyState(
+                              icon: Icons.lock_outline_rounded,
+                              title: 'No modules enabled',
+                              message:
+                                  'Your unit administrator can enable care modules for this account.',
+                            ),
+                          );
+                        }
+
+                        return GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: columns,
+                          crossAxisSpacing: isCompact
+                              ? AppSpacing.sm
+                              : AppSpacing.md,
+                          mainAxisSpacing: isCompact
+                              ? AppSpacing.sm
+                              : AppSpacing.md,
+                          childAspectRatio: columns >= 4
+                              ? 1.42
+                              : columns == 3
+                              ? 1.28
+                              : 1.15,
+                          children: cards,
+                        );
+                      },
+                    ),
+                    if (auth.canAccessEquipmentDistribution) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Equipment currently assigned to patients.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _buildActiveSuppliesList(context),
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ModuleTheme(
+                                    palette: ModulePalettes.equipmentSupply,
+                                    child: EquipmentSupplyListPage(),
+                                  ),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Text(
+                                'View all',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _buildActiveSuppliesList(context),
+                    ],
+                  ],
                 ],
-              ],
-            ],
-          ),
+              ),
+            ),
           ),
         ),
       ),
@@ -2126,10 +2971,23 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }) {
     final textTheme = Theme.of(context).textTheme;
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
+    final compactVolunteer = auth.isVolunteer;
+    final achievementTier = _volunteerActivity?.achievementTier;
+    final achievementColor = achievementTier == null
+        ? null
+        : _achievementColor(achievementTier);
 
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
-      padding: EdgeInsets.all(isCompact ? AppSpacing.md : AppSpacing.lg),
+      backgroundColor: compactVolunteer && achievementTier != null
+          ? _achievementSurfaceColor(achievementTier)
+          : null,
+      borderColor: compactVolunteer && achievementColor != null
+          ? achievementColor.withValues(alpha: 0.24)
+          : null,
+      padding: EdgeInsets.all(
+        compactVolunteer || isCompact ? AppSpacing.md : AppSpacing.lg,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2141,6 +2999,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 onTap: isPendingApproval
                     ? null
                     : () => _scaffoldKey.currentState?.openDrawer(),
+                compact: compactVolunteer,
               ),
               const Spacer(),
               if (auth.unitSupportQr != null && !isPendingApproval) ...[
@@ -2148,6 +3007,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Show QR',
                   icon: Icons.qr_code_2_rounded,
                   onTap: () => _showQRModal(context),
+                  compact: compactVolunteer,
                 ),
                 const SizedBox(width: AppSpacing.xs),
               ],
@@ -2160,8 +3020,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 badgeLabel: isPendingApproval || _notificationCount <= 0
                     ? null
                     : (_notificationCount > 99
-                        ? '99+'
-                        : _notificationCount.toString()),
+                          ? '99+'
+                          : _notificationCount.toString()),
+                compact: compactVolunteer,
               ),
               if (auth.canCreate) ...[
                 const SizedBox(width: AppSpacing.xs),
@@ -2169,13 +3030,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Quick add',
                   icon: Icons.add_rounded,
                   onTap: _showQuickAddOptions,
+                  compact: compactVolunteer,
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
                 onTap: () => _showUserProfile(context),
                 child: UnitBrandAvatar(
-                  size: 44,
+                  size: compactVolunteer ? 40 : 44,
                   preferAppIcon: true,
                   backgroundColor: AppColors.primaryLight,
                   iconColor: AppColors.primary,
@@ -2185,38 +3047,141 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          SizedBox(height: isCompact ? AppSpacing.md : AppSpacing.lg),
+          SizedBox(
+            height: compactVolunteer || isCompact
+                ? AppSpacing.sm
+                : AppSpacing.lg,
+          ),
           Text(
             _getGreeting(auth),
             style: textTheme.labelLarge?.copyWith(
+              fontSize: compactVolunteer ? 12 : null,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            auth.unitName,
-            style: GoogleFonts.outfit(
-              textStyle: textTheme.headlineMedium,
-              color: AppColors.text,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-              height: 1.15,
-            ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _ShellStatusPill(
-                label: auth.unitLocation,
-                icon: Icons.location_on_outlined,
-                color: AppColors.primary,
+              Expanded(
+                child: InkWell(
+                  onTap: auth.hasAboutUs ? _navigateToAboutUs : null,
+                  borderRadius: AppRadius.sm,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        auth.unitName,
+                        style:
+                            GoogleFonts.outfit(
+                              textStyle: compactVolunteer
+                                  ? textTheme.titleLarge
+                                  : textTheme.headlineMedium,
+                              color: AppColors.text,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                              height: 1.15,
+                            ).copyWith(
+                              fontFamilyFallback: const ['NotoSansMalayalam'],
+                            ),
+                      ),
+                      SizedBox(
+                        height: compactVolunteer
+                            ? AppSpacing.xs
+                            : AppSpacing.sm,
+                      ),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          _ShellStatusPill(
+                            label: auth.unitLocation,
+                            icon: Icons.location_on_outlined,
+                            color: AppColors.primary,
+                          ),
+                          if (auth.isVolunteer && _volunteerActivity != null)
+                            _ShellStatusPill(
+                              label: _volunteerActivity!.achievementTier,
+                              icon: Icons.workspace_premium_outlined,
+                              color: _achievementColor(
+                                _volunteerActivity!.achievementTier,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
+              if (auth.hasAboutUs) ...[
+                const SizedBox(width: AppSpacing.sm),
+                _buildOurStoryBadge(context),
+              ],
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToAboutUs() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AboutUsPage()),
+    );
+  }
+
+  Widget _buildOurStoryBadge(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _navigateToAboutUs,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0D9488).withValues(alpha: 0.35),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.auto_stories_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'Our Story',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 3),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 10,
+                color: Colors.white70,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2226,6 +3191,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required IconData icon,
     VoidCallback? onTap,
     String? badgeLabel,
+    bool compact = false,
   }) {
     final enabled = onTap != null;
     return Tooltip(
@@ -2241,7 +3207,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              const SizedBox.square(dimension: 44),
+              SizedBox.square(dimension: compact ? 40 : 44),
               Positioned.fill(
                 child: Icon(
                   icon,
@@ -2288,6 +3254,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required String subtitle,
     String? actionLabel,
     VoidCallback? onAction,
+    bool compact = false,
   }) {
     final textTheme = Theme.of(context).textTheme;
 
@@ -2300,17 +3267,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             children: [
               Text(
                 title,
-                style: textTheme.titleLarge?.copyWith(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: (compact ? textTheme.titleMedium : textTheme.titleLarge)
+                    ?.copyWith(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 subtitle,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+                style: (compact ? textTheme.bodySmall : textTheme.bodyMedium)
+                    ?.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -2601,6 +3568,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         return Icons.home_repair_service_outlined;
       case 'billing_due':
         return Icons.receipt_long_outlined;
+      case 'volunteer_home_visit_request':
+        return Icons.how_to_reg_outlined;
+      case 'volunteer_assignment':
+        return Icons.assignment_turned_in_outlined;
+      case 'volunteer_request_update':
+        return Icons.volunteer_activism_outlined;
+      case 'volunteer_registration':
+        return Icons.person_add_alt_1_outlined;
       default:
         return Icons.notifications_outlined;
     }
@@ -3041,6 +4016,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                           MaterialPageRoute(
                             builder: (context) =>
                                 const ConfigPage(mode: ConfigPageMode.settings),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.auto_stories_outlined,
+                      title: "About Our Unit",
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AboutUsAdminPage(),
                           ),
                         );
                       },

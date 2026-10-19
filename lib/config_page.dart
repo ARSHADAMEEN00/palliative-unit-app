@@ -41,8 +41,8 @@ class _ConfigPageState extends State<ConfigPage>
   static const _chipLineColor = AppColors.border;
   static const _softAccentColor = AppColors.primaryLight;
   static const _removeIconColor = AppColors.textMuted;
-  static const _roles = ['admin', 'staff', 'member'];
-  static const _permissionRoles = [..._roles, 'user'];
+  static const _roles = ['admin', 'staff', 'member', 'volunteer'];
+  static const _permissionRoles = _roles;
   static const _staffModuleIds = [
     AppFeature.patients,
     AppFeature.homeVisits,
@@ -162,7 +162,9 @@ class _ConfigPageState extends State<ConfigPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (context.read<AuthService>().isAdmin) {
-        if (widget.mode != ConfigPageMode.staff) _fetchConfig();
+        if (widget.mode != ConfigPageMode.staff) {
+          _fetchConfig();
+        }
         if (widget.mode != ConfigPageMode.settings) _fetchStaff();
       } else {
         setState(() {
@@ -563,26 +565,11 @@ class _ConfigPageState extends State<ConfigPage>
           const SizedBox(height: AppSpacing.md),
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 42),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+            child: AppPrimaryButton(
+              label: 'Save role defaults',
+              icon: Icons.save_outlined,
+              loading: _isSavingRolePermissions,
               onPressed: _isSavingRolePermissions ? null : _saveRolePermissions,
-              icon: _isSavingRolePermissions
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined, size: 17),
-              label: const Text(
-                'Save role defaults',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-              ),
             ),
           ),
         ],
@@ -909,9 +896,11 @@ class _ConfigPageState extends State<ConfigPage>
         },
       );
     } finally {
-      nameController.dispose();
-      emailController.dispose();
-      passwordController.dispose();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        nameController.dispose();
+        emailController.dispose();
+        passwordController.dispose();
+      });
     }
   }
 
@@ -921,10 +910,11 @@ class _ConfigPageState extends State<ConfigPage>
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     var selectedRole = staff.role;
+    if (!_roles.contains(selectedRole)) selectedRole = 'staff';
     var selectedModules = <String>{
       ...(staff.hasExplicitModulePermissions
           ? staff.permittedModuleIds
-          : _modulesForRole(staff.role)),
+          : _modulesForRole(selectedRole)),
     };
     var obscurePassword = true;
     var saving = false;
@@ -1161,32 +1151,22 @@ class _ConfigPageState extends State<ConfigPage>
                   ),
                 ),
               ),
+              actionsPadding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                AppSpacing.lg,
+              ),
               actions: [
-                TextButton(
+                AppSecondaryButton(
+                  label: 'Cancel',
                   onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                  child: const Text('Cancel'),
                 ),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                AppPrimaryButton(
+                  label: 'Save changes',
+                  icon: Icons.check_circle_outline_rounded,
+                  loading: saving,
                   onPressed: saving ? null : save,
-                  icon: saving
-                      ? const SizedBox.square(
-                          dimension: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_outlined, size: 15),
-                  label: const Text(
-                    'Save changes',
-                    style: TextStyle(fontSize: 12),
-                  ),
                 ),
               ],
             );
@@ -1194,9 +1174,11 @@ class _ConfigPageState extends State<ConfigPage>
         ),
       );
     } finally {
-      nameController.dispose();
-      emailController.dispose();
-      passwordController.dispose();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        nameController.dispose();
+        emailController.dispose();
+        passwordController.dispose();
+      });
     }
   }
 
@@ -1852,9 +1834,11 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   static int _compareStaffUsers(StaffUser a, StaffUser b) {
-    final roleCompare = _roles
-        .indexOf(a.role)
-        .compareTo(_roles.indexOf(b.role));
+    final aIndex = _roles.indexOf(a.role);
+    final bIndex = _roles.indexOf(b.role);
+    final roleCompare = (aIndex == -1 ? 99 : aIndex).compareTo(
+      bIndex == -1 ? 99 : bIndex,
+    );
     if (roleCompare != 0) return roleCompare;
     return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }
@@ -1867,16 +1851,16 @@ class _ConfigPageState extends State<ConfigPage>
         return 'Staff';
       case 'member':
         return 'Member';
-      case 'user':
+      case 'volunteer':
         return 'Volunteer';
       default:
-        return 'User';
+        return 'Volunteer';
     }
   }
 
   static List<String> _defaultModulesForRole(String role) {
     if (role == 'admin') return List<String>.from(_staffModuleIds);
-    if (role == 'member' || role == 'user') {
+    if (role == 'member' || role == 'volunteer') {
       return const [
         AppFeature.patients,
         AppFeature.homeVisits,
@@ -1906,9 +1890,9 @@ class _ConfigPageState extends State<ConfigPage>
       case 'staff':
         return Icons.medical_services_outlined;
       case 'member':
+        return Icons.people_outline_rounded;
+      case 'volunteer':
         return Icons.volunteer_activism_outlined;
-      case 'user':
-        return Icons.favorite_outline_rounded;
       default:
         return Icons.person_outline;
     }
@@ -1922,7 +1906,7 @@ class _ConfigPageState extends State<ConfigPage>
         return const Color(0xFF0F6E56);
       case 'member':
         return const Color(0xFF8A2454);
-      case 'user':
+      case 'volunteer':
         return const Color(0xFFDB2777);
       default:
         return const Color(0xFF656A73);

@@ -40,11 +40,13 @@ class VolunteerActivity {
     required this.achievementTier,
     required this.history,
     this.nextTierAt,
+    this.joinedAt,
   });
 
   final int totalSocialWorks;
   final String achievementTier;
   final int? nextTierAt;
+  final DateTime? joinedAt;
   final List<VolunteerActivityItem> history;
 
   factory VolunteerActivity.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,7 @@ class VolunteerActivity {
       totalSocialWorks: (json['totalSocialWorks'] as num?)?.toInt() ?? 0,
       achievementTier: json['achievementTier']?.toString() ?? 'New Volunteer',
       nextTierAt: (json['nextTierAt'] as num?)?.toInt(),
+      joinedAt: DateTime.tryParse(json['joinedAt']?.toString() ?? ''),
       history: (json['history'] as List<dynamic>? ?? const [])
           .whereType<Map>()
           .map(

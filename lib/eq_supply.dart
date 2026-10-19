@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/equipment.dart';
+import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/services/equipment_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
@@ -875,7 +877,8 @@ class _EqSupplyState extends State<EqSupply> {
                                                                                   ),
                                                                               ],
                                                                             ),
-                                                                            if (patient.phone.isNotEmpty)
+                                                                            if (context.read<AuthService>().canViewContactNumbers &&
+                                                                                patient.phone.isNotEmpty)
                                                                               Text(
                                                                                 patient.phone,
                                                                                 style: TextStyle(

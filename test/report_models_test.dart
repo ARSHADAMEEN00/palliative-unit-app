@@ -18,6 +18,40 @@ void main() {
     expect(ReportType.socialSupport.apiSlug, 'social-support');
   });
 
+  test('members cannot access medicine reports', () {
+    expect(
+      ReportAccessPolicy.allowedForRole('member'),
+      isNot(contains(ReportType.medicineStock)),
+    );
+    expect(
+      ReportAccessPolicy.allowedForRole('member'),
+      isNot(contains(ReportType.medicineSupplies)),
+    );
+    expect(
+      ReportAccessPolicy.allowedForRole('member'),
+      containsAll([
+        ReportType.equipmentStock,
+        ReportType.equipmentDamageHistory,
+        ReportType.equipmentSupplies,
+        ReportType.socialSupport,
+      ]),
+    );
+    expect(
+      ReportAccessPolicy.resolveInitial('member', ReportType.medicineStock),
+      ReportType.equipmentStock,
+    );
+  });
+
+  test('non-member roles retain medicine reports', () {
+    for (final role in ['superadmin', 'admin', 'staff', 'volunteer']) {
+      expect(
+        ReportAccessPolicy.allowedForRole(role),
+        containsAll([ReportType.medicineStock, ReportType.medicineSupplies]),
+        reason: '$role should retain medicine reports',
+      );
+    }
+  });
+
   test('report filters serialize pagination, dates, sorting and extras', () {
     final filters = ReportFilters(
       search: 'morphine',
