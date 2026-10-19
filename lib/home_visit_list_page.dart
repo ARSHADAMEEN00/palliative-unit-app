@@ -759,6 +759,51 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     VolunteerHomeVisitRequest request,
     String status,
   ) async {
+    if (_requestActionsInProgress.contains(request.id)) return;
+    final approving = status == 'approved';
+    final visit = request.homeVisit;
+    final volunteer = request.volunteer;
+    final visitDate = DateTime.tryParse(visit?.visitDate ?? '');
+    final dateLabel = visitDate == null
+        ? (visit?.visitDate ?? 'the scheduled date')
+        : DateFormat('EEEE, d MMMM yyyy').format(visitDate);
+    final address = visit?.address.trim() ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: Text(
+          approving
+              ? 'Approve volunteer request?'
+              : 'Decline volunteer request?',
+        ),
+        content: Text(
+          approving
+              ? 'Assign ${volunteer?.name ?? 'this volunteer'} to ${visit?.patientName ?? 'this home visit'} on $dateLabel${address.isEmpty ? '' : ' at $address'}?'
+              : 'Decline ${volunteer?.name ?? 'this volunteer'}\'s request for ${visit?.patientName ?? 'this home visit'} on $dateLabel?',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: approving ? AppColors.success : AppColors.danger,
+            ),
+            child: Text(approving ? 'Approve & assign' : 'Decline'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     setState(() => _requestActionsInProgress.add(request.id));
     try {
       await VolunteerHomeVisitRequestService.review(request.id, status);

@@ -5,6 +5,8 @@ import 'package:oruma_app/models/volunteer_activity.dart';
 import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/app_bottom_nav_router.dart';
+import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 
 class MySocialWorkPage extends StatefulWidget {
   const MySocialWorkPage({super.key, this.initialActivity});
@@ -63,6 +65,14 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
         ],
       ),
       contentMaxWidth: 760,
+      currentSection: AppBottomSection.socialWork,
+      onNavigationSelected: (section) {
+        AppBottomNavRouter.handle(
+          context,
+          current: AppBottomSection.socialWork,
+          target: section,
+        );
+      },
       body: _buildBody(),
     );
   }

@@ -10,7 +10,6 @@ import 'package:oruma_app/equipment_supply_list_page.dart';
 import 'package:oruma_app/home_visit_list_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
-import 'package:oruma_app/my_social_work_page.dart';
 import 'package:oruma_app/social_support_list_page.dart';
 import 'package:oruma_app/volunteer_list_page.dart';
 import 'package:oruma_app/pt_registration.dart' show patientrigister;
@@ -30,6 +29,8 @@ import 'package:oruma_app/models/volunteer_activity.dart';
 import 'package:oruma_app/models/volunteer_assignment.dart';
 import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/services/volunteer_assignment_service.dart';
+import 'package:oruma_app/services/volunteer_home_visit_request_service.dart';
+import 'package:oruma_app/services/volunteer_service.dart';
 import 'package:oruma_app/volunteer_assignment_detail_page.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
@@ -71,6 +72,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   List<VolunteerAssignment> _overdueAssignments = [];
   bool _assignmentsLoading = false;
   bool _checkingApproval = false;
+  int _pendingVolunteerRegistrationCount = 0;
+  int _pendingHomeVisitRequestCount = 0;
+  bool _importantRequestsLoading = false;
 
   @override
   void initState() {
@@ -112,6 +116,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       _loadVolunteerActivity();
       _loadVolunteerAssignments();
     }
+    if (auth.isAdmin) {
+      _loadImportantRequests();
+    }
     if (auth.canAccessEquipmentDistribution) {
       _loadActiveSupplies();
     } else {
@@ -121,6 +128,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       });
     }
     _loadNotifications(refresh: force);
+  }
+
+  Future<void> _loadImportantRequests() async {
+    if (!mounted || _importantRequestsLoading) return;
+    setState(() => _importantRequestsLoading = true);
+    try {
+      final counts = await Future.wait<int>([
+        VolunteerService.getVolunteers(forceRefresh: true).then(
+          (volunteers) => volunteers
+              .where(
+                (volunteer) =>
+                    volunteer.applicationStatus.toLowerCase() == 'pending',
+              )
+              .length,
+        ),
+        VolunteerHomeVisitRequestService.getRequests(
+          status: 'pending',
+        ).then((requests) => requests.length),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _pendingVolunteerRegistrationCount = counts[0];
+        _pendingHomeVisitRequestCount = counts[1];
+      });
+    } catch (_) {
+      // The dashboard remains usable if request summaries cannot be refreshed.
+    } finally {
+      if (mounted) setState(() => _importantRequestsLoading = false);
+    }
   }
 
   Future<void> _checkApprovalStatus() async {
@@ -2382,6 +2418,163 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildImportantRequestsSection(BuildContext context) {
+    final total =
+        _pendingVolunteerRegistrationCount + _pendingHomeVisitRequestCount;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDashboardSectionHeader(
+          context,
+          title: 'Important Requests',
+          subtitle:
+              '$total ${total == 1 ? 'request needs' : 'requests need'} your review.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoColumns = constraints.maxWidth >= 620;
+            final cardWidth = twoColumns
+                ? (constraints.maxWidth - AppSpacing.md) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              children: [
+                if (_pendingVolunteerRegistrationCount > 0)
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildImportantRequestCard(
+                      context,
+                      title: 'Volunteer registrations',
+                      subtitle:
+                          '$_pendingVolunteerRegistrationCount awaiting approval',
+                      count: _pendingVolunteerRegistrationCount,
+                      icon: Icons.how_to_reg_outlined,
+                      color: AppColors.warning,
+                      onTap: _openVolunteerRegistrationRequests,
+                    ),
+                  ),
+                if (_pendingHomeVisitRequestCount > 0)
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildImportantRequestCard(
+                      context,
+                      title: 'Home visit volunteers',
+                      subtitle:
+                          '$_pendingHomeVisitRequestCount availability ${_pendingHomeVisitRequestCount == 1 ? 'request' : 'requests'}',
+                      count: _pendingHomeVisitRequestCount,
+                      icon: Icons.home_work_outlined,
+                      color: AppColors.success,
+                      onTap: _openHomeVisitVolunteerRequests,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImportantRequestCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required int count,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      backgroundColor: color.withValues(alpha: 0.07),
+      borderColor: color.withValues(alpha: 0.26),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: AppRadius.md,
+            ),
+            child: Icon(icon, color: color, size: 23),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Icon(Icons.chevron_right_rounded, color: color),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openVolunteerRegistrationRequests() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ModuleTheme(
+          palette: ModulePalettes.volunteers,
+          child: VolunteerListPage(showPendingRegistrations: true),
+        ),
+      ),
+    );
+    if (mounted) await _loadImportantRequests();
+  }
+
+  Future<void> _openHomeVisitVolunteerRequests() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ModuleTheme(
+          palette: ModulePalettes.homeVisits,
+          child: HomeVisitListPage(),
+        ),
+      ),
+    );
+    if (mounted) await _loadImportantRequests();
+  }
+
   @override
   Widget build(BuildContext context) {
     debugPrint('User Role: ${context.read<AuthService>().role}');
@@ -2454,6 +2647,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       const SizedBox(height: AppSpacing.md),
                       _buildVolunteerTasksSection(context),
                     ],
+                    if (auth.isAdmin &&
+                        (_pendingVolunteerRegistrationCount > 0 ||
+                            _pendingHomeVisitRequestCount > 0)) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildImportantRequestsSection(context),
+                    ],
                     SizedBox(
                       height: auth.isVolunteer ? AppSpacing.md : AppSpacing.lg,
                     ),
@@ -2521,17 +2720,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               context,
                               title: 'Home Visits',
                               icon: Icons.home_rounded,
-                              palette: ModulePalettes.homeVisits,
-                              page: const ModuleTheme(
-                                palette: ModulePalettes.homeVisits,
-                                child: HomeVisitListPage(),
-                              ),
-                            ),
-                          if (auth.isAdmin && auth.canAccessHomeVisits)
-                            _buildModernActionCard(
-                              context,
-                              title: 'Volunteer Requests',
-                              icon: Icons.how_to_reg_outlined,
                               palette: ModulePalettes.homeVisits,
                               page: const ModuleTheme(
                                 palette: ModulePalettes.homeVisits,
@@ -2811,17 +2999,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ),
                 const SizedBox(width: AppSpacing.xs),
               ],
-              if (auth.isVolunteer) ...[
-                _buildShellIconButton(
-                  tooltip: isPendingApproval
-                      ? 'Social work unavailable'
-                      : 'My Social Work',
-                  icon: Icons.workspace_premium_outlined,
-                  onTap: isPendingApproval ? null : _openMySocialWork,
-                  compact: compactVolunteer,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-              ],
               _buildShellIconButton(
                 tooltip: isPendingApproval
                     ? 'Notifications unavailable'
@@ -2941,16 +3118,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(builder: (context) => const AboutUsPage()),
     );
-  }
-
-  Future<void> _openMySocialWork() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MySocialWorkPage(initialActivity: _volunteerActivity),
-      ),
-    );
-    if (mounted) await _loadVolunteerActivity();
   }
 
   Widget _buildOurStoryBadge(BuildContext context) {

@@ -6,6 +6,7 @@ import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_a
 import 'package:oruma_app/home_visit_list_page.dart';
 import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
+import 'package:oruma_app/my_social_work_page.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/feature_permission_gate.dart';
@@ -36,6 +37,7 @@ class AppBottomNavRouter {
 
     final page = switch (target) {
       AppBottomSection.home => const Homescreen(),
+      AppBottomSection.socialWork => const MySocialWorkPage(),
       AppBottomSection.medicine => const ModuleTheme(
         palette: ModulePalettes.medicineSupply,
         child: MedicineSupplyListPage(),
@@ -57,6 +59,7 @@ class AppBottomNavRouter {
   static String? _featureForSection(AppBottomSection section) {
     return switch (section) {
       AppBottomSection.home => null,
+      AppBottomSection.socialWork => null,
       AppBottomSection.medicine => AppFeature.medicineSupply,
       AppBottomSection.patients => AppFeature.patients,
       AppBottomSection.homeVisit => AppFeature.homeVisits,
@@ -67,6 +70,7 @@ class AppBottomNavRouter {
   static String _moduleNameForSection(AppBottomSection section) {
     return switch (section) {
       AppBottomSection.home => 'Home',
+      AppBottomSection.socialWork => 'My Social Work',
       AppBottomSection.medicine => 'Medicine Supply',
       AppBottomSection.patients => 'Patients',
       AppBottomSection.homeVisit => 'Home Visits',

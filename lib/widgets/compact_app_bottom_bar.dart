@@ -10,7 +10,7 @@ import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
-enum AppBottomSection { home, medicine, patients, homeVisit, nhc }
+enum AppBottomSection { home, socialWork, medicine, patients, homeVisit, nhc }
 
 class AppBottomNavItem {
   const AppBottomNavItem(this.section, this.icon, this.label);
@@ -33,6 +33,11 @@ class CompactAppBottomBar extends StatelessWidget {
   static const items = <AppBottomNavItem>[
     AppBottomNavItem(AppBottomSection.home, Icons.home_outlined, 'Home'),
     AppBottomNavItem(
+      AppBottomSection.socialWork,
+      Icons.volunteer_activism_outlined,
+      'My Work',
+    ),
+    AppBottomNavItem(
       AppBottomSection.medicine,
       Icons.medication_outlined,
       'Medicine',
@@ -52,6 +57,9 @@ class CompactAppBottomBar extends StatelessWidget {
 
   static List<AppBottomNavItem> visibleItems(AuthService auth) {
     return items.where((item) {
+      if (item.section == AppBottomSection.socialWork && !auth.isVolunteer) {
+        return false;
+      }
       if (item.section == AppBottomSection.medicine &&
           !auth.canAccessMedicineSupply) {
         return false;
@@ -191,11 +199,7 @@ class _BottomNavTile extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            item.icon,
-                            size: AppIcons.large,
-                            color: color,
-                          ),
+                          Icon(item.icon, size: AppIcons.large, color: color),
                           const SizedBox(height: 2),
                           FittedBox(
                             fit: BoxFit.scaleDown,

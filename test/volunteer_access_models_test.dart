@@ -3,6 +3,8 @@ import 'package:oruma_app/models/staff_user.dart';
 import 'package:oruma_app/models/volunteer.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
 import 'package:oruma_app/models/volunteer_home_visit_request.dart';
+import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 
 void main() {
   test('volunteer application status and email are parsed', () {
@@ -47,6 +49,7 @@ void main() {
       'totalSocialWorks': 12,
       'achievementTier': 'Silver',
       'nextTierAt': 25,
+      'joinedAt': '2026-01-05T08:30:00.000Z',
       'history': [
         {
           'id': 'work-1',
@@ -59,6 +62,7 @@ void main() {
 
     expect(activity.totalSocialWorks, 12);
     expect(activity.achievementTier, 'Silver');
+    expect(activity.joinedAt, DateTime.utc(2026, 1, 5, 8, 30));
     expect(activity.history.single.patientName, 'Patient One');
   });
 
@@ -87,4 +91,23 @@ void main() {
     expect(request.homeVisit?.address, 'Rahma Manzil, Mundakkode');
     expect(request.volunteer?.name, 'Asha');
   });
+
+  test('My Work bottom navigation destination is volunteer-only', () {
+    final volunteerSections = CompactAppBottomBar.visibleItems(
+      _RoleAuthService(isVolunteer: true),
+    ).map((item) => item.section);
+    final staffSections = CompactAppBottomBar.visibleItems(
+      _RoleAuthService(isVolunteer: false),
+    ).map((item) => item.section);
+
+    expect(volunteerSections, contains(AppBottomSection.socialWork));
+    expect(staffSections, isNot(contains(AppBottomSection.socialWork)));
+  });
+}
+
+class _RoleAuthService extends AuthService {
+  _RoleAuthService({required this.isVolunteer});
+
+  @override
+  final bool isVolunteer;
 }
