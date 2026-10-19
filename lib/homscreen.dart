@@ -15,6 +15,7 @@ import 'package:oruma_app/volunteer_list_page.dart';
 import 'package:oruma_app/pt_registration.dart' show patientrigister;
 import 'package:oruma_app/patient_list_page.dart';
 import 'package:oruma_app/privacy_policy_screen.dart';
+import 'package:oruma_app/about_us_page.dart';
 import 'package:oruma_app/deceased_patient_list_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
@@ -2123,29 +2124,112 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            auth.unitName,
-            style: GoogleFonts.outfit(
-              textStyle: textTheme.headlineMedium,
-              color: AppColors.text,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-              height: 1.15,
-            ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _ShellStatusPill(
-                label: auth.unitLocation,
-                icon: Icons.location_on_outlined,
-                color: AppColors.primary,
+              Expanded(
+                child: InkWell(
+                  onTap: auth.hasAboutUs ? _navigateToAboutUs : null,
+                  borderRadius: AppRadius.sm,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        auth.unitName,
+                        style: GoogleFonts.outfit(
+                          textStyle: textTheme.headlineMedium,
+                          color: AppColors.text,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                          height: 1.15,
+                        ).copyWith(
+                          fontFamilyFallback: const ['NotoSansMalayalam'],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          _ShellStatusPill(
+                            label: auth.unitLocation,
+                            icon: Icons.location_on_outlined,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
+              if (auth.hasAboutUs) ...[
+                const SizedBox(width: AppSpacing.sm),
+                _buildOurStoryBadge(context),
+              ],
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToAboutUs() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AboutUsPage()),
+    );
+  }
+
+  Widget _buildOurStoryBadge(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _navigateToAboutUs,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0D9488).withValues(alpha: 0.35),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.auto_stories_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'Our Story',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 3),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 10,
+                color: Colors.white70,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

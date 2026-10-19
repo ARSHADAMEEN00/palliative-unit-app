@@ -10,7 +10,7 @@ void main() {
         'admin': ['patients', 'home_visits'],
         'staff': ['patients'],
         'member': <String>[],
-        'user': ['patients'],
+        'volunteer': ['patients'],
       },
     });
 
@@ -22,6 +22,6 @@ void main() {
     expect(settings.subscribedModuleIds, {'patients', 'home_visits'});
     expect(settings.rolePermissions['staff'], {'patients'});
     expect(settings.rolePermissions['member'], isEmpty);
-    expect(settings.rolePermissions['user'], {'patients'});
+    expect(settings.rolePermissions['volunteer'], {'patients'});
   });
 }

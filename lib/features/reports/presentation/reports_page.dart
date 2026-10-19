@@ -59,7 +59,10 @@ class _ReportsPageState extends State<ReportsPage> {
   @override
   void initState() {
     super.initState();
-    _type = widget.initialReport;
+    _type = ReportAccessPolicy.resolveInitial(
+      context.read<AuthService>().role,
+      widget.initialReport,
+    );
     _filters = _defaultFilters(_type);
     _searchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,6 +97,12 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   void _selectReport(ReportType type) {
+    if (!ReportAccessPolicy.roleAllows(
+      context.read<AuthService>().role,
+      type,
+    )) {
+      return;
+    }
     if (type == _type) return;
     _searchDebounce?.cancel();
     _searchController.clear();
@@ -207,7 +216,11 @@ class _ReportsPageState extends State<ReportsPage> {
       ),
       body: Column(
         children: [
-          _ReportSelector(selected: _type, onSelected: _selectReport),
+          _ReportSelector(
+            types: ReportAccessPolicy.allowedForRole(auth.role),
+            selected: _type,
+            onSelected: _selectReport,
+          ),
           _buildToolbar(),
           Expanded(child: _buildContent()),
         ],
@@ -985,8 +998,13 @@ class _ReportsPageState extends State<ReportsPage> {
 }
 
 class _ReportSelector extends StatelessWidget {
-  const _ReportSelector({required this.selected, required this.onSelected});
+  const _ReportSelector({
+    required this.types,
+    required this.selected,
+    required this.onSelected,
+  });
 
+  final List<ReportType> types;
   final ReportType selected;
   final ValueChanged<ReportType> onSelected;
 
@@ -1003,7 +1021,7 @@ class _ReportSelector extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: ReportType.values.map((type) {
+          children: types.map((type) {
             final definition = reportDefinitions[type]!;
             final isSelected = type == selected;
             return Padding(

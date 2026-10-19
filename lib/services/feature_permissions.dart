@@ -72,10 +72,19 @@ class FeatureAccessPolicy {
     if (normalized == 'member') {
       return !_memberRestrictedFeatures.contains(featureId);
     }
-    if (normalized == 'user') {
+    if (normalized == 'volunteer' || normalized == 'user') {
       return _volunteerDefaultFeatures.contains(featureId);
     }
     return true;
+  }
+
+  static bool isRequiredForRole(String? role, String featureId) {
+    final normalized = role?.trim().toLowerCase();
+    return (normalized == 'member' ||
+            normalized == 'volunteer' ||
+            normalized == 'staff' ||
+            normalized == 'user') &&
+        featureId == AppFeature.volunteers;
   }
 }
 

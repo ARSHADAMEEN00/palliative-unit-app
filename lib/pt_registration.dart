@@ -433,7 +433,9 @@ class _patientrigisterState extends State<patientrigister> {
         },
       );
     } finally {
-      newWardController.dispose();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        newWardController.dispose();
+      });
     }
   }
 
@@ -530,7 +532,9 @@ class _patientrigisterState extends State<patientrigister> {
         },
       );
     } finally {
-      newDiseaseController.dispose();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        newDiseaseController.dispose();
+      });
     }
   }
 

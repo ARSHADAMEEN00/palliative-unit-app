@@ -43,6 +43,11 @@ class ApiConfig {
       '$baseUrl/public/volunteer-applications';
   static String get volunteerActivityEndpoint =>
       '$v2VolunteersEndpoint/me/activity';
+  static String get aboutUsEndpoint => '$baseUrl/unit/about';
+  static String get aboutUsSummaryEndpoint => '$baseUrl/unit/about/summary';
+  static String get adminAboutUsEndpoint => '$baseUrl/settings/about-us';
+  static String get adminAboutUsPreviewEndpoint =>
+      '$baseUrl/settings/about-us/preview';
 
   /// Default headers for API requests
   static Map<String, String> get headers => {

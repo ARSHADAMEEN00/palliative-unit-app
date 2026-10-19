@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:oruma_app/core/theme/app_icons.dart';
 import 'package:oruma_app/core/theme/app_motion.dart';
 import 'package:oruma_app/core/theme/app_radius.dart';
 import 'package:oruma_app/core/theme/app_spacing.dart';
@@ -23,7 +22,7 @@ class ModuleSwitchTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
+      height: 38,
       padding: const EdgeInsets.all(AppSpacing.xxs),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
@@ -34,41 +33,50 @@ class ModuleSwitchTabs extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: List.generate(labels.length, (index) {
           final selected = selectedIndex == index;
-          return InkWell(
-            onTap: selected ? null : () => onSelected(index),
-            borderRadius: AppRadius.sm,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.easeOutCubic,
-              height: 32,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? color : Colors.transparent,
-                borderRadius: AppRadius.sm,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icons != null) ...[
-                    Icon(
-                      icons![index],
-                      size: AppIcons.small,
-                      color: selected ? Colors.white : color,
+          return Flexible(
+            fit: FlexFit.loose,
+            child: InkWell(
+              onTap: selected ? null : () => onSelected(index),
+              borderRadius: AppRadius.sm,
+              child: AnimatedContainer(
+                duration: AppMotion.fast,
+                curve: AppMotion.easeOutCubic,
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 9),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? color : Colors.transparent,
+                  borderRadius: AppRadius.sm,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (icons != null) ...[
+                      Icon(
+                        icons![index],
+                        size: 14.5,
+                        color: selected ? Colors.white : color,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        labels[index],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: selected ? Colors.white : color,
+                          fontSize: 12,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: AppSpacing.xs),
                   ],
-                  Text(
-                    labels[index],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selected ? Colors.white : color,
-                      fontSize: 13,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           );

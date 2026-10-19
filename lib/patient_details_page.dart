@@ -1206,6 +1206,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   }
 
   Widget _equipmentCard(EquipmentSupply supply) {
+    final auth = context.read<AuthService>();
     final statusColor = _equipmentStatusColor(supply.status);
 
     return Container(
@@ -1291,7 +1292,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               'Receiver',
               [
                 supply.receiverName,
-                supply.receiverPhone,
+                if (auth.canViewContactNumbers) supply.receiverPhone,
               ].where((value) => value?.trim().isNotEmpty == true).join(' • '),
             ),
           ],
@@ -1643,7 +1644,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
             'Volunteer',
             _value(support.volunteerName),
           ),
-          if (context.read<AuthService>().canViewContactNumbers) ...[
+          if (context.read<AuthService>().canViewContactNumbers &&
+              support.volunteerContact.trim().isNotEmpty) ...[
             const SizedBox(height: 10),
             _detailLine(
               Icons.call_outlined,

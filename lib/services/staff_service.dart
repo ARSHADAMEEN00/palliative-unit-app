@@ -23,7 +23,7 @@ class RolePermissionSettings {
       allModuleIds: _stringList(json['allModuleIds']),
       subscribedModuleIds: _stringList(json['subscribedModuleIds']).toSet(),
       rolePermissions: {
-        for (final role in const ['admin', 'staff', 'member', 'user'])
+        for (final role in const ['admin', 'staff', 'member', 'volunteer'])
           role: _stringList(roles[role]).toSet(),
       },
     );
