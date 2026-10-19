@@ -109,6 +109,8 @@ class AboutUsTag {
 }
 
 class AboutUsData {
+  static const defaultTitle = 'മനസ്സിനെ കേൾക്കാം, കരുതലോടെ ചേർത്തുപിടിക്കാം';
+
   final bool hasAboutUs;
   final String title;
   final String content;
@@ -143,9 +145,7 @@ class AboutUsData {
         if (item is Map<String, dynamic>) {
           tagsList.add(AboutUsTag.fromJson(item));
         } else if (item is Map) {
-          tagsList.add(
-            AboutUsTag.fromJson(Map<String, dynamic>.from(item)),
-          );
+          tagsList.add(AboutUsTag.fromJson(Map<String, dynamic>.from(item)));
         }
       }
     }
@@ -159,9 +159,10 @@ class AboutUsData {
 
     return AboutUsData(
       hasAboutUs: json['has_about_us'] == true || json['hasAboutUs'] == true,
-      title: json['title']?.toString() ?? 'About Our Unit',
-      content:
-          json['content']?.toString() ?? json['preview']?.toString() ?? '',
+      title: json['title']?.toString().trim().isNotEmpty == true
+          ? json['title'].toString().trim()
+          : defaultTitle,
+      content: json['content']?.toString() ?? json['preview']?.toString() ?? '',
       rawContent:
           json['raw_content']?.toString() ?? json['content']?.toString() ?? '',
       unitName: json['unit_name']?.toString() ?? '',

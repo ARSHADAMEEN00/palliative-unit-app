@@ -294,39 +294,60 @@ class _VolunteerListPageState extends State<VolunteerListPage>
           controller: _tabController,
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
+          labelPadding: EdgeInsets.zero,
           labelColor: _volunteerPrimary,
           unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            height: 1.0,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            height: 1.0,
+          ),
           indicator: const BoxDecoration(
             color: _volunteerIconSurface,
             borderRadius: AppRadius.md,
           ),
           tabs: [
             Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.people_alt_outlined, size: 18),
-                  const SizedBox(width: AppSpacing.xs),
-                  const Text('Volunteers'),
-                  if (approvedCount > 0) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    _countBadge(approvedCount, isWarning: false),
+              height: 40,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.people_alt_outlined, size: 17),
+                    const SizedBox(width: 6),
+                    const Text('Volunteers'),
+                    if (approvedCount > 0) ...[
+                      const SizedBox(width: 6),
+                      _countBadge(approvedCount, isWarning: false),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.how_to_reg_outlined, size: 18),
-                  const SizedBox(width: AppSpacing.xs),
-                  const Text('New Enquiries'),
-                  if (pendingCount > 0) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    _countBadge(pendingCount, isWarning: true),
+              height: 40,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.how_to_reg_outlined, size: 17),
+                    const SizedBox(width: 6),
+                    const Text('New Enquiries'),
+                    if (pendingCount > 0) ...[
+                      const SizedBox(width: 6),
+                      _countBadge(pendingCount, isWarning: true),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ],
@@ -338,23 +359,23 @@ class _VolunteerListPageState extends State<VolunteerListPage>
   Widget _countBadge(int count, {bool isWarning = false}) {
     final bg = isWarning ? AppColors.warning : _volunteerPrimary;
     return Container(
-      height: 20,
-      constraints: const BoxConstraints(minWidth: 20),
-      padding: EdgeInsets.symmetric(horizontal: count > 9 ? 6 : 0),
+      height: 18,
+      constraints: const BoxConstraints(minWidth: 18),
+      padding: EdgeInsets.symmetric(horizontal: count > 9 ? 5 : 0),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: bg,
         shape: count <= 9 ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: count > 9 ? BorderRadius.circular(10) : null,
+        borderRadius: count > 9 ? BorderRadius.circular(9) : null,
       ),
       child: Text(
         '$count',
         textAlign: TextAlign.center,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 11,
+          fontSize: 10.5,
           fontWeight: FontWeight.w700,
-          height: 1.15,
+          height: 1.0,
         ),
       ),
     );

@@ -6,9 +6,10 @@ void main() {
     test('AboutUsData parses JSON with tags correctly', () {
       final json = {
         'has_about_us': true,
-        'title': 'About Our Unit',
+        'title': 'മനസ്സിനെ കേൾക്കാം, കരുതലോടെ ചേർത്തുപിടിക്കാം',
         'content': 'ഈ കഴിഞ്ഞ ഒരു വർഷത്തിൽ 120-ലധികം രോഗികളെ പരിചരിച്ചു.',
-        'raw_content': 'ഈ കഴിഞ്ഞ ഒരു വർഷത്തിൽ {{patient_count}}-ലധികം രോഗികളെ പരിചരിച്ചു.',
+        'raw_content':
+            'ഈ കഴിഞ്ഞ ഒരു വർഷത്തിൽ {{patient_count}}-ലധികം രോഗികളെ പരിചരിച്ചു.',
         'unit_name': 'ഒരുമ പാലിയേറ്റീവ് കെയർ',
         'updated_at': '2026-10-19T10:00:00.000Z',
         'updated_by_name': 'Admin User',
@@ -26,18 +27,21 @@ void main() {
             'label': 'Unit Name',
             'description': 'Name of the palliative unit',
             'currentValue': 'ഒരുമ പാലിയേറ്റീവ് കെയർ',
-          }
+          },
         ],
         'tag_values': {
           'patient_count': '120',
           'unit_name': 'ഒരുമ പാലിയേറ്റീവ് കെയർ',
-        }
+        },
       };
 
       final data = AboutUsData.fromJson(json);
 
       expect(data.hasAboutUs, isTrue);
-      expect(data.title, equals('About Our Unit'));
+      expect(
+        data.title,
+        equals('മനസ്സിനെ കേൾക്കാം, കരുതലോടെ ചേർത്തുപിടിക്കാം'),
+      );
       expect(data.content, contains('120-ലധികം'));
       expect(data.rawContent, contains('{{patient_count}}'));
       expect(data.unitName, equals('ഒരുമ പാലിയേറ്റീവ് കെയർ'));
@@ -49,14 +53,11 @@ void main() {
     });
 
     test('AboutUsData handles empty state properly', () {
-      final json = {
-        'has_about_us': false,
-        'content': '',
-        'raw_content': '',
-      };
+      final json = {'has_about_us': false, 'content': '', 'raw_content': ''};
 
       final data = AboutUsData.fromJson(json);
       expect(data.hasAboutUs, isFalse);
+      expect(data.title, AboutUsData.defaultTitle);
       expect(data.content, isEmpty);
       expect(data.rawContent, isEmpty);
     });

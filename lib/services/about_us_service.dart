@@ -69,10 +69,13 @@ class AboutUsService {
   }
 
   /// Update the About Us content (admin only).
-  static Future<bool> updateAboutUs(String content) async {
+  static Future<bool> updateAboutUs({
+    required String title,
+    required String content,
+  }) async {
     final result = await ApiService.put<Map<String, dynamic>>(
       ApiConfig.adminAboutUsEndpoint,
-      body: {'content': content.trim()},
+      body: {'title': title.trim(), 'content': content.trim()},
       fromJson: (json) => json as Map<String, dynamic>,
     );
 
@@ -84,9 +87,7 @@ class AboutUsService {
       await prefs.remove(offlineKey);
       return true;
     } else {
-      throw Exception(
-        result.error ?? 'Failed to save About Us content',
-      );
+      throw Exception(result.error ?? 'Failed to save About Us content');
     }
   }
 

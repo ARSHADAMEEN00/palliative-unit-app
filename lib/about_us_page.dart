@@ -41,8 +41,15 @@ class _AboutUsPageState extends State<AboutUsPage> {
         _aboutUs = data;
         _isLoading = false;
       });
-      // Synchronize home screen status
-      context.read<AuthService>().updateAboutUsStatus(data.hasAboutUs);
+      // Synchronize home screen status if changed
+      final auth = context.read<AuthService>();
+      if (auth.hasAboutUs != data.hasAboutUs) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            auth.updateAboutUsStatus(data.hasAboutUs);
+          }
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -64,10 +71,7 @@ class _AboutUsPageState extends State<AboutUsPage> {
       appBar: AppBar(
         title: Text(
           'About Our Unit',
-          style: GoogleFonts.outfit(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         centerTitle: false,
         backgroundColor: AppColors.surface,
@@ -88,11 +92,7 @@ class _AboutUsPageState extends State<AboutUsPage> {
     if (_isLoading) {
       return const SingleChildScrollView(
         padding: EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          children: [
-            AppListSkeleton(itemCount: 4),
-          ],
-        ),
+        child: Column(children: [AppListSkeleton(itemCount: 4)]),
       );
     }
 
@@ -115,6 +115,9 @@ class _AboutUsPageState extends State<AboutUsPage> {
     }
 
     final content = _aboutUs?.content.trim() ?? '';
+    final posterTitle = _aboutUs?.title.trim().isNotEmpty == true
+        ? _aboutUs!.title.trim()
+        : AboutUsData.defaultTitle;
     if (content.isEmpty) {
       return Center(
         child: Padding(
@@ -134,32 +137,44 @@ class _AboutUsPageState extends State<AboutUsPage> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _loadData(refresh: true),
-      color: AppColors.primary,
-      backgroundColor: AppColors.surface,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.xl * 2,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFFCF7), Color(0xFFF6FAFF), Color(0xFFFFFBF5)],
+          stops: [0, 0.48, 1],
         ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeroBanner(unitName),
-                const SizedBox(height: AppSpacing.lg),
-                _buildStoryCard(content),
-                if (_aboutUs?.updatedAt != null) ...[
+      ),
+      child: RefreshIndicator(
+        onRefresh: () => _loadData(refresh: true),
+        color: AppColors.primary,
+        backgroundColor: AppColors.surface,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.xl * 2,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeroBanner(unitName),
                   const SizedBox(height: AppSpacing.md),
-                  _buildFooterInfo(),
+                  _buildPosterTitle(posterTitle),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildStoryCard(content),
+                  if (_aboutUs?.updatedAt != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _buildFooterInfo(),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -178,75 +193,233 @@ class _AboutUsPageState extends State<AboutUsPage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: AppRadius.card,
-        boxShadow: AppShadow.medium,
+        borderRadius: AppRadius.md,
+        boxShadow: AppShadow.small,
       ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: AppRadius.md,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: AppRadius.sm,
+            ),
+            child: const Icon(
+              Icons.favorite_rounded,
+              color: Colors.white,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'OUR MISSION & STORY',
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'OUR MISSION & STORY',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      unitName,
-                      style: GoogleFonts.outfit(
+                Text(
+                  unitName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      GoogleFonts.outfit(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ).copyWith(
-                        fontFamilyFallback: const ['NotoSansMalayalam', 'Manjari'],
+                        fontFamilyFallback: const [
+                          'NotoSansMalayalam',
+                          'Manjari',
+                        ],
                       ),
-                    ),
-                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildPosterTitle(String title) {
+    const ink = Color(0xFF24446A);
+    const paper = Color(0xFFFFF8E9);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+          decoration: BoxDecoration(
+            color: paper,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(28),
+              topRight: Radius.circular(12),
+              bottomLeft: Radius.circular(14),
+              bottomRight: Radius.circular(28),
+            ),
+            border: Border.all(color: const Color(0xFFE9D8AD)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8A6A30).withValues(alpha: 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 1,
+                    color: const Color(0xFFD9BD7E),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(
+                      Icons.eco_outlined,
+                      size: 17,
+                      color: Color(0xFF78966D),
+                    ),
+                  ),
+                  Container(
+                    width: 32,
+                    height: 1,
+                    color: const Color(0xFFD9BD7E),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style:
+                    GoogleFonts.chilanka(
+                      color: ink,
+                      fontSize: 27,
+                      height: 1.55,
+                      fontWeight: FontWeight.w400,
+                    ).copyWith(
+                      fontFamilyFallback: const [
+                        'Manjari',
+                        'NotoSansMalayalam',
+                        'sans-serif',
+                      ],
+                    ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          left: 14,
+          top: 10,
+          child: Icon(
+            Icons.format_quote_rounded,
+            size: 32,
+            color: ink.withValues(alpha: 0.13),
+          ),
+        ),
+        Positioned(
+          right: 15,
+          bottom: 8,
+          child: Transform.rotate(
+            angle: 3.14159,
+            child: Icon(
+              Icons.format_quote_rounded,
+              size: 30,
+              color: ink.withValues(alpha: 0.11),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStoryCard(String content) {
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: SelectableText(
-        content,
-        style: GoogleFonts.manjari(
-          fontSize: 16.5,
-          height: 1.85,
-          fontWeight: FontWeight.w400,
-          color: AppColors.text,
-        ).copyWith(
-          fontFamilyFallback: const ['NotoSansMalayalam', 'sans-serif'],
+      backgroundColor: const Color(0xFFFFFEFA),
+      borderColor: const Color(0xFFE7E0D2),
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              decoration: const BoxDecoration(
+                color: Color(0xFF7FA393),
+                borderRadius: BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.menu_book_outlined,
+                          size: 18,
+                          color: Color(0xFF5E8072),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          'OUR STORY',
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFF5E8072),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        const Expanded(
+                          child: Divider(color: Color(0xFFDDE7E2)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    SelectableText(
+                      content,
+                      style:
+                          GoogleFonts.manjari(
+                            fontSize: 16.5,
+                            height: 1.9,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.text,
+                          ).copyWith(
+                            fontFamilyFallback: const [
+                              'NotoSansMalayalam',
+                              'sans-serif',
+                            ],
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -271,9 +444,9 @@ class _AboutUsPageState extends State<AboutUsPage> {
           Text(
             formattedDate != null ? 'Last updated: $formattedDate' : '',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
+              color: AppColors.textMuted,
+              fontSize: 12,
+            ),
           ),
         ],
       ),

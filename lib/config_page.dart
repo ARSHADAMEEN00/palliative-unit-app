@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
-import 'package:google_fonts/google_fonts.dart' hide Config;
-import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/staff_user.dart';
-import 'package:oruma_app/services/about_us_service.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/services/staff_service.dart';
@@ -84,13 +81,7 @@ class _ConfigPageState extends State<ConfigPage>
   final TextEditingController _diseaseController = TextEditingController();
   final TextEditingController _planController = TextEditingController();
   final TextEditingController _wardController = TextEditingController();
-  final TextEditingController _aboutUsController = TextEditingController();
   String? _selectedWardVillage;
-
-  bool _isSavingAboutUs = false;
-  bool _isGeneratingPreview = false;
-  List<AboutUsTag> _aboutUsAvailableTags = [...AboutUsTag.defaultTags];
-  DateTime? _aboutUsUpdatedAt;
 
   static InputDecoration _fieldDecoration({
     String? labelText,
@@ -173,7 +164,6 @@ class _ConfigPageState extends State<ConfigPage>
       if (context.read<AuthService>().isAdmin) {
         if (widget.mode != ConfigPageMode.staff) {
           _fetchConfig();
-          _fetchAboutUs();
         }
         if (widget.mode != ConfigPageMode.settings) _fetchStaff();
       } else {
@@ -192,7 +182,6 @@ class _ConfigPageState extends State<ConfigPage>
     _diseaseController.dispose();
     _planController.dispose();
     _wardController.dispose();
-    _aboutUsController.dispose();
     super.dispose();
   }
 
@@ -206,201 +195,6 @@ class _ConfigPageState extends State<ConfigPage>
         !config.villages.contains(_selectedWardVillage)) {
       _selectedWardVillage = config.villages.first;
     }
-  }
-
-  Future<void> _fetchAboutUs() async {
-    try {
-      final data = await AboutUsService.getAdminAboutUs();
-      if (!mounted) return;
-      setState(() {
-        _aboutUsController.text = data.rawContent;
-        if (data.availableTags.isNotEmpty) {
-          _aboutUsAvailableTags = data.availableTags;
-        }
-        _aboutUsUpdatedAt = data.updatedAt;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      if (_aboutUsAvailableTags.isEmpty) {
-        setState(() {
-          _aboutUsAvailableTags = [...AboutUsTag.defaultTags];
-        });
-      }
-    }
-  }
-
-  void _insertTag(String tag) {
-    final text = _aboutUsController.text;
-    final selection = _aboutUsController.selection;
-    final start = selection.isValid ? selection.start : text.length;
-    final end = selection.isValid ? selection.end : text.length;
-    final newText = text.replaceRange(start, end, tag);
-    _aboutUsController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: start + tag.length),
-    );
-    setState(() {});
-  }
-
-  void _selectAndCopyTag(String tag) {
-    Clipboard.setData(ClipboardData(text: tag));
-    _insertTag(tag);
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle_outline, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Text('Tag $tag copied to clipboard & inserted'),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        backgroundColor: _primaryColor,
-      ),
-    );
-  }
-
-  Future<void> _saveAboutUs() async {
-    setState(() => _isSavingAboutUs = true);
-    try {
-      final content = _aboutUsController.text;
-      await AboutUsService.updateAboutUs(content);
-      if (!mounted) return;
-      final hasStory = content.trim().isNotEmpty;
-      context.read<AuthService>().updateAboutUsStatus(hasStory);
-      setState(() {
-        _isSavingAboutUs = false;
-        _aboutUsUpdatedAt = DateTime.now();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(hasStory
-              ? 'About Us story saved successfully'
-              : 'About Us story removed'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.primary,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSavingAboutUs = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to save: $e'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    }
-  }
-
-  Future<void> _showAboutUsPreview() async {
-    final content = _aboutUsController.text.trim();
-    if (content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Write some content first to preview'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isGeneratingPreview = true);
-    String rendered = '';
-    try {
-      rendered = await AboutUsService.previewAboutUs(_aboutUsController.text);
-    } catch (_) {
-      rendered = _aboutUsController.text;
-      for (final tag in _aboutUsAvailableTags) {
-        rendered = rendered.replaceAll(tag.tag, tag.currentValue);
-      }
-    } finally {
-      if (mounted) setState(() => _isGeneratingPreview = false);
-    }
-
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.preview_rounded, color: _primaryColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Live Story Preview',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: AppCard(
-                    surfaceLevel: AppSurfaceLevel.elevated,
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: SelectableText(
-                      rendered,
-                      style: GoogleFonts.manjari(
-                        fontSize: 16,
-                        height: 1.8,
-                        color: _inkColor,
-                      ).copyWith(
-                        fontFamilyFallback: const [
-                          'NotoSansMalayalam',
-                          'sans-serif',
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _fetchConfig() async {
@@ -1521,8 +1315,6 @@ class _ConfigPageState extends State<ConfigPage>
         children: [
           _buildOverviewHeader(config),
           const SizedBox(height: AppSpacing.sm),
-          _buildAboutUsSection(),
-          const SizedBox(height: AppSpacing.sm),
           _buildListSection(
             title: 'Villages',
             icon: Icons.location_city_outlined,
@@ -1548,224 +1340,6 @@ class _ConfigPageState extends State<ConfigPage>
             controller: _planController,
             hintText: 'Add care plan',
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAboutUsSection() {
-    final hasContent = _aboutUsController.text.trim().isNotEmpty;
-    return _ConfigSection(
-      title: 'About Our Unit',
-      icon: Icons.auto_stories_outlined,
-      count: hasContent ? 1 : 0,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Write the story, mission, and achievements of the unit. Volunteers will read this story on the home screen. Use dynamic tags to keep numbers live.',
-            style: TextStyle(
-              color: _mutedInkColor,
-              fontSize: 13,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _aboutUsController,
-            maxLines: null,
-            minLines: 7,
-            keyboardType: TextInputType.multiline,
-            style: GoogleFonts.manjari(
-              fontSize: 15,
-              height: 1.7,
-              color: _inkColor,
-            ).copyWith(
-              fontFamilyFallback: const ['NotoSansMalayalam', 'sans-serif'],
-            ),
-            decoration: _fieldDecoration(
-              hintText:
-                  'Enter unit story in Malayalam or English...\n\nExample: 2025 ഓഗസ്റ്റ് ഒന്നാം തീയതിയാണ് ... {{patient_count}}-ലധികം രോഗികളെ പരിചരിക്കാൻ സാധിച്ചിട്ടുണ്ട്.',
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${_aboutUsController.text.length} characters',
-                style: const TextStyle(
-                  color: _mutedInkColor,
-                  fontSize: 12,
-                ),
-              ),
-              if (_aboutUsController.text.isNotEmpty)
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(
-                    Icons.clear_rounded,
-                    size: 14,
-                    color: _removeIconColor,
-                  ),
-                  label: const Text(
-                    'Clear',
-                    style: TextStyle(color: _removeIconColor, fontSize: 12),
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _aboutUsController.clear();
-                    });
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              const Text(
-                'Available Tags',
-                style: TextStyle(
-                  color: _inkColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _softAccentColor.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${_aboutUsAvailableTags.length} tags',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _primaryColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          const Text(
-            'Tap any chip to copy the tag and insert it into your story:',
-            style: TextStyle(
-              color: _mutedInkColor,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _aboutUsAvailableTags.map((item) {
-              return ActionChip(
-                avatar: const Icon(
-                  Icons.content_copy_rounded,
-                  size: 13,
-                  color: _primaryColor,
-                ),
-                label: Text(
-                  item.tag,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: _primaryColor,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                tooltip: 'Tap to copy & insert ${item.label}',
-                backgroundColor: _softAccentColor.withValues(alpha: 0.35),
-                side: BorderSide(color: _primaryColor.withValues(alpha: 0.22)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _selectAndCopyTag(item.tag),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: _isGeneratingPreview
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.remove_red_eye_outlined, size: 18),
-                  label: const Text('Preview'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _primaryColor,
-                    side: const BorderSide(color: _primaryColor),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: AppRadius.button,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: _isGeneratingPreview ? null : _showAboutUsPreview,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: _isSavingAboutUs
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.save_outlined, size: 18),
-                  label: Text(
-                    _aboutUsController.text.trim().isEmpty
-                        ? 'Save (Remove)'
-                        : 'Save Story',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: AppRadius.button,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    elevation: 0,
-                  ),
-                  onPressed: _isSavingAboutUs ? null : _saveAboutUs,
-                ),
-              ),
-            ],
-          ),
-          if (_aboutUsUpdatedAt != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Center(
-              child: Text(
-                'Last updated: ${DateFormat('d MMM yyyy, h:mm a').format(_aboutUsUpdatedAt!)}',
-                style: const TextStyle(
-                  color: _mutedInkColor,
-                  fontSize: 11.5,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -2262,8 +1836,9 @@ class _ConfigPageState extends State<ConfigPage>
   static int _compareStaffUsers(StaffUser a, StaffUser b) {
     final aIndex = _roles.indexOf(a.role);
     final bIndex = _roles.indexOf(b.role);
-    final roleCompare = (aIndex == -1 ? 99 : aIndex)
-        .compareTo(bIndex == -1 ? 99 : bIndex);
+    final roleCompare = (aIndex == -1 ? 99 : aIndex).compareTo(
+      bIndex == -1 ? 99 : bIndex,
+    );
     if (roleCompare != 0) return roleCompare;
     return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }

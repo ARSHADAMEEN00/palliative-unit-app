@@ -16,6 +16,7 @@ import 'package:oruma_app/pt_registration.dart' show patientrigister;
 import 'package:oruma_app/patient_list_page.dart';
 import 'package:oruma_app/privacy_policy_screen.dart';
 import 'package:oruma_app/about_us_page.dart';
+import 'package:oruma_app/about_us_admin_page.dart';
 import 'package:oruma_app/deceased_patient_list_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
@@ -2424,13 +2425,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDashboardSectionHeader(
-          context,
-          title: 'Important Requests',
-          subtitle:
-              '$total ${total == 1 ? 'request needs' : 'requests need'} your review.',
+        Text(
+          '$total ${total == 1 ? 'request needs' : 'requests need'} your review.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.xs),
         LayoutBuilder(
           builder: (context, constraints) {
             final twoColumns = constraints.maxWidth >= 620;
@@ -2577,7 +2578,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('User Role: ${context.read<AuthService>().role}');
     final auth = context.watch<AuthService>();
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final maintenanceNotification = !auth.isAdmin || auth.isTrialUnit
@@ -2653,17 +2653,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       const SizedBox(height: AppSpacing.lg),
                       _buildImportantRequestsSection(context),
                     ],
-                    SizedBox(
-                      height: auth.isVolunteer ? AppSpacing.md : AppSpacing.lg,
-                    ),
-                    _buildDashboardSectionHeader(
-                      context,
-                      title: auth.isVolunteer ? 'Explore' : 'Care Modules',
-                      subtitle: auth.isVolunteer
-                          ? 'Other areas available to you.'
-                          : 'Open the work area you need now.',
-                      compact: auth.isVolunteer,
-                    ),
                     const SizedBox(height: AppSpacing.md),
                     LayoutBuilder(
                       builder: (context, constraints) {
@@ -2793,25 +2782,48 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       },
                     ),
                     if (auth.canAccessEquipmentDistribution) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildDashboardSectionHeader(
-                        context,
-                        title: 'Active Supplies',
-                        subtitle: 'Equipment currently assigned to patients.',
-                        actionLabel: 'View all',
-                        onAction: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ModuleTheme(
-                                palette: ModulePalettes.equipmentSupply,
-                                child: EquipmentSupplyListPage(),
+                      const SizedBox(height: AppSpacing.lg),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Equipment currently assigned to patients.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
                               ),
                             ),
-                          );
-                        },
+                          ),
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ModuleTheme(
+                                    palette: ModulePalettes.equipmentSupply,
+                                    child: EquipmentSupplyListPage(),
+                                  ),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Text(
+                                'View all',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: AppSpacing.sm),
                       _buildActiveSuppliesList(context),
                     ],
                   ],
@@ -4004,6 +4016,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                           MaterialPageRoute(
                             builder: (context) =>
                                 const ConfigPage(mode: ConfigPageMode.settings),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.auto_stories_outlined,
+                      title: "About Our Unit",
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AboutUsAdminPage(),
                           ),
                         );
                       },

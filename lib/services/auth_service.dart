@@ -239,11 +239,10 @@ class AuthService with ChangeNotifier {
   }
 
   void updateAboutUsStatus(bool hasStory) {
-    if (_user != null) {
-      if (_user!['unit'] is Map) {
-        (_user!['unit'] as Map)['has_about_us'] = hasStory;
-        (_user!['unit'] as Map)['hasAboutUs'] = hasStory;
-      }
+    if (_user != null && _user!['unit'] is Map) {
+      if (hasAboutUs == hasStory) return;
+      (_user!['unit'] as Map)['has_about_us'] = hasStory;
+      (_user!['unit'] as Map)['hasAboutUs'] = hasStory;
       notifyListeners();
     }
   }
