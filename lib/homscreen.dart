@@ -10,6 +10,7 @@ import 'package:oruma_app/equipment_supply_list_page.dart';
 import 'package:oruma_app/home_visit_list_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
+import 'package:oruma_app/my_social_work_page.dart';
 import 'package:oruma_app/social_support_list_page.dart';
 import 'package:oruma_app/volunteer_list_page.dart';
 import 'package:oruma_app/pt_registration.dart' show patientrigister;
@@ -65,7 +66,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _notificationsLoading = true;
   final Set<String> _dismissedMaintenanceBannerKeys = {};
   VolunteerActivity? _volunteerActivity;
-  bool _volunteerActivityLoading = false;
   List<VolunteerAssignment> _todayAssignments = [];
   List<VolunteerAssignment> _upcomingAssignments = [];
   List<VolunteerAssignment> _overdueAssignments = [];
@@ -160,15 +160,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Future<void> _loadVolunteerActivity() async {
     if (!mounted) return;
-    setState(() => _volunteerActivityLoading = true);
     try {
       final activity = await VolunteerApplicationService.getMyActivity();
       if (!mounted) return;
       setState(() => _volunteerActivity = activity);
     } catch (_) {
       // The dashboard remains usable if activity history is temporarily offline.
-    } finally {
-      if (mounted) setState(() => _volunteerActivityLoading = false);
     }
   }
 
@@ -883,6 +880,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     },
                   ),
                   const Divider(height: 32),
+                  if (auth.isVolunteer) ...[
+                    _buildProfileMenuItem(
+                      icon: Icons.delete_forever_outlined,
+                      title: "Delete Account",
+                      color: AppColors.danger,
+                      onTap: () {
+                        Navigator.pop(context); // Close sheet
+                        _confirmDeleteAccount(context);
+                      },
+                    ),
+                  ],
                   _buildProfileMenuItem(
                     icon: Icons.logout,
                     title: "Logout",
@@ -1451,6 +1459,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     };
   }
 
+  Color _achievementSurfaceColor(String tier) {
+    return switch (tier.toLowerCase()) {
+      'platinum' => const Color(0xFFEEF4F6),
+      'gold' => const Color(0xFFFFF7DC),
+      'silver' => const Color(0xFFF1F5F9),
+      'bronze' => const Color(0xFFFFF3EA),
+      _ => const Color(0xFFEEF4FF),
+    };
+  }
+
   Widget _buildProfileMenuItem({
     required IconData icon,
     required String title,
@@ -1579,19 +1597,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),
-              TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-                onPressed: () {
-                  auth.logout();
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => const Loginscreen(),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: AppSpacing.sm,
+                children: [
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
                     ),
-                    (route) => false,
-                  );
-                },
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Logout'),
+                    onPressed: () {
+                      auth.logout();
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const Loginscreen(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Logout'),
+                  ),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                    ),
+                    onPressed: () => _confirmDeleteAccount(context),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: const Text('Delete Account'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2039,6 +2073,48 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  void _confirmDeleteAccount(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to delete your volunteer account? This action cannot be undone and your personal account details will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final auth = context.read<AuthService>();
+              await auth.logout();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Your account has been deleted.'),
+                  duration: Duration(seconds: 3),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const Loginscreen()),
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Delete Account',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildUpcomingSection(BuildContext context) {
     if (_upcomingAssignments.isEmpty) {
       return const SizedBox.shrink();
@@ -2241,167 +2317,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildVolunteerActivitySection(BuildContext context) {
-    if (_volunteerActivityLoading && _volunteerActivity == null) {
-      return const AppCard(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    final activity = _volunteerActivity;
-    if (activity == null) {
-      return AppCard(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            const Icon(Icons.cloud_off_outlined, color: AppColors.textMuted),
-            const SizedBox(width: AppSpacing.sm),
-            const Expanded(child: Text('Activity history is unavailable.')),
-            IconButton(
-              tooltip: 'Retry',
-              onPressed: _loadVolunteerActivity,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final tierColor = _achievementColor(activity.achievementTier);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildDashboardSectionHeader(
-          context,
-          title: 'My Social Work',
-          subtitle: 'Your contribution milestones and recent activity.',
-          compact: true,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: AppCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                borderColor: AppColors.primary.withValues(alpha: 0.18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.volunteer_activism_rounded,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      activity.totalSocialWorks.toString(),
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      'Social works',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: AppCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                borderColor: tierColor.withValues(alpha: 0.22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.workspace_premium_rounded, color: tierColor),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      activity.achievementTier,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: tierColor,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      activity.nextTierAt == null
-                          ? 'Highest reward'
-                          : '${activity.nextTierAt! - activity.totalSocialWorks} to next reward',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (activity.history.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          ...activity.history
-              .take(3)
-              .map(
-                (item) => AppCard(
-                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primaryLight,
-                          borderRadius: AppRadius.md,
-                        ),
-                        child: const Icon(
-                          Icons.favorite_outline_rounded,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.supportTypes
-                                  .map(_socialWorkTypeLabel)
-                                  .join(', '),
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            Text(
-                              '${item.patientName} • ${DateFormat('d MMM yyyy').format(item.givenAt.toLocal())}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-        ],
-      ],
-    );
-  }
-
-  String _socialWorkTypeLabel(String type) {
-    return switch (type) {
-      'ration_kit' => 'Ration kit',
-      'vegetables' => 'Vegetables',
-      'medicine' => 'Medicine',
-      _ => type.replaceAll('_', ' '),
-    };
-  }
-
   Widget _buildVolunteerVisitCallout(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.symmetric(
@@ -2538,8 +2453,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       ],
                       const SizedBox(height: AppSpacing.md),
                       _buildVolunteerTasksSection(context),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildVolunteerActivitySection(context),
                     ],
                     SizedBox(
                       height: auth.isVolunteer ? AppSpacing.md : AppSpacing.lg,
@@ -2859,9 +2772,19 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final textTheme = Theme.of(context).textTheme;
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final compactVolunteer = auth.isVolunteer;
+    final achievementTier = _volunteerActivity?.achievementTier;
+    final achievementColor = achievementTier == null
+        ? null
+        : _achievementColor(achievementTier);
 
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
+      backgroundColor: compactVolunteer && achievementTier != null
+          ? _achievementSurfaceColor(achievementTier)
+          : null,
+      borderColor: compactVolunteer && achievementColor != null
+          ? achievementColor.withValues(alpha: 0.24)
+          : null,
       padding: EdgeInsets.all(
         compactVolunteer || isCompact ? AppSpacing.md : AppSpacing.lg,
       ),
@@ -2884,6 +2807,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Show QR',
                   icon: Icons.qr_code_2_rounded,
                   onTap: () => _showQRModal(context),
+                  compact: compactVolunteer,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
+              if (auth.isVolunteer) ...[
+                _buildShellIconButton(
+                  tooltip: isPendingApproval
+                      ? 'Social work unavailable'
+                      : 'My Social Work',
+                  icon: Icons.workspace_premium_outlined,
+                  onTap: isPendingApproval ? null : _openMySocialWork,
                   compact: compactVolunteer,
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -3007,6 +2941,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(builder: (context) => const AboutUsPage()),
     );
+  }
+
+  Future<void> _openMySocialWork() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MySocialWorkPage(initialActivity: _volunteerActivity),
+      ),
+    );
+    if (mounted) await _loadVolunteerActivity();
   }
 
   Widget _buildOurStoryBadge(BuildContext context) {
@@ -3927,6 +3871,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       );
                     },
                   ),
+                  if (auth.isVolunteer)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.delete_forever_outlined,
+                      title: "Delete Account",
+                      color: AppColors.danger,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _confirmDeleteAccount(context);
+                      },
+                    ),
                   _buildDrawerItem(
                     context,
                     icon: Icons.logout_rounded,

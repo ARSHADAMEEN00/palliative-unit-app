@@ -24,7 +24,7 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
   void initState() {
     super.initState();
     _activity = widget.initialActivity;
-    if (_activity == null) _loadActivity();
+    _loadActivity();
   }
 
   Future<void> _loadActivity() async {
@@ -111,9 +111,9 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
           const SizedBox(height: AppSpacing.xxs),
           Text(
             'Every contribution and level milestone, newest first.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.md),
           for (var index = 0; index < timeline.length; index++)
@@ -200,7 +200,10 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
     );
   }
 
-  Widget _buildTimelineEntry(_SocialTimelineEntry entry, {required bool isLast}) {
+  Widget _buildTimelineEntry(
+    _SocialTimelineEntry entry, {
+    required bool isLast,
+  }) {
     final color = entry.isMilestone
         ? _levelColor(entry.level!)
         : AppColors.primary;
@@ -214,10 +217,7 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
               left: 17,
               top: 34,
               bottom: -AppSpacing.sm,
-              child: Container(
-                width: 2,
-                color: AppColors.borderStrong,
-              ),
+              child: Container(width: 2, color: AppColors.borderStrong),
             ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,9 +276,9 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
             entry.level == 'New Volunteer'
                 ? 'Your volunteer journey started.'
                 : 'You reached ${entry.level} level.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.xs),
           _buildDate(entry.date, color),
@@ -306,11 +306,12 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
           const SizedBox(height: 3),
           Text(
             [activity.patientName, activity.place]
-                .where((value) => value != null && value.trim().isNotEmpty)
+                .whereType<String>()
+                .where((value) => value.trim().isNotEmpty)
                 .join(' · '),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
           if (activity.note?.trim().isNotEmpty == true) ...[
             const SizedBox(height: AppSpacing.xs),
@@ -346,14 +347,12 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
     final chronological = [...activity.history]
       ..sort((a, b) => a.givenAt.compareTo(b.givenAt));
     final entries = <_SocialTimelineEntry>[
-      for (final item in activity.history)
-        _SocialTimelineEntry.activity(item),
+      for (final item in activity.history) _SocialTimelineEntry.activity(item),
     ];
-    final joinedAt = activity.joinedAt ??
+    final joinedAt =
+        activity.joinedAt ??
         (chronological.isEmpty ? DateTime.now() : chronological.first.givenAt);
-    entries.add(
-      _SocialTimelineEntry.milestone('New Volunteer', joinedAt),
-    );
+    entries.add(_SocialTimelineEntry.milestone('New Volunteer', joinedAt));
 
     const milestones = <(String, int)>[
       ('Bronze', 1),
@@ -412,11 +411,7 @@ class _MySocialWorkPageState extends State<MySocialWorkPage> {
 }
 
 class _SocialTimelineEntry {
-  const _SocialTimelineEntry._({
-    required this.date,
-    this.activity,
-    this.level,
-  });
+  const _SocialTimelineEntry._({required this.date, this.activity, this.level});
 
   factory _SocialTimelineEntry.activity(VolunteerActivityItem activity) {
     return _SocialTimelineEntry._(date: activity.givenAt, activity: activity);
