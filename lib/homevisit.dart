@@ -6,8 +6,10 @@ import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
+import 'package:oruma_app/services/volunteer_assignment_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/volunteer_multi_select_field.dart';
 import 'package:intl/intl.dart';
 
 const _homeVisitIconBackground = Color(0xFFDCFCE7);
@@ -35,6 +37,7 @@ class _HomevisitState extends State<Homevisit> {
   List<Patient> _patients = [];
   Patient? _selectedPatient;
   bool _isLoadingPatients = true;
+  List<String> _selectedVolunteerIds = [];
 
   // Visit mode options
   String _selectedVisitMode = 'new';
@@ -104,6 +107,24 @@ class _HomevisitState extends State<Homevisit> {
           if (mounted) {
             setState(() {
               _selectedPatient = patient;
+            });
+          }
+        } catch (_) {}
+      }
+
+      if (isEditing && widget.visit?.id != null) {
+        try {
+          final assigned = await VolunteerAssignmentService.getAssignedVolunteerIds(
+            'home_visit',
+            widget.visit!.id!,
+          );
+          if (mounted && assigned.isNotEmpty) {
+            setState(() {
+              _selectedVolunteerIds = assigned;
+            });
+          } else if (mounted && widget.visit?.volunteerIds.isNotEmpty == true) {
+            setState(() {
+              _selectedVolunteerIds = widget.visit!.volunteerIds;
             });
           }
         } catch (_) {}
@@ -190,6 +211,7 @@ class _HomevisitState extends State<Homevisit> {
         notes: notesController.text.trim().isNotEmpty
             ? notesController.text.trim()
             : null,
+        volunteerIds: _selectedVolunteerIds,
       );
 
       if (isEditing) {
@@ -326,6 +348,12 @@ class _HomevisitState extends State<Homevisit> {
                           label: 'Team',
                           icon: Icons.group_outlined,
                           required: false,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        VolunteerMultiSelectField(
+                          selectedVolunteerIds: _selectedVolunteerIds,
+                          onChanged: (ids) =>
+                              setState(() => _selectedVolunteerIds = ids),
                         ),
                         const SizedBox(height: AppSpacing.md),
                         _buildTextField(

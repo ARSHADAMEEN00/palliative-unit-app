@@ -42,7 +42,7 @@ class AuthService with ChangeNotifier {
   bool get isAdmin => _role == 'admin';
   bool get isStaff => _role == 'staff';
   bool get isMember => _role == 'member';
-  bool get isVolunteer => _role == 'volunteer' || _role == 'user';
+  bool get isVolunteer => _role == 'volunteer';
 
   String get approvalStatus =>
       _cleanString(_user?['approvalStatus'])?.toLowerCase() ?? 'approved';
@@ -130,7 +130,7 @@ class AuthService with ChangeNotifier {
   Future<void> init() async {
     final credentials = await CredentialStore.read();
     _token = credentials.token;
-    _role = credentials.role;
+    _role = credentials.role == 'user' ? 'volunteer' : credentials.role;
     AppCache.currentUnitId = credentials.unitId;
 
     final prefs = await SharedPreferences.getInstance();
@@ -323,6 +323,7 @@ class AuthService with ChangeNotifier {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _user = data;
+        _role = _cleanString(data['role']) ?? _role;
         _applyFeaturePermissions(data);
 
         final userUnitId = _cleanString(data['unitId'] ?? data['unit']?['id']);

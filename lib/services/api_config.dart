@@ -48,6 +48,15 @@ class ApiConfig {
   static String get adminAboutUsEndpoint => '$baseUrl/settings/about-us';
   static String get adminAboutUsPreviewEndpoint =>
       '$baseUrl/settings/about-us/preview';
+  static String get volunteerAssignmentsEndpoint =>
+      '$baseUrl/volunteer/assignments';
+  static String get volunteerLeaderboardEndpoint =>
+      '$baseUrl/volunteer/assignments/leaderboard';
+  static String volunteerTaskAssignmentsEndpoint(
+    String taskType,
+    String taskId,
+  ) =>
+      '$baseUrl/volunteer-assignments/task/$taskType/$taskId';
 
   /// Default headers for API requests
   static Map<String, String> get headers => {

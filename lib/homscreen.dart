@@ -26,7 +26,10 @@ import 'package:oruma_app/services/notification_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
+import 'package:oruma_app/models/volunteer_assignment.dart';
 import 'package:oruma_app/services/volunteer_application_service.dart';
+import 'package:oruma_app/services/volunteer_assignment_service.dart';
+import 'package:oruma_app/volunteer_assignment_detail_page.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -63,6 +66,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   final Set<String> _dismissedMaintenanceBannerKeys = {};
   VolunteerActivity? _volunteerActivity;
   bool _volunteerActivityLoading = false;
+  List<VolunteerAssignment> _todayAssignments = [];
+  List<VolunteerAssignment> _upcomingAssignments = [];
+  List<VolunteerAssignment> _overdueAssignments = [];
+  bool _assignmentsLoading = false;
   bool _checkingApproval = false;
 
   @override
@@ -101,7 +108,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final auth = context.read<AuthService>();
     await auth.fetchUserProfile();
     if (!mounted || auth.isAccessBlocked || !auth.isVolunteerApproved) return;
-    if (auth.isVolunteer) _loadVolunteerActivity();
+    if (auth.isVolunteer) {
+      _loadVolunteerActivity();
+      _loadVolunteerAssignments();
+    }
     if (auth.canAccessEquipmentDistribution) {
       _loadActiveSupplies();
     } else {
@@ -159,6 +169,28 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       // The dashboard remains usable if activity history is temporarily offline.
     } finally {
       if (mounted) setState(() => _volunteerActivityLoading = false);
+    }
+  }
+
+  Future<void> _loadVolunteerAssignments() async {
+    if (!mounted) return;
+    setState(() => _assignmentsLoading = true);
+    try {
+      final all = await VolunteerAssignmentService.getAssignments(filter: 'all');
+      if (!mounted) return;
+      setState(() {
+        _todayAssignments = all.where((a) => a.isToday).toList();
+        _overdueAssignments = all.where((a) => a.isOverdue).toList();
+        _upcomingAssignments = all
+            .where((a) =>
+                !a.isToday &&
+                !a.isOverdue &&
+                ['assigned', 'accepted', 'in_progress'].contains(a.status))
+            .toList();
+      });
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _assignmentsLoading = false);
     }
   }
 
@@ -1537,6 +1569,610 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Color _taskColor(String type) {
+    switch (type) {
+      case 'home_visit':
+        return const Color(0xFF0D9488); // Teal
+      case 'visit_assessment':
+        return const Color(0xFFD97706); // Amber
+      case 'social_support':
+        return const Color(0xFFBE185D); // Pink
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  IconData _taskIcon(String type) {
+    switch (type) {
+      case 'home_visit':
+        return Icons.home_work_rounded;
+      case 'visit_assessment':
+        return Icons.assignment_rounded;
+      case 'social_support':
+        return Icons.volunteer_activism_rounded;
+      default:
+        return Icons.task_alt_rounded;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AppColors.success;
+      case 'accepted':
+      case 'in_progress':
+        return AppColors.primary;
+      case 'cancelled':
+      case 'missed':
+        return AppColors.danger;
+      default:
+        return const Color(0xFF6B7280);
+    }
+  }
+
+  void _openAssignmentDetail(VolunteerAssignment assignment) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VolunteerAssignmentDetailPage(
+          assignmentId: assignment.id,
+          initialAssignment: assignment,
+        ),
+      ),
+    );
+    _loadVolunteerAssignments();
+    _loadVolunteerActivity();
+  }
+
+  String _formatAssignmentDate(String dateStr) {
+    final d = DateTime.tryParse(dateStr);
+    if (d == null) return dateStr;
+    return DateFormat('EEE, dd MMM yyyy').format(d);
+  }
+
+  Widget _buildVolunteerTasksSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Overdue section if any
+        if (_overdueAssignments.isNotEmpty) ...[
+          _buildOverdueSection(context),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        // 2. Today's Tasks section
+        _buildTodayTasksSection(context),
+        const SizedBox(height: AppSpacing.lg),
+
+        // 3. Upcoming section
+        _buildUpcomingSection(context),
+      ],
+    );
+  }
+
+  Widget _buildOverdueSection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Overdue Tasks',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.danger,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${_overdueAssignments.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ..._overdueAssignments.map(
+            (a) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: _buildAssignmentItemCard(a, isOverdue: true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodayTasksSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildDashboardSectionHeader(
+                context,
+                title: "Today's Tasks",
+                subtitle: 'Tasks scheduled for today.',
+              ),
+            ),
+            if (_todayAssignments.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '${_todayAssignments.length} ${_todayAssignments.length == 1 ? 'task' : 'tasks'} today',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+
+        // Content
+        if (_assignmentsLoading && _todayAssignments.isEmpty)
+          _buildTaskSkeleton()
+        else if (_todayAssignments.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceFloating,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.event_available_rounded,
+                    size: 32,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'No tasks assigned today',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'You have no visits or assignments scheduled for today.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            children: _todayAssignments.map((a) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _buildTodayTaskCard(a),
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTodayTaskCard(VolunteerAssignment assignment) {
+    final color = _taskColor(assignment.taskType);
+    final icon = _taskIcon(assignment.taskType);
+    final statusColor = _statusColor(assignment.status);
+
+    return InkWell(
+      onTap: () => _openAssignmentDetail(assignment),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceFloating,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Top Accent Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.18), color.withOpacity(0.05)],
+                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    assignment.typeLabel,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: color,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'TODAY',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '+${assignment.expectedPoints} pts',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFB45309),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Card Body
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              assignment.patient.name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    assignment.patient.place?.isNotEmpty == true
+                                        ? assignment.patient.place!
+                                        : assignment.patient.address,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          assignment.statusLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (assignment.coVolunteers.isNotEmpty ||
+                      (assignment.taskDetails.team?.isNotEmpty == true)) ...[
+                    const Divider(height: 16, color: AppColors.border),
+                    Row(
+                      children: [
+                        const Icon(Icons.people_outline, size: 14, color: AppColors.textSecondary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            assignment.coVolunteers.isNotEmpty
+                                ? 'Team: ${assignment.coVolunteers.map((c) => c.name).join(', ')}'
+                                : 'Team: ${assignment.taskDetails.team}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUpcomingSection(BuildContext context) {
+    if (_upcomingAssignments.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Group upcoming tasks
+    final Map<String, List<VolunteerAssignment>> groups = {
+      'Tomorrow': [],
+      'This Week': [],
+      'Later': [],
+    };
+
+    final today = DateTime.now();
+    for (final a in _upcomingAssignments) {
+      final d = DateTime.tryParse(a.scheduledDate);
+      if (d == null) {
+        groups['Later']!.add(a);
+        continue;
+      }
+      final diff = DateTime(d.year, d.month, d.day)
+          .difference(DateTime(today.year, today.month, today.day))
+          .inDays;
+      if (diff == 1) {
+        groups['Tomorrow']!.add(a);
+      } else if (diff <= 7) {
+        groups['This Week']!.add(a);
+      } else {
+        groups['Later']!.add(a);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDashboardSectionHeader(
+          context,
+          title: 'Upcoming Tasks',
+          subtitle: 'Visits and activities planned ahead.',
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        for (final entry in groups.entries)
+          if (entry.value.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 6),
+              child: Row(
+                children: [
+                  Text(
+                    entry.key,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${entry.value.length}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...entry.value.map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: _buildAssignmentItemCard(a),
+              ),
+            ),
+          ],
+      ],
+    );
+  }
+
+  Widget _buildAssignmentItemCard(
+    VolunteerAssignment assignment, {
+    bool isOverdue = false,
+  }) {
+    final color = isOverdue ? AppColors.danger : _taskColor(assignment.taskType);
+    final icon = _taskIcon(assignment.taskType);
+    final statusColor = _statusColor(assignment.status);
+
+    return InkWell(
+      onTap: () => _openAssignmentDetail(assignment),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceFloating,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isOverdue ? AppColors.danger.withOpacity(0.4) : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assignment.patient.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${assignment.typeLabel} • ${_formatAssignmentDate(assignment.scheduledDate)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isOverdue ? AppColors.danger : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    assignment.statusLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '+${assignment.expectedPoints} pts',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskSkeleton() {
+    return Container(
+      width: double.infinity,
+      height: 110,
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    );
+  }
+
   Widget _buildVolunteerActivitySection(BuildContext context) {
     if (_volunteerActivityLoading && _volunteerActivity == null) {
       return const AppCard(
@@ -1732,7 +2368,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         contentMaxWidth: 1040,
         body: SafeArea(
           bottom: false,
-          child: SingleChildScrollView(
+          child: RefreshIndicator(
+            onRefresh: () => _bootstrapAccess(force: true),
+            child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
@@ -1753,6 +2391,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     _buildMaintenanceDueBanner(context, maintenanceNotification),
                   ],
                 if (auth.isVolunteer) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildVolunteerTasksSection(context),
                   const SizedBox(height: AppSpacing.lg),
                   _buildVolunteerActivitySection(context),
                 ],
@@ -1914,6 +2554,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ],
               ],
             ],
+          ),
           ),
           ),
         ),

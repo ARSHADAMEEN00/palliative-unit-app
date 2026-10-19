@@ -426,6 +426,7 @@ class VisitAssessment {
   final String timeFrom;
   final String timeTo;
   final String team;
+  final List<String> volunteerIds;
   final String visitMode;
   final String visitType;
   final VisitVitals vitals;
@@ -461,6 +462,7 @@ class VisitAssessment {
     this.timeFrom = '',
     this.timeTo = '',
     this.team = 'Palliative App Team',
+    this.volunteerIds = const [],
     this.visitMode = 'new',
     this.visitType = 'NHC',
     this.vitals = const VisitVitals(),
@@ -515,6 +517,11 @@ class VisitAssessment {
       timeFrom: json['timeFrom']?.toString() ?? '',
       timeTo: json['timeTo']?.toString() ?? '',
       team: json['team']?.toString() ?? 'Palliative App Team',
+      volunteerIds: (json['volunteer_ids'] as List<dynamic>? ??
+              json['volunteerIds'] as List<dynamic>? ??
+              const [])
+          .map((e) => e.toString())
+          .toList(),
       visitMode: json['visitMode']?.toString() ?? 'new',
       visitType: json['visitType']?.toString() ?? 'NHC',
       vitals: VisitVitals.fromJson(
@@ -568,6 +575,7 @@ class VisitAssessment {
     'timeFrom': timeFrom,
     'timeTo': timeTo,
     'team': team,
+    'volunteerIds': volunteerIds,
     'visitMode': visitMode,
     'visitType': visitType,
     'vitals': vitals.toJson(),
@@ -606,6 +614,7 @@ class VisitAssessment {
     String? timeFrom,
     String? timeTo,
     String? team,
+    List<String>? volunteerIds,
     String? visitMode,
     String? visitType,
     VisitVitals? vitals,
@@ -641,6 +650,7 @@ class VisitAssessment {
       timeFrom: timeFrom ?? this.timeFrom,
       timeTo: timeTo ?? this.timeTo,
       team: team ?? this.team,
+      volunteerIds: volunteerIds ?? this.volunteerIds,
       visitMode: visitMode ?? this.visitMode,
       visitType: visitType ?? this.visitType,
       vitals: vitals ?? this.vitals,
