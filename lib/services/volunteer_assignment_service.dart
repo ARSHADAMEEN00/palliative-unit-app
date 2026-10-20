@@ -54,15 +54,32 @@ class VolunteerAssignmentService {
         result.data!['assignment'] ?? {},
       );
       final assignment = VolunteerAssignment.fromJson(assignmentMap);
-      final pointsJustAwarded =
-          (result.data!['pointsJustAwarded'] as num?)?.toInt() ?? 0;
-      return {
-        'assignment': assignment,
-        'pointsJustAwarded': pointsJustAwarded,
-      };
+      return {'assignment': assignment};
     }
 
     throw Exception(result.error ?? 'Failed to update assignment status');
+  }
+
+  static Future<VolunteerAssignment> cancelAssignment(
+    String id, {
+    String? reason,
+  }) async {
+    final endpoint = '${ApiConfig.volunteerAssignmentsEndpoint}/$id/cancel';
+    final result = await ApiService.post<Map<String, dynamic>>(
+      endpoint,
+      body: {
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
+
+    if (result.isSuccess && result.data != null) {
+      final assignmentMap = Map<String, dynamic>.from(
+        result.data!['assignment'] ?? result.data!,
+      );
+      return VolunteerAssignment.fromJson(assignmentMap);
+    }
+
+    throw Exception(result.error ?? 'Failed to cancel assignment');
   }
 
   static Future<List<VolunteerLeaderboardEntry>> getLeaderboard() async {

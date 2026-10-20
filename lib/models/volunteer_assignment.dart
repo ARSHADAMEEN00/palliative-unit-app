@@ -106,6 +106,9 @@ class VolunteerAssignment {
   final int pointsAwarded;
   final DateTime? assignedAt;
   final DateTime? completedAt;
+  final DateTime? cancelledAt;
+  final String? cancelledBy;
+  final String? cancelReason;
   final String? notes;
   final VolunteerAssignmentPatient patient;
   final VolunteerAssignmentTaskDetails taskDetails;
@@ -124,6 +127,9 @@ class VolunteerAssignment {
     this.pointsAwarded = 0,
     this.assignedAt,
     this.completedAt,
+    this.cancelledAt,
+    this.cancelledBy,
+    this.cancelReason,
     this.notes,
     required this.patient,
     required this.taskDetails,
@@ -131,6 +137,11 @@ class VolunteerAssignment {
     this.canAccept = false,
     this.canComplete = false,
   });
+
+  bool get isCancelled =>
+      status.toLowerCase() == 'cancelled' || status.toLowerCase() == 'canceled';
+  bool get isAccepted => status.toLowerCase() == 'accepted';
+  bool get canCancel => isAccepted;
 
   factory VolunteerAssignment.fromJson(Map<String, dynamic> json) {
     return VolunteerAssignment(
@@ -148,6 +159,11 @@ class VolunteerAssignment {
       completedAt: json['completedAt'] != null
           ? DateTime.tryParse(json['completedAt'].toString())
           : null,
+      cancelledAt: json['cancelledAt'] != null
+          ? DateTime.tryParse(json['cancelledAt'].toString())
+          : null,
+      cancelledBy: json['cancelledBy']?.toString(),
+      cancelReason: json['cancelReason']?.toString(),
       notes: json['notes']?.toString(),
       patient: VolunteerAssignmentPatient.fromJson(
         Map<String, dynamic>.from(json['patient'] ?? {}),
@@ -200,19 +216,8 @@ class VolunteerAssignment {
     }
   }
 
-  int get expectedPoints {
-    if (pointsAwarded > 0) return pointsAwarded;
-    switch (taskType) {
-      case 'home_visit':
-        return 10;
-      case 'visit_assessment':
-        return 15;
-      case 'social_support':
-        return 10;
-      default:
-        return 10;
-    }
-  }
+  String get pointsLabel =>
+      '+$pointsAwarded ${pointsAwarded == 1 ? 'pt' : 'pts'}';
 }
 
 class VolunteerLeaderboardEntry {

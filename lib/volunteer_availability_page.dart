@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:oruma_app/core/localization/volunteer_request_messages.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/volunteer_availability_request.dart';
@@ -521,14 +522,18 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
   }
 
   Widget _buildRequestCard(VolunteerAvailabilityRequest request) {
-    final approved = request.status == 'approved';
-    final declined = request.status == 'declined';
-    final color = approved
-        ? AppColors.success
-        : declined
-        ? AppColors.danger
-        : AppColors.warning;
+    final statusColor = VolunteerRequestMessages.getStatusColor(request.status);
+    final statusLabel = VolunteerRequestMessages.getStatusLabel(request.status);
+    final approved = request.isApproved;
+    final isNeutral = VolunteerRequestMessages.isNeutralStatus(request.status);
     final date = DateTime.tryParse(request.requestedDate);
+
+    final iconData = approved
+        ? Icons.check_rounded
+        : isNeutral
+            ? Icons.info_outline_rounded
+            : Icons.schedule_rounded;
+
     return AppCard(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm),
@@ -539,16 +544,12 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
+              color: statusColor.withValues(alpha: 0.10),
               borderRadius: AppRadius.md,
             ),
             child: Icon(
-              approved
-                  ? Icons.check_rounded
-                  : declined
-                  ? Icons.close_rounded
-                  : Icons.schedule_rounded,
-              color: color,
+              iconData,
+              color: statusColor,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -583,19 +584,58 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
                     ],
                   ),
                 ],
-                const SizedBox(height: 2),
-                Text(
-                  request.status[0].toUpperCase() + request.status.substring(1),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
+                if (isNeutral) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface2,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      VolunteerRequestMessages.getPositiveMessage(
+                        taskType: request.taskType,
+                        status: request.status,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.text,
+                            height: 1.4,
+                          ),
+                    ),
+                  ),
+                ],
                 if (request.decisionNote?.trim().isNotEmpty == true) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    request.decisionNote!,
+                    'Note: ${request.decisionNote!}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                if (request.cancelReason?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Cancel reason: ${request.cancelReason!}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                       fontStyle: FontStyle.italic,

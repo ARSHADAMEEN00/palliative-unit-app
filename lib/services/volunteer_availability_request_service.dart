@@ -63,4 +63,20 @@ class VolunteerAvailabilityRequestService {
     }
     throw Exception(result.error ?? 'Failed to review availability request');
   }
+
+  static Future<VolunteerAvailabilityRequest> cancel(
+    String requestId, {
+    String? reason,
+  }) async {
+    final result = await ApiService.post<Map<String, dynamic>>(
+      '${ApiConfig.volunteerAvailabilityRequestsEndpoint}/$requestId/cancel',
+      body: {
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    );
+    if (result.isSuccess && result.data != null) {
+      return VolunteerAvailabilityRequest.fromJson(result.data!);
+    }
+    throw Exception(result.error ?? 'Failed to cancel availability request');
+  }
 }

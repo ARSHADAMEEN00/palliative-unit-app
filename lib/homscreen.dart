@@ -29,6 +29,7 @@ import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/notification_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
+import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
 import 'package:oruma_app/models/volunteer_assignment.dart';
@@ -37,6 +38,8 @@ import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/services/volunteer_assignment_service.dart';
 import 'package:oruma_app/services/volunteer_availability_request_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/services/about_us_service.dart';
+import 'package:oruma_app/core/localization/volunteer_request_messages.dart';
 import 'package:oruma_app/volunteer_assignment_detail_page.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
@@ -62,7 +65,9 @@ const _homeHoverOverlay = Color(0x08000000);
 const _homePressedOverlay = Color(0x10000000);
 
 class Homescreen extends StatefulWidget {
-  const Homescreen({super.key});
+  const Homescreen({super.key, this.aboutUsLoader});
+
+  final Future<AboutUsData> Function({bool refresh})? aboutUsLoader;
 
   @override
   State<Homescreen> createState() => _HomescreenState();
@@ -88,6 +93,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _assignmentsLoading = false;
   bool _availabilityRequestsLoading = false;
   bool _checkingApproval = false;
+  AboutUsData? _pendingVolunteerStory;
+  bool _pendingVolunteerStoryLoading = false;
+  String? _pendingVolunteerStoryError;
   int _pendingVolunteerRegistrationCount = 0;
   int _pendingAvailabilityRequestCount = 0;
   bool _importantRequestsLoading = false;
@@ -135,7 +143,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
     final auth = context.read<AuthService>();
     await auth.fetchUserProfile();
-    if (!mounted || auth.isAccessBlocked || !auth.isVolunteerApproved) return;
+    if (!mounted || auth.isAccessBlocked) return;
+    if (auth.isVolunteerPending) {
+      await _loadPendingVolunteerStory(refresh: force);
+      return;
+    }
+    if (!auth.isVolunteerApproved) return;
     _loadHomeSummary(auth);
     if (auth.isVolunteer) {
       _loadVolunteerActivity();
@@ -154,6 +167,33 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       });
     }
     _loadNotifications(refresh: force);
+  }
+
+  Future<void> _loadPendingVolunteerStory({bool refresh = false}) async {
+    if (!mounted || (_pendingVolunteerStoryLoading && !refresh)) return;
+    setState(() {
+      _pendingVolunteerStoryLoading = true;
+      _pendingVolunteerStoryError = null;
+    });
+    try {
+      final loader = widget.aboutUsLoader;
+      final story = loader == null
+          ? await AboutUsService.getAboutUs(refresh: refresh)
+          : await loader(refresh: refresh);
+      if (!mounted) return;
+      setState(() {
+        _pendingVolunteerStory = story;
+        _pendingVolunteerStoryLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _pendingVolunteerStoryError = error
+            .toString()
+            .replaceFirst('Exception: ', '');
+        _pendingVolunteerStoryLoading = false;
+      });
+    }
   }
 
   Future<void> _loadImportantRequests() async {
@@ -1869,6 +1909,122 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildPendingVolunteerStoryCard() {
+    final story = _pendingVolunteerStory;
+    final content = story?.content.trim() ?? '';
+    final title = story?.title.trim().isNotEmpty == true
+        ? story!.title.trim()
+        : AboutUsData.defaultTitle;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: AppCard(
+          surfaceLevel: AppSurfaceLevel.elevated,
+          backgroundColor: const Color(0xFFFFFEFA),
+          borderColor: const Color(0xFFE7E0D2),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5E8072).withValues(alpha: 0.10),
+                      borderRadius: AppRadius.sm,
+                    ),
+                    child: const Icon(
+                      Icons.menu_book_outlined,
+                      color: Color(0xFF5E8072),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Our Story',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (_pendingVolunteerStoryLoading) ...[
+                const LinearProgressIndicator(
+                  minHeight: 4,
+                  backgroundColor: AppColors.surface2,
+                  color: Color(0xFF5E8072),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Loading the unit story…',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ] else if (_pendingVolunteerStoryError != null) ...[
+                Text(
+                  'Unable to load the unit story. ${_pendingVolunteerStoryError!}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _loadPendingVolunteerStory(refresh: true),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Try again'),
+                  ),
+                ),
+              ] else if (content.isEmpty) ...[
+                Text(
+                  'This unit has not published its story yet.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ] else ...[
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.chilanka(
+                    color: const Color(0xFF24446A),
+                    fontSize: 22,
+                    height: 1.5,
+                    fontWeight: FontWeight.w400,
+                  ).copyWith(
+                    fontFamilyFallback: const ['NotoSansMalayalam'],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const Divider(color: Color(0xFFDDE7E2)),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  content,
+                  style: const TextStyle(
+                    fontFamily: 'NotoSansMalayalam',
+                    fontSize: 16,
+                    height: 1.75,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.text,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Color _taskColor(String type) {
     switch (type) {
       case 'home_visit':
@@ -1896,18 +2052,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   Color _statusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return AppColors.success;
-      case 'accepted':
-      case 'in_progress':
-        return AppColors.primary;
-      case 'cancelled':
-      case 'missed':
-        return AppColors.danger;
-      default:
-        return const Color(0xFF6B7280);
-    }
+    return VolunteerRequestMessages.getStatusColor(status);
   }
 
   void _openAssignmentDetail(VolunteerAssignment assignment) async {
@@ -2176,25 +2321,27 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '+${assignment.expectedPoints} pts',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFB45309),
+                  if (assignment.pointsAwarded > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        assignment.pointsLabel,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFB45309),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -2465,74 +2612,104 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 : AppColors.border,
           ),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    assignment.patient.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${assignment.typeLabel} • ${_formatAssignmentDate(assignment.scheduledDate)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isOverdue
-                          ? AppColors.danger
-                          : AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    assignment.statusLabel,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
-                    ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        assignment.patient.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${assignment.typeLabel} • ${_formatAssignmentDate(assignment.scheduledDate)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isOverdue
+                              ? AppColors.danger
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '+${assignment.expectedPoints} pts',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFB45309),
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        assignment.statusLabel,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                    if (assignment.pointsAwarded > 0 &&
+                        !assignment.isCancelled) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        assignment.pointsLabel,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
+            if (assignment.isCancelled) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surface2,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  VolunteerRequestMessages.getPositiveMessage(
+                    taskType: assignment.taskType,
+                    status: assignment.status,
+                  ),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.text,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -2906,23 +3083,44 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         icon: Icons.lock_outline_rounded,
       );
     }
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: actions.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.xs),
-        itemBuilder: (context, index) {
-          final action = actions[index];
-          return _HomeQuickChip(
+
+    final chips = actions
+        .map(
+          (action) => _HomeQuickChip(
             label: action.label,
             icon: action.icon,
             iconBackground: action.iconBackground,
             iconColor: action.iconColor,
             onTap: action.onTap,
-          );
-        },
+          ),
+        )
+        .toList();
+    final usesTwoRows = auth.isAdmin || auth.isStaff || auth.isMember;
+
+    if (usesTwoRows) {
+      return SizedBox(
+        height: 104,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Wrap(
+            direction: Axis.vertical,
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: chips,
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: chips.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (context, index) => chips[index],
       ),
     );
   }
@@ -3220,6 +3418,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   Widget _buildAvailabilityHomeCard(VolunteerAvailabilityRequest request) {
+    final isNeutral = VolunteerRequestMessages.isNeutralStatus(request.status);
     return _HomeActivityCard(
       icon: Icons.calendar_month_outlined,
       iconBackground: ModulePalettes.volunteers.iconBackground,
@@ -3227,16 +3426,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       title: 'Availability · ${_formatAvailabilityDate(request)}',
       subtitle: request.status == 'approved'
           ? 'Confirmed by coordinator'
-          : request.status == 'rejected'
-          ? (request.decisionNote?.trim().isNotEmpty == true
-                ? request.decisionNote!
-                : 'Not approved by coordinator')
+          : isNeutral
+          ? VolunteerRequestMessages.getPositiveMessage(
+              taskType: request.taskType,
+              status: request.status,
+            )
           : 'Sent to coordinator',
-      actionLabel: _titleCase(request.status),
+      actionLabel: VolunteerRequestMessages.getStatusLabel(request.status),
       actionTone: request.status == 'approved'
           ? _HomeActionTone.success
-          : request.status == 'rejected'
-          ? _HomeActionTone.danger
+          : isNeutral
+          ? _HomeActionTone.neutral
           : _HomeActionTone.warning,
       onTap: _openVolunteerAvailability,
     );
@@ -3251,10 +3451,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            title,
-            style: _homeCompactSectionTitleStyle(context),
-          ),
+          child: Text(title, style: _homeCompactSectionTitleStyle(context)),
         ),
         if (actionLabel != null && onAction != null)
           TextButton(
@@ -3560,6 +3757,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   if (isPendingApproval) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildVolunteerApprovalCard(auth),
+                    if (auth.isVolunteerPending) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _buildPendingVolunteerStoryCard(),
+                    ],
                   ] else ...[
                     if (maintenanceNotification != null) ...[
                       const SizedBox(height: AppSpacing.md),
@@ -3902,6 +4103,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final compactVolunteer = auth.isVolunteer;
     final compactHeader = compactVolunteer || isCompact;
+    final canOpenOurStory = auth.hasAboutUs || auth.isVolunteer;
     final achievementTier = _volunteerActivity?.achievementTier;
     final achievementColor = achievementTier == null
         ? null
@@ -3986,7 +4188,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           ),
           const SizedBox(height: AppSpacing.xs),
           InkWell(
-            onTap: auth.hasAboutUs ? _navigateToAboutUs : null,
+            onTap: canOpenOurStory ? _navigateToAboutUs : null,
             borderRadius: AppRadius.sm,
             child: SizedBox(
               width: double.infinity,
@@ -3994,24 +4196,19 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 auth.unitName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    GoogleFonts.outfit(
-                      textStyle: compactHeader
-                          ? textTheme.titleLarge
-                          : textTheme.headlineMedium,
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                      height: 1.15,
-                    ).copyWith(
-                      fontFamilyFallback: const ['NotoSansMalayalam'],
-                    ),
+                style: GoogleFonts.outfit(
+                  textStyle: compactHeader
+                      ? textTheme.titleLarge
+                      : textTheme.headlineMedium,
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  height: 1.15,
+                ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
               ),
             ),
           ),
-          SizedBox(
-            height: compactHeader ? AppSpacing.xs : AppSpacing.sm,
-          ),
+          SizedBox(height: compactHeader ? AppSpacing.xs : AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -4037,7 +4234,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              if (auth.hasAboutUs) ...[
+              if (canOpenOurStory) ...[
                 const SizedBox(width: AppSpacing.sm),
                 _buildOurStoryBadge(context),
               ],
@@ -4188,10 +4385,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: _homeCompactSectionTitleStyle(context),
-              ),
+              Text(title, style: _homeCompactSectionTitleStyle(context)),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 subtitle,

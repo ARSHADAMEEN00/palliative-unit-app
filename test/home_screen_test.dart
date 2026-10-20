@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oruma_app/core/theme/app_theme.dart';
 import 'package:oruma_app/homscreen.dart';
+import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
 class _HomePreviewAuthService extends AuthService {
-  _HomePreviewAuthService(this.previewRole);
+  _HomePreviewAuthService(
+    this.previewRole, {
+    this.volunteerApproved = true,
+    this.aboutUsAvailable = true,
+  });
 
   final String previewRole;
+  final bool volunteerApproved;
+  final bool aboutUsAvailable;
 
   @override
   String? get role => previewRole;
@@ -21,7 +28,9 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get isVolunteer => previewRole == 'volunteer';
   @override
-  bool get isVolunteerApproved => true;
+  bool get isVolunteerApproved => volunteerApproved;
+  @override
+  bool get isVolunteerPending => isVolunteer && !volunteerApproved;
   @override
   bool get isAccessBlocked => false;
   @override
@@ -29,7 +38,7 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get isTrialUnit => false;
   @override
-  bool get hasAboutUs => true;
+  bool get hasAboutUs => aboutUsAvailable;
   @override
   String? get unitSupportQr => 'https://example.com/support-qr.png';
   @override
@@ -69,16 +78,34 @@ class _HomePreviewAuthService extends AuthService {
   Future<void> fetchUserProfile() async {}
 }
 
-Future<void> _pumpHome(WidgetTester tester, String role) async {
+Future<void> _pumpHome(
+  WidgetTester tester,
+  String role, {
+  bool volunteerApproved = true,
+  bool aboutUsAvailable = true,
+}) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ChangeNotifierProvider<AuthService>.value(
-      value: _HomePreviewAuthService(role),
+      value: _HomePreviewAuthService(
+        role,
+        volunteerApproved: volunteerApproved,
+        aboutUsAvailable: aboutUsAvailable,
+      ),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
-        home: const Homescreen(),
+        home: Homescreen(
+          aboutUsLoader: ({bool refresh = false}) async => const AboutUsData(
+            hasAboutUs: true,
+            title: 'Care that stays close',
+            content: 'We support patients and families throughout their care.',
+            rawContent:
+                'We support patients and families throughout their care.',
+            unitName: 'Compassion Care',
+          ),
+        ),
       ),
     ),
   );
@@ -86,7 +113,27 @@ Future<void> _pumpHome(WidgetTester tester, String role) async {
 }
 
 void main() {
-  testWidgets('admin home keeps all three sections above the fold', (
+  for (final roleAndLabels in <(String, List<String>)>[
+    ('admin', const ['Home visit', 'Social support', 'Equipment supply']),
+    ('staff', const ['Home visit', 'Social support', 'Equipment supply']),
+    ('member', const ['Social support', 'Volunteers', 'Reports']),
+  ]) {
+    testWidgets('${roleAndLabels.$1} quick actions use two rows', (
+      tester,
+    ) async {
+      await _pumpHome(tester, roleAndLabels.$1);
+
+      final firstTop = tester.getTopLeft(find.text(roleAndLabels.$2[0])).dy;
+      final secondTop = tester.getTopLeft(find.text(roleAndLabels.$2[1])).dy;
+      final thirdTop = tester.getTopLeft(find.text(roleAndLabels.$2[2])).dy;
+
+      expect(secondTop, greaterThan(firstTop));
+      expect(thirdTop, firstTop);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('admin home includes all three dashboard sections', (
     tester,
   ) async {
     await _pumpHome(tester, 'admin');
@@ -132,10 +179,6 @@ void main() {
     );
     expect(metricHover.hoverColor, const Color(0x08000000));
     expect(activityHover.hoverColor, const Color(0x08000000));
-    expect(
-      tester.getBottomLeft(find.text('Equipment distributed')).dy,
-      lessThan(760),
-    );
     expect(tester.takeException(), isNull);
   });
 
@@ -173,9 +216,10 @@ void main() {
   testWidgets('volunteer home shows availability and task tabs', (
     tester,
   ) async {
-    await _pumpHome(tester, 'volunteer');
+    await _pumpHome(tester, 'volunteer', aboutUsAvailable: false);
 
     expect(find.text('Compassion Care'), findsOneWidget);
+    expect(find.text('Our Story'), findsOneWidget);
     expect(find.text('Share\navailability'), findsOneWidget);
     expect(find.text('My tasks'), findsOneWidget);
     expect(find.text('Today'), findsOneWidget);
@@ -187,6 +231,28 @@ void main() {
     expect(find.text('Visits'), findsOneWidget);
     expect(find.text('Medicine'), findsNothing);
     expect(find.text('NHC'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('new volunteer home shows the Our Story link', (tester) async {
+    await _pumpHome(
+      tester,
+      'volunteer',
+      volunteerApproved: false,
+      aboutUsAvailable: false,
+    );
+
+    expect(find.text('Approval is pending'), findsOneWidget);
+    expect(find.text('Our Story'), findsNWidgets(2));
+    expect(find.text('Care that stays close'), findsOneWidget);
+    expect(
+      find.text('We support patients and families throughout their care.'),
+      findsOneWidget,
+    );
+    final storyLink = tester.widget<InkWell>(
+      find.ancestor(of: find.text('Our Story'), matching: find.byType(InkWell)),
+    );
+    expect(storyLink.onTap, isNotNull);
     expect(tester.takeException(), isNull);
   });
 }

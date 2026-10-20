@@ -397,6 +397,88 @@ class _ConfigPageState extends State<ConfigPage>
     }
   }
 
+  Future<void> _confirmDeleteStaff(StaffUser staff) async {
+    if (staff.role != 'staff' || _updatingStaffIds.contains(staff.id)) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.10),
+                borderRadius: AppRadius.sm,
+              ),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.danger,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            const Expanded(child: Text('Delete staff account?')),
+          ],
+        ),
+        content: Text(
+          'Delete ${staff.name} (${staff.email})? They will lose access to this unit. This action cannot be undone.',
+          style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        actions: [
+          AppSecondaryButton(
+            label: 'Cancel',
+            onPressed: () => Navigator.pop(dialogContext, false),
+          ),
+          AppDangerButton(
+            label: 'Delete staff',
+            icon: Icons.delete_outline_rounded,
+            onPressed: () => Navigator.pop(dialogContext, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _updatingStaffIds.add(staff.id));
+    try {
+      await StaffService.deleteStaff(staff.id);
+      if (!mounted) return;
+      setState(() => _staff.removeWhere((item) => item.id == staff.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${staff.name} was deleted'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete staff: ${error.toString().replaceFirst('Exception: ', '')}',
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingStaffIds.remove(staff.id));
+    }
+  }
+
   Future<void> _saveRolePermissions() async {
     if (_isSavingRolePermissions) return;
     final role = _selectedPermissionRole;
@@ -1950,6 +2032,15 @@ class _ConfigPageState extends State<ConfigPage>
                     : () => _showEditStaffDialog(staff),
                 icon: const Icon(Icons.edit_outlined),
               ),
+              if (staff.role == 'staff')
+                IconButton(
+                  tooltip: 'Delete staff',
+                  color: AppColors.danger,
+                  onPressed: isUpdating
+                      ? null
+                      : () => _confirmDeleteStaff(staff),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
             ],
           );
 

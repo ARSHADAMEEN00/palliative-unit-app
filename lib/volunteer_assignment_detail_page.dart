@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:oruma_app/core/localization/volunteer_request_messages.dart';
 import 'package:oruma_app/core/theme/app_colors.dart';
 import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/models/volunteer_assignment.dart';
@@ -112,6 +113,103 @@ class _VolunteerAssignmentDetailPageState
     }
   }
 
+  Future<void> _showCancelDialog() async {
+    final reasonController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+          ),
+          title: const Text('Cancel Assignment?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_assignment?.typeLabel ?? "Assignment"} • ${_assignment?.patient.name ?? ""}',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Are you sure you want to cancel this accepted request? A canceled request is final and cannot be reopened.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: reasonController,
+                minLines: 2,
+                maxLines: 4,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Reason for cancellation (optional)',
+                  hintText: 'e.g. Schedule conflict or emergency',
+                  prefixIcon: const Icon(Icons.comment_outlined),
+                  filled: true,
+                  fillColor: AppColors.surface1,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Keep Assignment'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.textSecondary,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Confirm Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() => _submitting = true);
+      try {
+        final updated = await VolunteerAssignmentService.cancelAssignment(
+          widget.assignmentId,
+          reason: reasonController.text.trim().isNotEmpty
+              ? reasonController.text.trim()
+              : null,
+        );
+        if (mounted) {
+          setState(() {
+            _assignment = updated;
+            _submitting = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Assignment has been canceled.'),
+              backgroundColor: AppColors.text,
+            ),
+          );
+        }
+      } catch (err) {
+        if (mounted) {
+          setState(() => _submitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(err.toString()),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _showCompleteDialog() async {
     final noteController = TextEditingController();
 
@@ -172,9 +270,9 @@ class _VolunteerAssignmentDetailPageState
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                'Completing this assignment will award you +${_assignment?.expectedPoints ?? 10} activity points.',
-                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              const Text(
+                'Mark this assignment as completed. Points are awarded when eligible tasks are assigned, not when they are completed.',
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -244,7 +342,6 @@ class _VolunteerAssignmentDetailPageState
 
         if (mounted) {
           final updated = res['assignment'] as VolunteerAssignment;
-          final points = res['pointsJustAwarded'] as int;
           setState(() {
             _assignment = updated;
             _submitting = false;
@@ -252,7 +349,7 @@ class _VolunteerAssignmentDetailPageState
           });
 
           // Show Celebration Dialog
-          _showCelebrationDialog(points);
+          _showCelebrationDialog();
         }
       } catch (err) {
         if (mounted) {
@@ -265,7 +362,7 @@ class _VolunteerAssignmentDetailPageState
     }
   }
 
-  void _showCelebrationDialog(int points) {
+  void _showCelebrationDialog() {
     showDialog(
       context: context,
       builder: (context) {
@@ -293,12 +390,10 @@ class _VolunteerAssignmentDetailPageState
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  points > 0
-                      ? 'You have earned +$points Activity Points for completing this task.'
-                      : 'Assignment successfully marked as completed.',
+                const Text(
+                  'Assignment successfully marked as completed.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -351,18 +446,7 @@ class _VolunteerAssignmentDetailPageState
   }
 
   Color _statusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return AppColors.success;
-      case 'accepted':
-      case 'in_progress':
-        return AppColors.primary;
-      case 'cancelled':
-      case 'missed':
-        return AppColors.danger;
-      default:
-        return const Color(0xFF6B7280);
-    }
+    return VolunteerRequestMessages.getStatusColor(status);
   }
 
   @override
@@ -407,6 +491,17 @@ class _VolunteerAssignmentDetailPageState
           leading: BackButton(
             onPressed: () => Navigator.pop(context, _wasCompleted),
           ),
+          actions: [
+            if (assignment.isAccepted)
+              IconButton(
+                tooltip: 'Cancel Assignment',
+                icon: const Icon(
+                  Icons.cancel_outlined,
+                  color: AppColors.textSecondary,
+                ),
+                onPressed: _submitting ? null : _showCancelDialog,
+              ),
+          ],
         ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -454,41 +549,97 @@ class _VolunteerAssignmentDetailPageState
                           ),
                         ),
                       )
-                    : assignment.canComplete
-                        ? ElevatedButton.icon(
-                            onPressed: _submitting ? null : _showCompleteDialog,
-                            icon: const Icon(Icons.task_alt_rounded),
-                            label: const Text('Mark as Completed'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.success,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          )
-                        : Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.verified_rounded, size: 18, color: statusColor),
-                                const SizedBox(width: 8),
-                                Text(
-                                  assignment.statusLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: statusColor,
+                    : assignment.isAccepted
+                        ? Row(
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed:
+                                    _submitting ? null : _showCancelDialog,
+                                icon: const Icon(
+                                  Icons.cancel_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text('Cancel'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.textSecondary,
+                                  side: const BorderSide(
+                                    color: AppColors.borderStrong,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed:
+                                      _submitting ? null : _showCompleteDialog,
+                                  icon: const Icon(Icons.task_alt_rounded),
+                                  label: const Text('Mark Completed'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.success,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : assignment.canComplete
+                            ? ElevatedButton.icon(
+                                onPressed:
+                                    _submitting ? null : _showCompleteDialog,
+                                icon: const Icon(Icons.task_alt_rounded),
+                                label: const Text('Mark as Completed'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.success,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      assignment.isCancelled
+                                          ? Icons.info_outline_rounded
+                                          : Icons.verified_rounded,
+                                      size: 18,
+                                      color: statusColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      assignment.statusLabel,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
               ),
             ],
           ),
@@ -558,25 +709,46 @@ class _VolunteerAssignmentDetailPageState
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.amber.withOpacity(0.4)),
-                          ),
-                          child: Text(
-                            '+${assignment.expectedPoints} pts',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFB45309),
+                        if (assignment.isCancelled)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface2,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: const Text(
+                              '0 pts',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          )
+                        else if (assignment.pointsAwarded > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                            ),
+                            child: Text(
+                              assignment.pointsLabel,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFB45309),
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -641,6 +813,46 @@ class _VolunteerAssignmentDetailPageState
                           ),
                       ],
                     ),
+                    if (assignment.isCancelled) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceFloating,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              VolunteerRequestMessages.getPositiveMessage(
+                                taskType: assignment.taskType,
+                                status: assignment.status,
+                              ),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.text,
+                                height: 1.4,
+                              ),
+                            ),
+                            if (assignment.cancelReason != null &&
+                                assignment.cancelReason!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Reason: ${assignment.cancelReason!}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

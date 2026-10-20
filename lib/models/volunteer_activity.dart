@@ -7,7 +7,7 @@ class VolunteerActivityItem {
     this.patientRegisterId,
     this.place,
     this.note,
-    this.points = 10,
+    this.points = 0,
     this.taskType,
   });
 
@@ -34,7 +34,7 @@ class VolunteerActivityItem {
       patientRegisterId: json['patientRegisterId']?.toString(),
       place: json['place']?.toString(),
       note: json['note']?.toString(),
-      points: (json['points'] as num?)?.toInt() ?? 10,
+      points: (json['points'] as num?)?.toInt() ?? 0,
       taskType: json['taskType']?.toString(),
     );
   }
@@ -63,7 +63,7 @@ class VolunteerActivity {
 
   factory VolunteerActivity.fromJson(Map<String, dynamic> json) {
     final works = (json['totalSocialWorks'] as num?)?.toInt() ?? 0;
-    final points = (json['totalPoints'] as num?)?.toInt() ?? (works * 10);
+    final points = (json['totalPoints'] as num?)?.toInt() ?? 0;
     return VolunteerActivity(
       totalSocialWorks: works,
       totalPoints: points,

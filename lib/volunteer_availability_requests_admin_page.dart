@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:oruma_app/core/localization/volunteer_request_messages.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/volunteer_availability_request.dart';
 import 'package:oruma_app/services/volunteer_availability_request_service.dart';
@@ -94,6 +95,49 @@ class _VolunteerAvailabilityRequestsAdminPageState
                 : 'Availability request declined.',
           ),
           backgroundColor: approving ? AppColors.success : AppColors.text,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyError(error)),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busyIds.remove(request.id));
+    }
+  }
+
+  Future<void> _cancelRequest(VolunteerAvailabilityRequest request) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => VolunteerRequestCancelDialog(
+        request: request,
+        dateLabel: _dateLabel(request.requestedDate),
+      ),
+    );
+    if (reason == null || !mounted) return;
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    setState(() => _busyIds.add(request.id));
+    try {
+      final updated = await VolunteerAvailabilityRequestService.cancel(
+        request.id,
+        reason: reason,
+      );
+      if (!mounted) return;
+      setState(() {
+        final index = _requests.indexWhere((item) => item.id == request.id);
+        if (index != -1) _requests[index] = updated;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request has been canceled.'),
+          backgroundColor: AppColors.text,
         ),
       );
     } catch (error) {
@@ -217,12 +261,10 @@ class _VolunteerAvailabilityRequestsAdminPageState
 
   Widget _buildRequestCard(VolunteerAvailabilityRequest request) {
     final busy = _busyIds.contains(request.id);
-    final pending = request.status == 'pending';
-    final statusColor = request.status == 'approved'
-        ? AppColors.success
-        : request.status == 'declined'
-        ? AppColors.danger
-        : AppColors.warning;
+    final pending = request.isPending;
+    final statusColor = VolunteerRequestMessages.getStatusColor(request.status);
+    final statusLabel = VolunteerRequestMessages.getStatusLabel(request.status);
+
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       surfaceLevel: AppSurfaceLevel.elevated,
@@ -293,7 +335,7 @@ class _VolunteerAvailabilityRequestsAdminPageState
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  request.status[0].toUpperCase() + request.status.substring(1),
+                  statusLabel,
                   style: TextStyle(
                     color: statusColor,
                     fontSize: 11,
@@ -310,6 +352,35 @@ class _VolunteerAvailabilityRequestsAdminPageState
           if (request.decisionNote?.trim().isNotEmpty == true) ...[
             const Divider(height: AppSpacing.lg),
             _detailLine(Icons.sticky_note_2_outlined, request.decisionNote!),
+          ],
+          if (request.cancelReason?.trim().isNotEmpty == true) ...[
+            const Divider(height: AppSpacing.lg),
+            _detailLine(
+              Icons.cancel_outlined,
+              'Cancel reason: ${request.cancelReason!}',
+            ),
+          ],
+          if (request.isCancelled || request.isDeclined) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.surface2,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                VolunteerRequestMessages.getPositiveMessage(
+                  taskType: request.taskType,
+                  status: request.status,
+                ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+              ),
+            ),
           ],
           if (pending) ...[
             const Divider(height: AppSpacing.lg),
@@ -333,6 +404,23 @@ class _VolunteerAvailabilityRequestsAdminPageState
                     ),
                   ),
                 ],
+              ),
+          ] else if (request.canCancel) ...[
+            const Divider(height: AppSpacing.lg),
+            if (busy)
+              const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _cancelRequest(request),
+                  icon: const Icon(Icons.cancel_outlined, size: 18),
+                  label: const Text('Cancel Request'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.borderStrong),
+                  ),
+                ),
               ),
           ],
         ],
@@ -484,7 +572,7 @@ class _AvailabilityReviewDialogState
           style: FilledButton.styleFrom(
             backgroundColor: widget.approving
                 ? AppColors.success
-                : AppColors.danger,
+                : AppColors.textSecondary,
           ),
           onPressed: _closing ? null : _confirm,
           child: Text(
@@ -495,3 +583,107 @@ class _AvailabilityReviewDialogState
     );
   }
 }
+
+@visibleForTesting
+class VolunteerRequestCancelDialog extends StatefulWidget {
+  const VolunteerRequestCancelDialog({
+    super.key,
+    required this.request,
+    required this.dateLabel,
+  });
+
+  final VolunteerAvailabilityRequest request;
+  final String dateLabel;
+
+  @override
+  State<VolunteerRequestCancelDialog> createState() =>
+      _VolunteerRequestCancelDialogState();
+}
+
+class _VolunteerRequestCancelDialogState
+    extends State<VolunteerRequestCancelDialog> {
+  final _reasonController = TextEditingController();
+  bool _closing = false;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    if (_closing) return;
+    final reason = _reasonController.text.trim();
+    setState(() => _closing = true);
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    Navigator.of(context).pop(reason);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+      title: const Text('Cancel Request?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${widget.request.contactName} • ${widget.dateLabel}',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          if (widget.request.timeSlot != null &&
+              widget.request.timeSlot!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Time: ${widget.request.timeSlot!}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Are you sure you want to cancel this approved request? The volunteer will be notified with a friendly message. Once canceled, this request cannot be reopened.',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _reasonController,
+            minLines: 2,
+            maxLines: 4,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Reason for cancellation (optional)',
+              hintText: 'e.g. Schedule conflict or unit not visiting',
+              prefixIcon: Icon(Icons.comment_outlined),
+              alignLabelWithHint: true,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _closing ? null : () => Navigator.pop(context),
+          child: const Text('Keep Request'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.textSecondary,
+          ),
+          onPressed: _closing ? null : _confirm,
+          child: const Text('Confirm Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
