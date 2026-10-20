@@ -59,10 +59,7 @@ class _ReportsPageState extends State<ReportsPage> {
   @override
   void initState() {
     super.initState();
-    _type = ReportAccessPolicy.resolveInitial(
-      context.read<AuthService>().role,
-      widget.initialReport,
-    );
+    _type = widget.initialReport;
     _filters = _defaultFilters(_type);
     _searchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,12 +94,6 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   void _selectReport(ReportType type) {
-    if (!ReportAccessPolicy.roleAllows(
-      context.read<AuthService>().role,
-      type,
-    )) {
-      return;
-    }
     if (type == _type) return;
     _searchDebounce?.cancel();
     _searchController.clear();
@@ -217,7 +208,7 @@ class _ReportsPageState extends State<ReportsPage> {
       body: Column(
         children: [
           _ReportSelector(
-            types: ReportAccessPolicy.allowedForRole(auth.role),
+            types: ReportType.values,
             selected: _type,
             onSelected: _selectReport,
           ),

@@ -18,36 +18,24 @@ void main() {
     expect(ReportType.socialSupport.apiSlug, 'social-support');
   });
 
-  test('members cannot access medicine reports', () {
-    expect(
-      ReportAccessPolicy.allowedForRole('member'),
-      isNot(contains(ReportType.medicineStock)),
-    );
-    expect(
-      ReportAccessPolicy.allowedForRole('member'),
-      isNot(contains(ReportType.medicineSupplies)),
-    );
-    expect(
-      ReportAccessPolicy.allowedForRole('member'),
-      containsAll([
-        ReportType.equipmentStock,
-        ReportType.equipmentDamageHistory,
-        ReportType.equipmentSupplies,
-        ReportType.socialSupport,
-      ]),
-    );
-    expect(
-      ReportAccessPolicy.resolveInitial('member', ReportType.medicineStock),
-      ReportType.equipmentStock,
-    );
-  });
-
-  test('non-member roles retain medicine reports', () {
-    for (final role in ['superadmin', 'admin', 'staff', 'volunteer']) {
+  test('all roles including member have access to all report types', () {
+    for (final role in ['superadmin', 'admin', 'staff', 'member', 'volunteer', null]) {
       expect(
         ReportAccessPolicy.allowedForRole(role),
-        containsAll([ReportType.medicineStock, ReportType.medicineSupplies]),
-        reason: '$role should retain medicine reports',
+        containsAll(ReportType.values),
+        reason: '$role should have access to all reports',
+      );
+      expect(
+        ReportAccessPolicy.roleAllows(role, ReportType.medicineStock),
+        isTrue,
+      );
+      expect(
+        ReportAccessPolicy.roleAllows(role, ReportType.medicineSupplies),
+        isTrue,
+      );
+      expect(
+        ReportAccessPolicy.resolveInitial(role, ReportType.medicineStock),
+        ReportType.medicineStock,
       );
     }
   });

@@ -80,6 +80,32 @@ class VolunteerApplicationService {
     }
   }
 
+  static Future<void> requestUnit({
+    required String unitId,
+    required String phone,
+    String? phone2,
+    required String village,
+    required String ward,
+    required String place,
+    String? address,
+  }) async {
+    final result = await ApiService.post<Map<String, dynamic>>(
+      ApiConfig.requestUnitEndpoint,
+      body: {
+        'unitId': unitId,
+        'phone': phone.trim(),
+        'phone2': (phone2 ?? '').trim(),
+        'village': village.trim(),
+        'ward': ward.trim(),
+        'place': place.trim(),
+        'address': (address ?? '').trim(),
+      },
+    );
+    if (!result.isSuccess) {
+      throw Exception(result.error ?? 'Failed to submit unit request');
+    }
+  }
+
   static Future<VolunteerActivity> getMyActivity() async {
     final result = await ApiService.get<Map<String, dynamic>>(
       ApiConfig.volunteerActivityEndpoint,

@@ -52,6 +52,7 @@ import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_visit_picker_screen.dart';
 import 'package:oruma_app/features/visit_assessment/data/visit_assessment_service.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
+import 'package:oruma_app/widgets/volunteer_removed_unit_request_card.dart';
 
 const _appVersionLabel = 'Version 1.0.0 (Build 1)';
 const _homeBackground = Color(0xFFF3F3EF);
@@ -1741,6 +1742,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   Widget _buildVolunteerApprovalCard(AuthService auth) {
+    if (auth.isVolunteerRemoved) {
+      return VolunteerRemovedUnitRequestCard(
+        onSubmitted: () => _bootstrapAccess(force: true),
+      );
+    }
+
     final declined = auth.isVolunteerDeclined;
     final color = declined ? AppColors.danger : AppColors.warning;
     return Center(

@@ -30,25 +30,14 @@ extension ReportTypeDetails on ReportType {
 class ReportAccessPolicy {
   const ReportAccessPolicy._();
 
-  static const Set<ReportType> _memberRestrictedTypes = {
-    ReportType.medicineStock,
-    ReportType.medicineSupplies,
-  };
-
-  static bool roleAllows(String? role, ReportType type) {
-    final normalized = role?.trim().toLowerCase();
-    return normalized != 'member' || !_memberRestrictedTypes.contains(type);
-  }
+  static bool roleAllows(String? role, ReportType type) => true;
 
   static List<ReportType> allowedForRole(String? role) {
-    return ReportType.values
-        .where((type) => roleAllows(role, type))
-        .toList(growable: false);
+    return ReportType.values;
   }
 
   static ReportType resolveInitial(String? role, ReportType preferred) {
-    if (roleAllows(role, preferred)) return preferred;
-    return allowedForRole(role).first;
+    return preferred;
   }
 }
 

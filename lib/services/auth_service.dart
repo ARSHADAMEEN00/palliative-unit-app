@@ -49,7 +49,14 @@ class AuthService with ChangeNotifier {
   bool get isVolunteerApproved => !isVolunteer || approvalStatus == 'approved';
   bool get isVolunteerPending => isVolunteer && approvalStatus == 'pending';
   bool get isVolunteerDeclined => isVolunteer && approvalStatus == 'declined';
+  bool get isVolunteerRemoved => isVolunteer && approvalStatus == 'removed';
   String? get volunteerId => _cleanString(_user?['volunteerId']);
+  String? get userPhone => _cleanString(_user?['phone']);
+  String? get userPhone2 => _cleanString(_user?['phone2']);
+  String? get userVillage => _cleanString(_user?['village']);
+  String? get userWard => _cleanString(_user?['ward']);
+  String? get userPlace => _cleanString(_user?['place']);
+  String? get userAddress => _cleanString(_user?['address']);
 
   Set<String>? get permittedModuleIds {
     final value = _user?['permittedModuleIds'];
@@ -336,6 +343,18 @@ class AuthService with ChangeNotifier {
               token: _token!,
               role: _role,
               unitId: userUnitId,
+            );
+          }
+        } else {
+          if (AppCache.currentUnitId != null) {
+            AppCache.currentUnitId = null;
+            AppCache.clear();
+          }
+          if (_token != null) {
+            await CredentialStore.write(
+              token: _token!,
+              role: _role,
+              unitId: null,
             );
           }
         }
