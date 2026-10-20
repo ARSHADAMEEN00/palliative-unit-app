@@ -4,7 +4,6 @@ import 'package:oruma_app/homevisit.dart';
 import 'package:oruma_app/home_visit_search_page.dart';
 import 'package:oruma_app/models/home_visit.dart';
 import 'package:oruma_app/models/patient.dart';
-import 'package:oruma_app/models/volunteer_home_visit_request.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/config_service.dart';
@@ -12,8 +11,6 @@ import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
-import 'package:oruma_app/services/volunteer_assignment_service.dart';
-import 'package:oruma_app/services/volunteer_home_visit_request_service.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_list_screen.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
@@ -36,10 +33,6 @@ class HomeVisitListPage extends StatefulWidget {
 class _HomeVisitListPageState extends State<HomeVisitListPage> {
   late Future<List<HomeVisit>> _visitsFuture;
   List<HomeVisit> _allVisits = [];
-  List<VolunteerHomeVisitRequest> _volunteerRequests = [];
-  Set<String> _assignedHomeVisitIds = {};
-  final Set<String> _requestActionsInProgress = {};
-  bool _requestsLoading = false;
 
   // Date navigation
   late DateTime _selectedDate;
@@ -86,51 +79,12 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
   }
 
   void _refreshVisits() {
-    _loadRequestData();
     setState(() {
       _visitsFuture = HomeVisitService.getAllHomeVisits().then((visits) {
         _allVisits = visits;
         return visits;
       });
     });
-  }
-
-  Future<void> _loadRequestData() async {
-    final auth = context.read<AuthService>();
-    if (!auth.isAdmin && !auth.isVolunteer) return;
-    if (mounted) setState(() => _requestsLoading = true);
-    try {
-      if (auth.isAdmin) {
-        final requests = await VolunteerHomeVisitRequestService.getRequests(
-          status: 'pending',
-        );
-        if (!mounted) return;
-        setState(() => _volunteerRequests = requests);
-      } else {
-        final requests = await VolunteerHomeVisitRequestService.getRequests();
-        final assignments = await VolunteerAssignmentService.getAssignments();
-        if (!mounted) return;
-        setState(() {
-          _volunteerRequests = requests;
-          _assignedHomeVisitIds = assignments
-              .where(
-                (assignment) =>
-                    assignment.taskType == 'home_visit' &&
-                    [
-                      'assigned',
-                      'accepted',
-                      'in_progress',
-                    ].contains(assignment.status),
-              )
-              .map((assignment) => assignment.taskId)
-              .toSet();
-        });
-      }
-    } catch (_) {
-      // Visits stay available even when request status cannot be refreshed.
-    } finally {
-      if (mounted) setState(() => _requestsLoading = false);
-    }
   }
 
   List<HomeVisit> _getVisitsForDate(DateTime date) {
@@ -297,9 +251,6 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
 
               // Date Tabs
               _buildDateTabs(primaryColor),
-
-              if (context.read<AuthService>().isAdmin)
-                _buildAdminVolunteerRequestsModule(),
 
               // Visits for Selected Date (PageView for swipe)
               Expanded(
@@ -569,275 +520,6 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     );
   }
 
-  Widget _buildAdminVolunteerRequestsModule() {
-    final requests = _volunteerRequests.take(2).toList();
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppInsets.screenHorizontal(context),
-        AppSpacing.xxs,
-        AppInsets.screenHorizontal(context),
-        AppSpacing.xs,
-      ),
-      child: AppCard(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        borderColor: AppColors.primary.withValues(alpha: 0.18),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: AppRadius.sm,
-                  ),
-                  child: const Icon(
-                    Icons.how_to_reg_outlined,
-                    size: 20,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Volunteer requests',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        _requestsLoading
-                            ? 'Checking new requests…'
-                            : '${_volunteerRequests.length} waiting for review',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_requestsLoading)
-                  const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _volunteerRequests.isEmpty
-                          ? AppColors.surface1
-                          : AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${_volunteerRequests.length}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _volunteerRequests.isEmpty
-                            ? AppColors.textMuted
-                            : AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            if (!_requestsLoading && requests.isEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'No new availability requests.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ),
-            ],
-            for (final request in requests) ...[
-              const Divider(height: AppSpacing.md),
-              _buildAdminRequestRow(request),
-            ],
-            if (_volunteerRequests.length > requests.length) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                '+${_volunteerRequests.length - requests.length} more requests',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAdminRequestRow(VolunteerHomeVisitRequest request) {
-    final volunteer = request.volunteer;
-    final visit = request.homeVisit;
-    final busy = _requestActionsInProgress.contains(request.id);
-    final date = DateTime.tryParse(visit?.visitDate ?? '');
-    final dateLabel = date == null
-        ? visit?.visitDate ?? ''
-        : DateFormat('EEE, d MMM').format(date);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                volunteer?.name ?? 'Volunteer',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${visit?.patientName ?? 'Home visit'} • $dateLabel',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11.5,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        if (busy)
-          const Padding(
-            padding: EdgeInsets.all(AppSpacing.sm),
-            child: SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else ...[
-          IconButton(
-            tooltip: 'Decline',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _reviewVolunteerRequest(request, 'declined'),
-            icon: const Icon(Icons.close_rounded, color: AppColors.danger),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 38),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            onPressed: () => _reviewVolunteerRequest(request, 'approved'),
-            child: const Text('Approve'),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Future<void> _reviewVolunteerRequest(
-    VolunteerHomeVisitRequest request,
-    String status,
-  ) async {
-    if (_requestActionsInProgress.contains(request.id)) return;
-    final approving = status == 'approved';
-    final visit = request.homeVisit;
-    final volunteer = request.volunteer;
-    final visitDate = DateTime.tryParse(visit?.visitDate ?? '');
-    final dateLabel = visitDate == null
-        ? (visit?.visitDate ?? 'the scheduled date')
-        : DateFormat('EEEE, d MMMM yyyy').format(visitDate);
-    final address = visit?.address.trim() ?? '';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
-        title: Text(
-          approving
-              ? 'Approve volunteer request?'
-              : 'Decline volunteer request?',
-        ),
-        content: Text(
-          approving
-              ? 'Assign ${volunteer?.name ?? 'this volunteer'} to ${visit?.patientName ?? 'this home visit'} on $dateLabel${address.isEmpty ? '' : ' at $address'}?'
-              : 'Decline ${volunteer?.name ?? 'this volunteer'}\'s request for ${visit?.patientName ?? 'this home visit'} on $dateLabel?',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.45,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: approving ? AppColors.success : AppColors.danger,
-            ),
-            child: Text(approving ? 'Approve & assign' : 'Decline'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _requestActionsInProgress.add(request.id));
-    try {
-      await VolunteerHomeVisitRequestService.review(request.id, status);
-      if (!mounted) return;
-      setState(() {
-        _volunteerRequests.removeWhere((item) => item.id == request.id);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            status == 'approved'
-                ? 'Volunteer assigned to the home visit.'
-                : 'Volunteer request declined.',
-          ),
-          backgroundColor: status == 'approved'
-              ? AppColors.success
-              : AppColors.text,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_friendlyError(error)),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _requestActionsInProgress.remove(request.id));
-      }
-    }
-  }
-
   Widget _buildVisitsList(List<HomeVisit> visits) {
     if (visits.isEmpty) {
       return _buildEmptyDayState();
@@ -867,8 +549,7 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
   ) {
     final patient = visit.patientDetails;
     final auth = context.read<AuthService>();
-    final isVolunteer = auth.isVolunteer;
-    final canViewDetails = auth.canViewHomeVisitDetails && !isVolunteer;
+    final canViewDetails = auth.canViewHomeVisitDetails && !auth.isVolunteer;
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.sm),
@@ -1027,164 +708,9 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
               ],
             ],
           ),
-          if (isVolunteer && _isUpcomingOrToday(visit)) ...[
-            const Divider(height: AppSpacing.md),
-            _buildVolunteerRequestAction(visit),
-          ],
         ],
       ),
     );
-  }
-
-  bool _isUpcomingOrToday(HomeVisit visit) {
-    final date = DateTime.tryParse(visit.visitDate);
-    if (date == null) return false;
-    final today = DateTime.now();
-    return DateTime(
-          date.year,
-          date.month,
-          date.day,
-        ).compareTo(DateTime(today.year, today.month, today.day)) >=
-        0;
-  }
-
-  VolunteerHomeVisitRequest? _requestForVisit(String? homeVisitId) {
-    if (homeVisitId == null) return null;
-    for (final request in _volunteerRequests) {
-      if (request.homeVisit?.id == homeVisitId) return request;
-    }
-    return null;
-  }
-
-  Widget _buildVolunteerRequestAction(HomeVisit visit) {
-    final id = visit.id;
-    final request = _requestForVisit(id);
-    final isAssigned = id != null && _assignedHomeVisitIds.contains(id);
-    final isPending = request?.status == 'pending';
-    final isApproved = request?.status == 'approved';
-    final busy = id != null && _requestActionsInProgress.contains(id);
-
-    final label = isAssigned || isApproved
-        ? 'Assigned to you'
-        : isPending
-        ? 'Request pending'
-        : request?.status == 'declined'
-        ? 'Request again'
-        : "I'm available";
-    final icon = isAssigned || isApproved
-        ? Icons.check_circle_outline_rounded
-        : isPending
-        ? Icons.schedule_rounded
-        : Icons.volunteer_activism_outlined;
-    final enabled =
-        id != null && !busy && !isAssigned && !isApproved && !isPending;
-
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.tonalIcon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 42),
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        onPressed: enabled ? () => _confirmVolunteerRequest(visit) : null,
-        icon: busy
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(icon, size: 18),
-        label: Text(busy ? 'Sending request…' : label),
-      ),
-    );
-  }
-
-  Future<void> _confirmVolunteerRequest(HomeVisit visit) async {
-    final visitDate = DateTime.tryParse(visit.visitDate);
-    final dateLabel = visitDate == null
-        ? visit.visitDate
-        : DateFormat('EEEE, d MMMM yyyy').format(visitDate);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const _HomeVisitDialogHeader(
-          icon: Icons.volunteer_activism_outlined,
-          title: 'Confirm availability',
-          color: AppColors.primary,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Send a request to the admin to volunteer for this home visit?',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _VolunteerConfirmationLine(
-              icon: Icons.calendar_today_outlined,
-              label: 'Date',
-              value: dateLabel,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _VolunteerConfirmationLine(
-              icon: Icons.location_on_outlined,
-              label: 'Patient address',
-              value: visit.address,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Send request'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || visit.id == null) return;
-    await _submitVolunteerRequest(visit);
-  }
-
-  Future<void> _submitVolunteerRequest(HomeVisit visit) async {
-    final id = visit.id!;
-    setState(() => _requestActionsInProgress.add(id));
-    try {
-      final request = await VolunteerHomeVisitRequestService.submit(id);
-      if (!mounted) return;
-      setState(() {
-        _volunteerRequests.removeWhere(
-          (item) => item.homeVisit?.id == request.homeVisit?.id,
-        );
-        _volunteerRequests.insert(0, request);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Availability sent to the admin for approval.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_friendlyError(error)),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _requestActionsInProgress.remove(id));
-    }
-  }
-
-  String _friendlyError(Object error) {
-    return error.toString().replaceFirst('Exception: ', '');
   }
 
   Widget _buildVisitModeBadge(String mode) {
@@ -1419,58 +945,6 @@ class _HomeVisitTodayButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _VolunteerConfirmationLine extends StatelessWidget {
-  const _VolunteerConfirmationLine({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: const BoxDecoration(
-        color: AppColors.surface1,
-        borderRadius: AppRadius.md,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 19, color: AppColors.primary),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

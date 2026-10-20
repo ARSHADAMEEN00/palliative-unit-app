@@ -208,7 +208,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
         backgroundColor: AppColors.background,
         appBar: AppBar(
           toolbarHeight: 76,
-          titleSpacing: AppSpacing.sm,
+          titleSpacing: 0,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,

@@ -17,20 +17,25 @@ import 'package:oruma_app/patient_list_page.dart';
 import 'package:oruma_app/privacy_policy_screen.dart';
 import 'package:oruma_app/about_us_page.dart';
 import 'package:oruma_app/about_us_admin_page.dart';
+import 'package:oruma_app/volunteer_availability_page.dart';
+import 'package:oruma_app/volunteer_availability_requests_admin_page.dart';
 import 'package:oruma_app/deceased_patient_list_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/loginscreen.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
+import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/notification_service.dart';
+import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
 import 'package:oruma_app/models/volunteer_assignment.dart';
+import 'package:oruma_app/models/volunteer_availability_request.dart';
 import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/services/volunteer_assignment_service.dart';
-import 'package:oruma_app/services/volunteer_home_visit_request_service.dart';
+import 'package:oruma_app/services/volunteer_availability_request_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
 import 'package:oruma_app/volunteer_assignment_detail_page.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
@@ -45,9 +50,15 @@ import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/unit_brand_avatar.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_visit_picker_screen.dart';
+import 'package:oruma_app/features/visit_assessment/data/visit_assessment_service.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 
 const _appVersionLabel = 'Version 1.0.0 (Build 1)';
+const _homeBackground = Color(0xFFF3F3EF);
+const _homeInk = Color(0xFF171714);
+const _homeMuted = Color(0xFF66665F);
+const _homeHoverOverlay = Color(0x08000000);
+const _homePressedOverlay = Color(0x10000000);
 
 class Homescreen extends StatefulWidget {
   const Homescreen({super.key});
@@ -71,11 +82,22 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   List<VolunteerAssignment> _todayAssignments = [];
   List<VolunteerAssignment> _upcomingAssignments = [];
   List<VolunteerAssignment> _overdueAssignments = [];
+  List<VolunteerAssignment> _completedAssignments = [];
+  List<VolunteerAvailabilityRequest> _availabilityRequests = [];
   bool _assignmentsLoading = false;
+  bool _availabilityRequestsLoading = false;
   bool _checkingApproval = false;
   int _pendingVolunteerRegistrationCount = 0;
-  int _pendingHomeVisitRequestCount = 0;
+  int _pendingAvailabilityRequestCount = 0;
   bool _importantRequestsLoading = false;
+  int? _patientCount;
+  int _newPatientCountThisWeek = 0;
+  int? _assessmentReviewCount;
+  int? _upcomingHomeVisitCount;
+  int _todayHomeVisitCount = 0;
+  DateTime? _nextHomeVisitDate;
+  int _selectedVolunteerTaskTab = 0;
+  final Set<String> _updatingAssignmentIds = {};
 
   @override
   void initState() {
@@ -113,9 +135,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final auth = context.read<AuthService>();
     await auth.fetchUserProfile();
     if (!mounted || auth.isAccessBlocked || !auth.isVolunteerApproved) return;
+    _loadHomeSummary(auth);
     if (auth.isVolunteer) {
       _loadVolunteerActivity();
       _loadVolunteerAssignments();
+      _loadVolunteerAvailabilityRequests();
     }
     if (auth.isAdmin) {
       _loadImportantRequests();
@@ -144,14 +168,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               )
               .length,
         ),
-        VolunteerHomeVisitRequestService.getRequests(
+        VolunteerAvailabilityRequestService.getRequests(
           status: 'pending',
         ).then((requests) => requests.length),
       ]);
       if (!mounted) return;
       setState(() {
         _pendingVolunteerRegistrationCount = counts[0];
-        _pendingHomeVisitRequestCount = counts[1];
+        _pendingAvailabilityRequestCount = counts[1];
       });
     } catch (_) {
       // The dashboard remains usable if request summaries cannot be refreshed.
@@ -214,22 +238,125 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         filter: 'all',
       );
       if (!mounted) return;
+      const activeStatuses = {'assigned', 'accepted', 'in_progress'};
       setState(() {
-        _todayAssignments = all.where((a) => a.isToday).toList();
-        _overdueAssignments = all.where((a) => a.isOverdue).toList();
+        _todayAssignments = all
+            .where((a) => a.isToday && activeStatuses.contains(a.status))
+            .toList();
+        _overdueAssignments = all
+            .where((a) => a.isOverdue && activeStatuses.contains(a.status))
+            .toList();
         _upcomingAssignments = all
             .where(
               (a) =>
                   !a.isToday &&
                   !a.isOverdue &&
-                  ['assigned', 'accepted', 'in_progress'].contains(a.status),
+                  activeStatuses.contains(a.status),
             )
             .toList();
+        _completedAssignments =
+            all.where((a) => a.status == 'completed').toList()..sort((a, b) {
+              final aDate = a.completedAt ?? DateTime(1970);
+              final bDate = b.completedAt ?? DateTime(1970);
+              return bDate.compareTo(aDate);
+            });
       });
     } catch (_) {
     } finally {
       if (mounted) setState(() => _assignmentsLoading = false);
     }
+  }
+
+  Future<void> _loadVolunteerAvailabilityRequests() async {
+    if (!mounted || _availabilityRequestsLoading) return;
+    setState(() => _availabilityRequestsLoading = true);
+    try {
+      final requests = await VolunteerAvailabilityRequestService.getRequests();
+      if (!mounted) return;
+      setState(() => _availabilityRequests = requests);
+    } catch (_) {
+      // Availability is supplementary; assignments remain usable offline.
+    } finally {
+      if (mounted) setState(() => _availabilityRequestsLoading = false);
+    }
+  }
+
+  Future<void> _loadHomeSummary(AuthService auth) async {
+    final futures = <Future<void>>[];
+
+    if (auth.canAccessPatients) {
+      futures.add(
+        PatientService.getPatientsList(filter: 'alive')
+            .then((response) {
+              if (!mounted) return;
+              final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+              setState(() {
+                _patientCount = response.counts.aliveCount;
+                _newPatientCountThisWeek = response.patients
+                    .where(
+                      (patient) =>
+                          patient.createdAt != null &&
+                          patient.createdAt!.isAfter(weekAgo),
+                    )
+                    .length;
+              });
+            })
+            .catchError((_) {}),
+      );
+    }
+
+    if (auth.canAccessNHC) {
+      futures.add(
+        VisitAssessmentService.getAssessments()
+            .then((assessments) {
+              if (!mounted) return;
+              setState(() {
+                _assessmentReviewCount = assessments
+                    .where(
+                      (assessment) =>
+                          assessment.status != 'submitted' &&
+                          !assessment.isComplete,
+                    )
+                    .length;
+              });
+            })
+            .catchError((_) {}),
+      );
+    }
+
+    if (auth.canAccessHomeVisits) {
+      futures.add(
+        HomeVisitService.getAllHomeVisits()
+            .then((visits) {
+              if (!mounted) return;
+              final today = DateTime.now();
+              final startOfToday = DateTime(today.year, today.month, today.day);
+              final upcoming =
+                  visits
+                      .map((visit) => DateTime.tryParse(visit.visitDate))
+                      .whereType<DateTime>()
+                      .where((date) => !date.isBefore(startOfToday))
+                      .toList()
+                    ..sort();
+              final todayCount = upcoming
+                  .where(
+                    (date) =>
+                        date.year == startOfToday.year &&
+                        date.month == startOfToday.month &&
+                        date.day == startOfToday.day,
+                  )
+                  .length;
+              setState(() {
+                _upcomingHomeVisitCount = upcoming.length;
+                _todayHomeVisitCount = todayCount;
+                _nextHomeVisitDate = upcoming.isEmpty ? null : upcoming.first;
+              });
+            })
+            .catchError((_) {}),
+      );
+    }
+
+    await Future.wait(futures);
   }
 
   Future<void> _loadActiveSupplies() async {
@@ -365,7 +492,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       Expanded(
                         child: Text(
                           'Notifications',
-                          style: textTheme.headlineMedium?.copyWith(
+                          style: textTheme.titleLarge?.copyWith(
                             color: AppColors.text,
                             fontWeight: FontWeight.w700,
                           ),
@@ -552,9 +679,29 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ).then((_) => _loadNotifications(refresh: true)).catchError((_) {});
     }
 
-    if (notification.type == 'volunteer_home_visit_request' ||
-        notification.type == 'volunteer_assignment' ||
-        notification.type == 'volunteer_request_update') {
+    if (notification.type == 'volunteer_availability_request') {
+      if (!context.read<AuthService>().isAdmin) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const VolunteerAvailabilityRequestsAdminPage(),
+        ),
+      );
+      return;
+    }
+
+    if (notification.type == 'volunteer_availability_update') {
+      if (!context.read<AuthService>().isVolunteer) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const VolunteerAvailabilityPage(),
+        ),
+      );
+      return;
+    }
+
+    if (notification.type == 'volunteer_assignment') {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -683,6 +830,26 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             }
           },
         ),
+      if (auth.canAccessVolunteers)
+        _buildQuickActionItem(
+          icon: Icons.volunteer_activism_rounded,
+          label: "Volunteer",
+          color: ModulePalettes.volunteers.primary,
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ModuleTheme(
+                  palette: ModulePalettes.volunteers,
+                  child: auth.canCreate
+                      ? const VolunteerFormPage()
+                      : const VolunteerListPage(),
+                ),
+              ),
+            );
+          },
+        ),
     ];
 
     showModalBottomSheet(
@@ -711,7 +878,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               const SizedBox(height: AppSpacing.lg),
               Text(
                 "Quick Add",
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: AppColors.text,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1481,6 +1648,30 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ],
             ),
           ),
+          const SizedBox(width: AppSpacing.xs),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.bolt_rounded, size: 14, color: color),
+                const SizedBox(width: 2),
+                Text(
+                  '${activity.totalPoints} pts',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2203,7 +2394,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 children: [
                   Text(
                     entry.key,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textSecondary,
@@ -2354,7 +2545,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildVolunteerVisitCallout(BuildContext context) {
+  Widget _buildVolunteerAvailabilityCallout(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -2365,10 +2556,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ModuleTheme(
-              palette: ModulePalettes.homeVisits,
-              child: HomeVisitListPage(),
-            ),
+            builder: (context) => const VolunteerAvailabilityPage(),
           ),
         );
       },
@@ -2393,14 +2581,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Volunteer for a home visit',
+                  'Share your availability',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  'See upcoming visits and share your availability.',
+                  'Choose a working day and send a request to the admin.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -2420,24 +2608,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   Widget _buildImportantRequestsSection(BuildContext context) {
-    final total =
-        _pendingVolunteerRegistrationCount + _pendingHomeVisitRequestCount;
+    final total = _pendingVolunteerRegistrationCount;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           '$total ${total == 1 ? 'request needs' : 'requests need'} your review.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.xs),
         LayoutBuilder(
           builder: (context, constraints) {
-            final twoColumns = constraints.maxWidth >= 620;
-            final cardWidth = twoColumns
-                ? (constraints.maxWidth - AppSpacing.md) / 2
-                : constraints.maxWidth;
+            final cardWidth = constraints.maxWidth;
             return Wrap(
               spacing: AppSpacing.md,
               runSpacing: AppSpacing.sm,
@@ -2454,20 +2638,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       icon: Icons.how_to_reg_outlined,
                       color: AppColors.warning,
                       onTap: _openVolunteerRegistrationRequests,
-                    ),
-                  ),
-                if (_pendingHomeVisitRequestCount > 0)
-                  SizedBox(
-                    width: cardWidth,
-                    child: _buildImportantRequestCard(
-                      context,
-                      title: 'Home visit volunteers',
-                      subtitle:
-                          '$_pendingHomeVisitRequestCount availability ${_pendingHomeVisitRequestCount == 1 ? 'request' : 'requests'}',
-                      count: _pendingHomeVisitRequestCount,
-                      icon: Icons.home_work_outlined,
-                      color: AppColors.success,
-                      onTap: _openHomeVisitVolunteerRequests,
                     ),
                   ),
               ],
@@ -2563,21 +2733,773 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     if (mounted) await _loadImportantRequests();
   }
 
-  Future<void> _openHomeVisitVolunteerRequests() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ModuleTheme(
-          palette: ModulePalettes.homeVisits,
-          child: HomeVisitListPage(),
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    if (auth.isVolunteer && !auth.isVolunteerApproved) {
+      return _buildLegacyHome(context);
+    }
+    return _buildRoleHome(context, auth);
+  }
+
+  Widget _buildRoleHome(BuildContext context, AuthService auth) {
+    final showActivity =
+        auth.isAdmin ||
+        auth.isStaff ||
+        auth.isVolunteer ||
+        (auth.isMember && _notifications.isNotEmpty);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = screenWidth < AppBreakpoints.tablet
+        ? AppSpacing.md
+        : AppSpacing.lg;
+
+    return ColoredBox(
+      color: _homeBackground,
+      child: AdaptiveAppScaffold(
+        scaffoldKey: _scaffoldKey,
+        drawer: _buildProfessionalDrawer(context),
+        backgroundColor: _homeBackground,
+        contentMaxWidth: 1040,
+        currentSection: AppBottomSection.home,
+        onNavigationSelected: _handleBottomNavigation,
+        body: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: () => _bootstrapAccess(force: true),
+            color: _homeInk,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                AppSpacing.sm,
+                horizontalPadding,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHomeHeader(context, auth),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildPriorityCards(context, auth),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Quick actions',
+                    style: _homeCompactSectionTitleStyle(context),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _buildQuickActions(context, auth),
+                  if (showActivity) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _buildRoleActivitySection(context, auth),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
-    if (mounted) await _loadImportantRequests();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHomeHeader(BuildContext context, AuthService auth) {
+    return _buildDashboardHeader(
+      context,
+      auth,
+      isCompact: MediaQuery.sizeOf(context).width < AppBreakpoints.tablet,
+    );
+  }
+
+  Widget _buildPriorityCards(BuildContext context, AuthService auth) {
+    final actions = _priorityActions(auth);
+    return Row(
+      children: [
+        for (var index = 0; index < actions.length; index++) ...[
+          if (index > 0) const SizedBox(width: AppSpacing.sm),
+          Expanded(child: _HomeMetricCard(action: actions[index])),
+        ],
+      ],
+    );
+  }
+
+  List<_HomeMetricAction> _priorityActions(AuthService auth) {
+    final patientSubtitle = auth.isMember
+        ? 'Your family'
+        : auth.isVolunteer
+        ? 'Assigned to you'
+        : auth.isStaff && _todayHomeVisitCount > 0
+        ? '$_todayHomeVisitCount visits today'
+        : _newPatientCountThisWeek > 0
+        ? '$_newPatientCountThisWeek new this week'
+        : 'Active patients';
+    final patients = _HomeMetricAction(
+      title: 'Patients',
+      value: _formatMetric(_patientCount),
+      subtitle: patientSubtitle,
+      icon: Icons.people_outline_rounded,
+      iconBackground: ModulePalettes.patients.iconBackground,
+      iconColor: ModulePalettes.patients.primary,
+      onTap: () => _openPatients(auth),
+    );
+
+    if (auth.isVolunteer) {
+      final latestAvailability = _latestFutureAvailabilityRequest();
+      return [
+        patients,
+        _HomeMetricAction(
+          title: 'Share\navailability',
+          value: latestAvailability == null ? 'Add' : 'Set',
+          subtitle: latestAvailability == null
+              ? 'Choose a day to help'
+              : '${_titleCase(latestAvailability.status)} request',
+          icon: Icons.calendar_month_outlined,
+          iconBackground: ModulePalettes.volunteers.iconBackground,
+          iconColor: ModulePalettes.volunteers.primary,
+          onTap: _openVolunteerAvailability,
+        ),
+      ];
+    }
+
+    if (auth.isMember) {
+      return [
+        patients,
+        _HomeMetricAction(
+          title: 'Home visits',
+          value: _formatMetric(_upcomingHomeVisitCount),
+          subtitle: _nextHomeVisitLabel(),
+          icon: Icons.home_outlined,
+          iconBackground: ModulePalettes.homeVisits.iconBackground,
+          iconColor: ModulePalettes.homeVisits.primary,
+          onTap: () => _openHomeVisits(auth),
+        ),
+      ];
+    }
+
+    final needsReview = _assessmentReviewCount;
+    return [
+      patients,
+      _HomeMetricAction(
+        title: 'Visit\nAssessment',
+        value: _formatMetric(needsReview),
+        subtitle: needsReview == 0 ? 'All reviewed' : 'need review',
+        icon: Icons.assignment_outlined,
+        iconBackground: ModulePalettes.patients.iconBackground,
+        iconColor: ModulePalettes.patients.primary,
+        onTap: () => _openVisitAssessment(auth),
+      ),
+    ];
+  }
+
+  Widget _buildQuickActions(BuildContext context, AuthService auth) {
+    final actions = _quickActionsFor(auth);
+    if (actions.isEmpty) {
+      return const _HomeQuickChip(
+        label: 'No links available',
+        icon: Icons.lock_outline_rounded,
+      );
+    }
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: actions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (context, index) {
+          final action = actions[index];
+          return _HomeQuickChip(
+            label: action.label,
+            icon: action.icon,
+            iconBackground: action.iconBackground,
+            iconColor: action.iconColor,
+            onTap: action.onTap,
+          );
+        },
+      ),
+    );
+  }
+
+  List<_HomeQuickAction> _quickActionsFor(AuthService auth) {
+    final actions = <_HomeQuickAction>[];
+    void add(
+      bool visible,
+      String label,
+      IconData icon,
+      ModulePalette palette,
+      VoidCallback onTap,
+    ) {
+      if (visible) {
+        actions.add(
+          _HomeQuickAction(
+            label: label,
+            icon: icon,
+            iconBackground: palette.iconBackground,
+            iconColor: palette.primary,
+            onTap: onTap,
+          ),
+        );
+      }
+    }
+
+    add(
+      !auth.isMember && auth.canAccessHomeVisits,
+      'Home visit',
+      Icons.home_outlined,
+      ModulePalettes.homeVisits,
+      () => _openHomeVisits(auth),
+    );
+    add(
+      auth.canAccessSocialSupport,
+      'Social support',
+      Icons.favorite_border_rounded,
+      ModulePalettes.socialSupport,
+      _openSocialSupport,
+    );
+    if (!auth.isMember && !auth.isVolunteer) {
+      add(
+        auth.canAccessEquipmentDistribution,
+        'Equipment supply',
+        Icons.medical_services_outlined,
+        ModulePalettes.equipmentSupply,
+        _openEquipmentSupply,
+      );
+      add(
+        auth.canAccessMedicineSupply,
+        'Medicine supply',
+        Icons.medication_outlined,
+        ModulePalettes.medicineSupply,
+        _openMedicineSupply,
+      );
+    }
+    add(
+      auth.canAccessVolunteers,
+      'Volunteers',
+      Icons.volunteer_activism_outlined,
+      ModulePalettes.volunteers,
+      _openVolunteers,
+    );
+    if (!auth.isVolunteer) {
+      add(
+        auth.canAccessReports,
+        'Reports',
+        Icons.bar_chart_rounded,
+        ModulePalettes.reports,
+        _openReports,
+      );
+    }
+    add(
+      auth.isAdmin,
+      'Staff management',
+      Icons.manage_accounts_outlined,
+      ModulePalettes.patients,
+      _openStaffManagement,
+    );
+    return actions;
+  }
+
+  Widget _buildRoleActivitySection(BuildContext context, AuthService auth) {
+    if (auth.isVolunteer) return _buildVolunteerHomeTasks(context);
+    if (auth.isAdmin) return _buildAdminAttentionSection(context);
+    return _buildLatestNotificationsSection(context);
+  }
+
+  Widget _buildAdminAttentionSection(BuildContext context) {
+    final registrationCount = _importantRequestsLoading
+        ? null
+        : _pendingVolunteerRegistrationCount;
+    final availabilityCount = _importantRequestsLoading
+        ? null
+        : _pendingAvailabilityRequestCount;
+    final equipmentCount = _activeSuppliesLoading
+        ? null
+        : _activeSupplies.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHomeSectionHeader(context, title: 'Needs your attention'),
+        const SizedBox(height: AppSpacing.sm),
+        _HomeActivityCard(
+          icon: Icons.person_outline_rounded,
+          iconBackground: ModulePalettes.volunteers.iconBackground,
+          iconColor: ModulePalettes.volunteers.primary,
+          title: 'Volunteer registrations',
+          subtitle: registrationCount == null
+              ? 'Checking requests…'
+              : '$registrationCount new ${registrationCount == 1 ? 'request' : 'requests'}',
+          actionLabel: 'Review',
+          actionBackgroundColor: ModulePalettes.volunteers.iconBackground,
+          actionForegroundColor: ModulePalettes.volunteers.primary,
+          onTap: _openVolunteerRegistrationRequests,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        _HomeActivityCard(
+          icon: Icons.calendar_month_outlined,
+          iconBackground: ModulePalettes.volunteers.iconBackground,
+          iconColor: ModulePalettes.volunteers.primary,
+          title: 'Availability requests',
+          subtitle: availabilityCount == null
+              ? 'Checking requests…'
+              : '$availabilityCount pending ${availabilityCount == 1 ? 'request' : 'requests'}',
+          actionLabel: 'Review',
+          actionBackgroundColor: ModulePalettes.volunteers.iconBackground,
+          actionForegroundColor: ModulePalettes.volunteers.primary,
+          onTap: _openAvailabilityRequestsAdmin,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        _HomeActivityCard(
+          icon: Icons.medical_services_outlined,
+          iconBackground: ModulePalettes.equipmentSupply.iconBackground,
+          iconColor: ModulePalettes.equipmentSupply.primary,
+          title: 'Equipment distributed',
+          subtitle: equipmentCount == null
+              ? 'Checking equipment…'
+              : '$equipmentCount ${equipmentCount == 1 ? 'item' : 'items'} currently out',
+          actionLabel: 'View',
+          actionBackgroundColor: ModulePalettes.equipmentSupply.iconBackground,
+          actionForegroundColor: ModulePalettes.equipmentSupply.primary,
+          onTap: _openEquipmentSupply,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLatestNotificationsSection(BuildContext context) {
+    final visible = _notifications.take(3).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHomeSectionHeader(
+          context,
+          title: 'Latest notifications',
+          actionLabel: visible.isEmpty ? null : 'View all',
+          onAction: visible.isEmpty ? null : _openNotifications,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (_notificationsLoading && visible.isEmpty)
+          const _HomeActivityCard(
+            icon: Icons.notifications_none_rounded,
+            title: 'Checking notifications',
+            subtitle: 'Loading the latest care updates…',
+          )
+        else if (visible.isEmpty)
+          const _HomeActivityCard(
+            icon: Icons.notifications_none_rounded,
+            title: 'You are all caught up',
+            subtitle: 'New care updates will appear here.',
+          )
+        else
+          for (var index = 0; index < visible.length; index++) ...[
+            if (index > 0) const SizedBox(height: AppSpacing.xs),
+            _HomeActivityCard(
+              icon: _notificationIcon(visible[index]),
+              iconBackground: _notificationColor(
+                visible[index],
+              ).withValues(alpha: 0.1),
+              iconColor: _notificationColor(visible[index]),
+              title: visible[index].title,
+              subtitle: visible[index].message,
+              actionLabel: _notificationActionLabel(visible[index]),
+              actionTone: _notificationActionTone(visible[index]),
+              onTap: () => _handleNotificationTap(visible[index]),
+            ),
+          ],
+      ],
+    );
+  }
+
+  Widget _buildVolunteerHomeTasks(BuildContext context) {
+    final items = _volunteerTaskWidgets();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHomeSectionHeader(
+          context,
+          title: 'My tasks',
+          actionLabel: 'View all',
+          onAction: () => _openHomeVisits(context.read<AuthService>()),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _HomeTaskTabs(
+          selectedIndex: _selectedVolunteerTaskTab,
+          onSelected: (index) {
+            setState(() => _selectedVolunteerTaskTab = index);
+          },
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if ((_assignmentsLoading || _availabilityRequestsLoading) &&
+            items.isEmpty)
+          const _HomeActivityCard(
+            icon: Icons.schedule_rounded,
+            title: 'Loading your tasks',
+            subtitle: 'Checking assignments and availability…',
+          )
+        else if (items.isEmpty)
+          _HomeActivityCard(
+            icon: Icons.task_alt_rounded,
+            title: _selectedVolunteerTaskTab == 2
+                ? 'No completed tasks yet'
+                : 'Nothing scheduled here',
+            subtitle: _selectedVolunteerTaskTab == 0
+                ? 'Your day is clear.'
+                : 'New tasks will appear when they are assigned.',
+          )
+        else
+          for (var index = 0; index < items.length && index < 3; index++) ...[
+            if (index > 0) const SizedBox(height: AppSpacing.xs),
+            items[index],
+          ],
+      ],
+    );
+  }
+
+  List<Widget> _volunteerTaskWidgets() {
+    final today = DateTime.now();
+    final todayKey = DateFormat('yyyy-MM-dd').format(today);
+    final assignments = switch (_selectedVolunteerTaskTab) {
+      0 => [..._overdueAssignments, ..._todayAssignments],
+      1 => _upcomingAssignments,
+      _ => _completedAssignments,
+    };
+    final availability = _availabilityRequests.where((request) {
+      final requestDate = DateTime.tryParse(request.requestedDate);
+      if (_selectedVolunteerTaskTab == 0) {
+        return request.requestedDate == todayKey;
+      }
+      if (_selectedVolunteerTaskTab == 1) {
+        return requestDate != null &&
+            requestDate.isAfter(DateTime(today.year, today.month, today.day));
+      }
+      return (requestDate != null && requestDate.isBefore(today)) ||
+          request.status == 'rejected';
+    });
+
+    return [
+      for (final assignment in assignments)
+        _buildVolunteerAssignmentHomeCard(assignment),
+      for (final request in availability) _buildAvailabilityHomeCard(request),
+    ];
+  }
+
+  Widget _buildVolunteerAssignmentHomeCard(VolunteerAssignment assignment) {
+    final palette = switch (assignment.taskType) {
+      'social_support' => ModulePalettes.socialSupport,
+      'visit_assessment' => ModulePalettes.patients,
+      _ => ModulePalettes.homeVisits,
+    };
+    return _HomeActivityCard(
+      icon: assignment.taskType == 'social_support'
+          ? Icons.favorite_border_rounded
+          : assignment.taskType == 'visit_assessment'
+          ? Icons.assignment_outlined
+          : Icons.home_outlined,
+      iconBackground: palette.iconBackground,
+      iconColor: palette.primary,
+      title: '${assignment.typeLabel} · ${assignment.patient.name}',
+      subtitle: _assignmentSubtitle(assignment),
+      actionLabel: assignment.canAccept ? 'Accept' : assignment.statusLabel,
+      actionTone: assignment.status == 'completed'
+          ? _HomeActionTone.success
+          : _HomeActionTone.neutral,
+      actionBackgroundColor: assignment.canAccept
+          ? palette.iconBackground
+          : null,
+      actionForegroundColor: assignment.canAccept ? palette.primary : null,
+      loading: _updatingAssignmentIds.contains(assignment.id),
+      onTap: assignment.canAccept
+          ? () => _acceptVolunteerAssignment(assignment)
+          : () => _openAssignmentDetail(assignment),
+    );
+  }
+
+  Widget _buildAvailabilityHomeCard(VolunteerAvailabilityRequest request) {
+    return _HomeActivityCard(
+      icon: Icons.calendar_month_outlined,
+      iconBackground: ModulePalettes.volunteers.iconBackground,
+      iconColor: ModulePalettes.volunteers.primary,
+      title: 'Availability · ${_formatAvailabilityDate(request)}',
+      subtitle: request.status == 'approved'
+          ? 'Confirmed by coordinator'
+          : request.status == 'rejected'
+          ? (request.decisionNote?.trim().isNotEmpty == true
+                ? request.decisionNote!
+                : 'Not approved by coordinator')
+          : 'Sent to coordinator',
+      actionLabel: _titleCase(request.status),
+      actionTone: request.status == 'approved'
+          ? _HomeActionTone.success
+          : request.status == 'rejected'
+          ? _HomeActionTone.danger
+          : _HomeActionTone.warning,
+      onTap: _openVolunteerAvailability,
+    );
+  }
+
+  Widget _buildHomeSectionHeader(
+    BuildContext context, {
+    required String title,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: _homeCompactSectionTitleStyle(context),
+          ),
+        ),
+        if (actionLabel != null && onAction != null)
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              foregroundColor: _homeMuted,
+              minimumSize: const Size(48, 36),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            ),
+            child: Text(actionLabel),
+          ),
+      ],
+    );
+  }
+
+  TextStyle _homeSectionTitleStyle(BuildContext context) {
+    return const TextStyle(
+      color: _homeInk,
+      fontSize: 20,
+      height: 1.1,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.35,
+    ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']);
+  }
+
+  TextStyle _homeCompactSectionTitleStyle(BuildContext context) {
+    return _homeSectionTitleStyle(
+      context,
+    ).copyWith(color: _homeMuted, fontSize: 16);
+  }
+
+  String _formatMetric(int? value) {
+    if (value == null) return '—';
+    return value < 10 ? value.toString().padLeft(2, '0') : value.toString();
+  }
+
+  String _nextHomeVisitLabel() {
+    final next = _nextHomeVisitDate;
+    if (next == null) return 'No upcoming visits';
+    final now = DateTime.now();
+    final isToday =
+        next.year == now.year && next.month == now.month && next.day == now.day;
+    return isToday
+        ? 'Next: today${DateFormat('h:mm a').format(next) == '12:00 AM' ? '' : ', ${DateFormat('h:mm a').format(next)}'}'
+        : 'Next: ${DateFormat('EEE, d MMM').format(next)}';
+  }
+
+  VolunteerAvailabilityRequest? _latestFutureAvailabilityRequest() {
+    final today = DateTime.now();
+    for (final request in _availabilityRequests) {
+      final date = DateTime.tryParse(request.requestedDate);
+      if (date != null &&
+          !date.isBefore(DateTime(today.year, today.month, today.day)) &&
+          request.status != 'rejected') {
+        return request;
+      }
+    }
+    return null;
+  }
+
+  String _assignmentSubtitle(VolunteerAssignment assignment) {
+    final date = DateTime.tryParse(assignment.scheduledDate);
+    final dateLabel = date == null
+        ? assignment.scheduledDate
+        : DateFormat('h:mm a · d MMM').format(date);
+    final address = assignment.patient.address.trim();
+    return address.isEmpty ? dateLabel : '$dateLabel · $address';
+  }
+
+  String _formatAvailabilityDate(VolunteerAvailabilityRequest request) {
+    final date = DateTime.tryParse(request.requestedDate);
+    return date == null
+        ? request.requestedDate
+        : DateFormat('EEE, d MMM').format(date);
+  }
+
+  String _titleCase(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return value;
+    return '${trimmed[0].toUpperCase()}${trimmed.substring(1).toLowerCase()}';
+  }
+
+  String _notificationActionLabel(AppNotification notification) {
+    return switch (notification.severity) {
+      'danger' => 'Alert',
+      'warning' => 'Due',
+      'success' => 'New',
+      _ => 'Open',
+    };
+  }
+
+  _HomeActionTone _notificationActionTone(AppNotification notification) {
+    return switch (notification.severity) {
+      'danger' => _HomeActionTone.danger,
+      'warning' => _HomeActionTone.warning,
+      'success' => _HomeActionTone.success,
+      _ => _HomeActionTone.neutral,
+    };
+  }
+
+  Future<void> _openPage(Widget page, {VoidCallback? after}) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => page),
+    );
+    if (mounted) after?.call();
+  }
+
+  void _openPatients(AuthService auth) {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.patients,
+      moduleName: 'Patients',
+    )) {
+      return;
+    }
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.patients,
+        child: PatientListPage(),
+      ),
+      after: () => _loadHomeSummary(auth),
+    );
+  }
+
+  void _openVisitAssessment(AuthService auth) {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.nhcAssessment,
+      moduleName: 'Visit Assessment',
+    )) {
+      return;
+    }
+    _openPage(
+      const VisitAssessmentVisitPickerScreen(),
+      after: () => _loadHomeSummary(auth),
+    );
+  }
+
+  void _openHomeVisits(AuthService auth) {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.homeVisits,
+      moduleName: 'Home Visits',
+    )) {
+      return;
+    }
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.homeVisits,
+        child: HomeVisitListPage(),
+      ),
+      after: () {
+        _loadHomeSummary(auth);
+        if (auth.isVolunteer) _loadVolunteerAssignments();
+      },
+    );
+  }
+
+  void _openSocialSupport() {
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.socialSupport,
+        child: SocialSupportListPage(),
+      ),
+    );
+  }
+
+  void _openEquipmentSupply() {
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.equipmentSupply,
+        child: EquipmentSupplyListPage(),
+      ),
+      after: _loadActiveSupplies,
+    );
+  }
+
+  void _openMedicineSupply() {
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.medicineSupply,
+        child: MedicineSupplyListPage(),
+      ),
+    );
+  }
+
+  void _openVolunteers() {
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.volunteers,
+        child: VolunteerListPage(),
+      ),
+    );
+  }
+
+  void _openReports() {
+    _openPage(
+      const ModuleTheme(palette: ModulePalettes.reports, child: ReportsPage()),
+    );
+  }
+
+  void _openStaffManagement() {
+    _openPage(const ConfigPage(mode: ConfigPageMode.staff));
+  }
+
+  void _openVolunteerAvailability() {
+    _openPage(
+      const VolunteerAvailabilityPage(),
+      after: _loadVolunteerAvailabilityRequests,
+    );
+  }
+
+  void _openAvailabilityRequestsAdmin() {
+    _openPage(
+      const VolunteerAvailabilityRequestsAdminPage(),
+      after: _loadImportantRequests,
+    );
+  }
+
+  Future<void> _acceptVolunteerAssignment(
+    VolunteerAssignment assignment,
+  ) async {
+    if (_updatingAssignmentIds.contains(assignment.id)) return;
+    setState(() => _updatingAssignmentIds.add(assignment.id));
+    try {
+      await VolunteerAssignmentService.updateStatus(assignment.id, 'accepted');
+      if (!mounted) return;
+      await _loadVolunteerAssignments();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Assignment accepted'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingAssignmentIds.remove(assignment.id));
+      }
+    }
+  }
+
+  Widget _buildLegacyHome(BuildContext context) {
     final auth = context.watch<AuthService>();
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final maintenanceNotification = !auth.isAdmin || auth.isTrialUnit
@@ -2640,16 +3562,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       ),
                     ],
                     if (auth.isVolunteer) ...[
-                      if (auth.canAccessHomeVisits) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        _buildVolunteerVisitCallout(context),
-                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      _buildVolunteerAvailabilityCallout(context),
                       const SizedBox(height: AppSpacing.md),
                       _buildVolunteerTasksSection(context),
                     ],
                     if (auth.isAdmin &&
-                        (_pendingVolunteerRegistrationCount > 0 ||
-                            _pendingHomeVisitRequestCount > 0)) ...[
+                        _pendingVolunteerRegistrationCount > 0) ...[
                       const SizedBox(height: AppSpacing.lg),
                       _buildImportantRequestsSection(context),
                     ],
@@ -2810,7 +3729,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                             },
                             borderRadius: BorderRadius.circular(6),
                             child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
                               child: Text(
                                 'View all',
                                 style: TextStyle(
@@ -2972,6 +3894,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final textTheme = Theme.of(context).textTheme;
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final compactVolunteer = auth.isVolunteer;
+    final compactHeader = compactVolunteer || isCompact;
     final achievementTier = _volunteerActivity?.achievementTier;
     final achievementColor = achievementTier == null
         ? null
@@ -2985,9 +3908,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       borderColor: compactVolunteer && achievementColor != null
           ? achievementColor.withValues(alpha: 0.24)
           : null,
-      padding: EdgeInsets.all(
-        compactVolunteer || isCompact ? AppSpacing.md : AppSpacing.lg,
-      ),
+      padding: EdgeInsets.all(compactHeader ? AppSpacing.md : AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2999,7 +3920,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 onTap: isPendingApproval
                     ? null
                     : () => _scaffoldKey.currentState?.openDrawer(),
-                compact: compactVolunteer,
+                compact: compactHeader,
               ),
               const Spacer(),
               if (auth.unitSupportQr != null && !isPendingApproval) ...[
@@ -3007,7 +3928,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Show QR',
                   icon: Icons.qr_code_2_rounded,
                   onTap: () => _showQRModal(context),
-                  compact: compactVolunteer,
+                  compact: compactHeader,
                 ),
                 const SizedBox(width: AppSpacing.xs),
               ],
@@ -3022,7 +3943,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     : (_notificationCount > 99
                           ? '99+'
                           : _notificationCount.toString()),
-                compact: compactVolunteer,
+                compact: compactHeader,
               ),
               if (auth.canCreate) ...[
                 const SizedBox(width: AppSpacing.xs),
@@ -3030,14 +3951,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   tooltip: 'Quick add',
                   icon: Icons.add_rounded,
                   onTap: _showQuickAddOptions,
-                  compact: compactVolunteer,
+                  compact: compactHeader,
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
                 onTap: () => _showUserProfile(context),
                 child: UnitBrandAvatar(
-                  size: compactVolunteer ? 40 : 44,
+                  size: compactHeader ? 40 : 44,
                   preferAppIcon: true,
                   backgroundColor: AppColors.primaryLight,
                   iconColor: AppColors.primary,
@@ -3047,71 +3968,66 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          SizedBox(
-            height: compactVolunteer || isCompact
-                ? AppSpacing.sm
-                : AppSpacing.lg,
-          ),
+          SizedBox(height: compactHeader ? AppSpacing.sm : AppSpacing.lg),
           Text(
             _getGreeting(auth),
             style: textTheme.labelLarge?.copyWith(
-              fontSize: compactVolunteer ? 12 : null,
+              fontSize: compactHeader ? 12 : null,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
+          InkWell(
+            onTap: auth.hasAboutUs ? _navigateToAboutUs : null,
+            borderRadius: AppRadius.sm,
+            child: SizedBox(
+              width: double.infinity,
+              child: Text(
+                auth.unitName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    GoogleFonts.outfit(
+                      textStyle: compactHeader
+                          ? textTheme.titleLarge
+                          : textTheme.headlineMedium,
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      height: 1.15,
+                    ).copyWith(
+                      fontFamilyFallback: const ['NotoSansMalayalam'],
+                    ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: compactHeader ? AppSpacing.xs : AppSpacing.sm,
+          ),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: InkWell(
-                  onTap: auth.hasAboutUs ? _navigateToAboutUs : null,
-                  borderRadius: AppRadius.sm,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        auth.unitName,
-                        style:
-                            GoogleFonts.outfit(
-                              textStyle: compactVolunteer
-                                  ? textTheme.titleLarge
-                                  : textTheme.headlineMedium,
-                              color: AppColors.text,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.5,
-                              height: 1.15,
-                            ).copyWith(
-                              fontFamilyFallback: const ['NotoSansMalayalam'],
-                            ),
+                child: Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _ShellStatusPill(
+                      label: auth.unitLocation,
+                      icon: Icons.location_on_outlined,
+                      color: AppColors.primary,
+                    ),
+                    if (auth.isVolunteer && _volunteerActivity != null)
+                      _ShellStatusPill(
+                        label: _volunteerActivity!.achievementTier,
+                        icon: Icons.workspace_premium_outlined,
+                        color: _achievementColor(
+                          _volunteerActivity!.achievementTier,
+                        ),
                       ),
-                      SizedBox(
-                        height: compactVolunteer
-                            ? AppSpacing.xs
-                            : AppSpacing.sm,
-                      ),
-                      Wrap(
-                        spacing: AppSpacing.xs,
-                        runSpacing: AppSpacing.xs,
-                        children: [
-                          _ShellStatusPill(
-                            label: auth.unitLocation,
-                            icon: Icons.location_on_outlined,
-                            color: AppColors.primary,
-                          ),
-                          if (auth.isVolunteer && _volunteerActivity != null)
-                            _ShellStatusPill(
-                              label: _volunteerActivity!.achievementTier,
-                              icon: Icons.workspace_premium_outlined,
-                              color: _achievementColor(
-                                _volunteerActivity!.achievementTier,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
               if (auth.hasAboutUs) ...[
@@ -3267,11 +4183,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             children: [
               Text(
                 title,
-                style: (compact ? textTheme.titleMedium : textTheme.titleLarge)
-                    ?.copyWith(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: _homeCompactSectionTitleStyle(context),
               ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
@@ -3568,11 +4480,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         return Icons.home_repair_service_outlined;
       case 'billing_due':
         return Icons.receipt_long_outlined;
-      case 'volunteer_home_visit_request':
+      case 'volunteer_availability_request':
         return Icons.how_to_reg_outlined;
       case 'volunteer_assignment':
         return Icons.assignment_turned_in_outlined;
-      case 'volunteer_request_update':
+      case 'volunteer_availability_update':
         return Icons.volunteer_activism_outlined;
       case 'volunteer_registration':
         return Icons.person_add_alt_1_outlined;
@@ -4004,6 +4916,23 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       },
                     ),
                   if (auth.isAdmin) ...[
+                    _buildDrawerSectionLabel('REQUESTS'),
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.event_available_outlined,
+                      title: 'Volunteer Requests',
+                      color: AppColors.success,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const VolunteerAvailabilityRequestsAdminPage(),
+                          ),
+                        );
+                      },
+                    ),
                     _buildDrawerSectionLabel('SYSTEM'),
                     _buildDrawerItem(
                       context,
@@ -4184,6 +5113,404 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             vertical: AppSpacing.xxs,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HomeMetricAction {
+  const _HomeMetricAction({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.icon,
+    required this.iconBackground,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  final String title;
+  final String value;
+  final String subtitle;
+  final IconData icon;
+  final Color iconBackground;
+  final Color iconColor;
+  final VoidCallback onTap;
+}
+
+class _HomeQuickAction {
+  const _HomeQuickAction({
+    required this.label,
+    required this.icon,
+    required this.iconBackground,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color iconBackground;
+  final Color iconColor;
+  final VoidCallback onTap;
+}
+
+enum _HomeActionTone { neutral, warning, success, danger }
+
+class _HomeMetricCard extends StatelessWidget {
+  const _HomeMetricCard({required this.action});
+
+  final _HomeMetricAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '${action.title}, ${action.value}, ${action.subtitle}',
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: action.onTap,
+          mouseCursor: SystemMouseCursors.click,
+          hoverColor: _homeHoverOverlay,
+          focusColor: _homeHoverOverlay,
+          highlightColor: _homePressedOverlay,
+          splashColor: _homePressedOverlay,
+          child: SizedBox(
+            height: 124,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: action.iconBackground,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          action.icon,
+                          color: action.iconColor,
+                          size: 21,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          action.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(
+                                color: _homeInk,
+                                fontSize: 15,
+                                height: 1.05,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
+                              ).copyWith(
+                                fontFamilyFallback: const ['NotoSansMalayalam'],
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    action.value,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: _homeInk,
+                      fontSize: action.value.length > 3 ? 25 : 32,
+                      height: 0.95,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    action.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _homeMuted,
+                      fontSize: 13,
+                      height: 1,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeQuickChip extends StatelessWidget {
+  const _HomeQuickChip({
+    required this.label,
+    required this.icon,
+    this.iconBackground = AppColors.surface2,
+    this.iconColor = AppColors.textSecondary,
+    this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color iconBackground;
+  final Color iconColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        mouseCursor: onTap == null
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+        hoverColor: _homeHoverOverlay,
+        focusColor: _homeHoverOverlay,
+        highlightColor: _homePressedOverlay,
+        splashColor: _homePressedOverlay,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 15, 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 19),
+              ),
+              const SizedBox(width: 9),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: _homeInk,
+                  fontSize: 15,
+                  height: 1,
+                  fontWeight: FontWeight.w600,
+                ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeActivityCard extends StatelessWidget {
+  const _HomeActivityCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.iconBackground = _homeBackground,
+    this.iconColor = _homeInk,
+    this.actionLabel,
+    this.actionTone = _HomeActionTone.neutral,
+    this.actionBackgroundColor,
+    this.actionForegroundColor,
+    this.loading = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color iconBackground;
+  final Color iconColor;
+  final String? actionLabel;
+  final _HomeActionTone actionTone;
+  final Color? actionBackgroundColor;
+  final Color? actionForegroundColor;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  Color get _actionBackground =>
+      actionBackgroundColor ??
+      switch (actionTone) {
+        _HomeActionTone.warning => const Color(0xFFFFEDC7),
+        _HomeActionTone.success => const Color(0xFFD5F1D1),
+        _HomeActionTone.danger => const Color(0xFFF9D3CE),
+        _HomeActionTone.neutral => _homeBackground,
+      };
+
+  Color get _actionForeground =>
+      actionForegroundColor ??
+      switch (actionTone) {
+        _HomeActionTone.warning => const Color(0xFF745000),
+        _HomeActionTone.success => const Color(0xFF236431),
+        _HomeActionTone.danger => const Color(0xFF8C3025),
+        _ => _homeInk,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: loading ? null : onTap,
+        mouseCursor: loading || onTap == null
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+        hoverColor: _homeHoverOverlay,
+        focusColor: _homeHoverOverlay,
+        highlightColor: _homePressedOverlay,
+        splashColor: _homePressedOverlay,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 64),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 21),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(
+                              color: _homeInk,
+                              fontSize: 15,
+                              height: 1.05,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.15,
+                            ).copyWith(
+                              fontFamilyFallback: const ['NotoSansMalayalam'],
+                            ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(
+                              color: _homeMuted,
+                              fontSize: 13,
+                              height: 1,
+                              fontWeight: FontWeight.w400,
+                            ).copyWith(
+                              fontFamilyFallback: const ['NotoSansMalayalam'],
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (actionLabel != null) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 62),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _actionBackground,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    alignment: Alignment.center,
+                    child: loading
+                        ? SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _actionForeground,
+                            ),
+                          )
+                        : Text(
+                            actionLabel!,
+                            style: TextStyle(
+                              color: _actionForeground,
+                              fontSize: 13,
+                              height: 1,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeTaskTabs extends StatelessWidget {
+  const _HomeTaskTabs({required this.selectedIndex, required this.onSelected});
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['Today', 'Upcoming', 'Completed'];
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        children: [
+          for (var index = 0; index < labels.length; index++)
+            Expanded(
+              child: Material(
+                color: index == selectedIndex ? _homeInk : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => onSelected(index),
+                  child: Center(
+                    child: Text(
+                      labels[index],
+                      style: TextStyle(
+                        color: index == selectedIndex ? Colors.white : _homeInk,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

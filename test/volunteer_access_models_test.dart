@@ -1,12 +1,32 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/staff_user.dart';
 import 'package:oruma_app/models/volunteer.dart';
 import 'package:oruma_app/models/volunteer_activity.dart';
-import 'package:oruma_app/models/volunteer_home_visit_request.dart';
+import 'package:oruma_app/models/volunteer_availability_request.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 
 void main() {
+  test('config parses volunteer availability time and defaults', () {
+    final defaultConfig = Config.fromJson({});
+    expect(defaultConfig.volunteerAvailabilityStartTime, '09:30 AM');
+    expect(defaultConfig.volunteerAvailabilityEndTime, '03:30 PM');
+    expect(defaultConfig.volunteerAvailabilityTimeWindow, '09:30 AM to 03:30 PM');
+
+    final customConfig = Config.fromJson({
+      'volunteerAvailabilityStartTime': '10:00 AM',
+      'volunteerAvailabilityEndTime': '02:00 PM',
+    });
+    expect(customConfig.volunteerAvailabilityStartTime, '10:00 AM');
+    expect(customConfig.volunteerAvailabilityEndTime, '02:00 PM');
+    expect(customConfig.volunteerAvailabilityTimeWindow, '10:00 AM to 02:00 PM');
+
+    final json = customConfig.toJson();
+    expect(json['volunteerAvailabilityStartTime'], '10:00 AM');
+    expect(json['volunteerAvailabilityEndTime'], '02:00 PM');
+  });
+
   test('volunteer application status and email are parsed', () {
     final volunteer = Volunteer.fromJson({
       '_id': 'volunteer-1',
@@ -66,29 +86,31 @@ void main() {
     expect(activity.history.single.patientName, 'Patient One');
   });
 
-  test('home visit volunteer request parses visit and volunteer details', () {
-    final request = VolunteerHomeVisitRequest.fromJson({
+  test('volunteer availability request parses contact and decision note', () {
+    final request = VolunteerAvailabilityRequest.fromJson({
       'id': 'request-1',
-      'status': 'pending',
+      'status': 'approved',
+      'requestedDate': '2026-10-20',
+      'contactName': 'Asha',
+      'phone': '9999999999',
+      'address': 'Centre, Town',
+      'timeSlot': '09:30 AM to 03:30 PM',
+      'decisionNote': 'Please visit the unit on the day.',
       'requestedAt': '2026-10-19T10:00:00.000Z',
-      'homeVisit': {
-        'id': 'visit-1',
-        'patientName': 'Abdul Rahman',
-        'address': 'Rahma Manzil, Mundakkode',
-        'visitDate': '2026-10-20',
-        'visitMode': 'monthly',
-      },
       'volunteer': {
         'id': 'volunteer-1',
         'name': 'Asha',
         'phone': '9999999999',
         'place': 'Centre',
+        'address': 'Centre, Town',
       },
     });
 
-    expect(request.status, 'pending');
-    expect(request.homeVisit?.id, 'visit-1');
-    expect(request.homeVisit?.address, 'Rahma Manzil, Mundakkode');
+    expect(request.status, 'approved');
+    expect(request.requestedDate, '2026-10-20');
+    expect(request.address, 'Centre, Town');
+    expect(request.timeSlot, '09:30 AM to 03:30 PM');
+    expect(request.decisionNote, 'Please visit the unit on the day.');
     expect(request.volunteer?.name, 'Asha');
   });
 

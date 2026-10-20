@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:oruma_app/core/theme/app_motion.dart';
 import 'package:oruma_app/core/theme/app_radius.dart';
-import 'package:oruma_app/core/theme/app_spacing.dart';
 
 class ModuleSwitchTabs extends StatelessWidget {
   const ModuleSwitchTabs({
@@ -22,8 +21,8 @@ class ModuleSwitchTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 38,
-      padding: const EdgeInsets.all(AppSpacing.xxs),
+      height: 32,
+      padding: const EdgeInsets.all(2.5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: AppRadius.md,
@@ -41,8 +40,8 @@ class ModuleSwitchTabs extends StatelessWidget {
               child: AnimatedContainer(
                 duration: AppMotion.fast,
                 curve: AppMotion.easeOutCubic,
-                height: 30,
-                padding: const EdgeInsets.symmetric(horizontal: 9),
+                height: 25,
+                padding: const EdgeInsets.symmetric(horizontal: 7),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: selected ? color : Colors.transparent,
@@ -55,10 +54,10 @@ class ModuleSwitchTabs extends StatelessWidget {
                     if (icons != null) ...[
                       Icon(
                         icons![index],
-                        size: 14.5,
+                        size: 13,
                         color: selected ? Colors.white : color,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3.5),
                     ],
                     Flexible(
                       child: Text(
@@ -68,7 +67,7 @@ class ModuleSwitchTabs extends StatelessWidget {
                         softWrap: false,
                         style: TextStyle(
                           color: selected ? Colors.white : color,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight:
                               selected ? FontWeight.w700 : FontWeight.w600,
                           letterSpacing: -0.2,

@@ -106,6 +106,9 @@ class Config {
   final List<String> diseases;
   final List<String> plans;
   final List<WardConfig> wards;
+  final List<int> workingDays;
+  String volunteerAvailabilityStartTime;
+  String volunteerAvailabilityEndTime;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -115,9 +118,22 @@ class Config {
     required this.diseases,
     required this.plans,
     required this.wards,
+    required this.workingDays,
+    this.volunteerAvailabilityStartTime = '09:30 AM',
+    this.volunteerAvailabilityEndTime = '03:30 PM',
     this.createdAt,
     this.updatedAt,
   });
+
+  String get volunteerAvailabilityTimeWindow {
+    final start = volunteerAvailabilityStartTime.trim().isNotEmpty
+        ? volunteerAvailabilityStartTime.trim()
+        : '09:30 AM';
+    final end = volunteerAvailabilityEndTime.trim().isNotEmpty
+        ? volunteerAvailabilityEndTime.trim()
+        : '03:30 PM';
+    return '$start to $end';
+  }
 
   factory Config.fromJson(Map<String, dynamic> json) {
     return Config(
@@ -142,6 +158,23 @@ class Config {
               ?.map((e) => WardConfig.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      workingDays:
+          (json['workingDays'] as List<dynamic>?)
+              ?.map((e) => int.tryParse(e.toString()))
+              .whereType<int>()
+              .where((day) => day >= 1 && day <= 7)
+              .toList() ??
+          [1, 2, 3, 4, 5, 6],
+      volunteerAvailabilityStartTime:
+          json['volunteerAvailabilityStartTime']?.toString().trim().isNotEmpty ==
+                  true
+              ? json['volunteerAvailabilityStartTime'].toString().trim()
+              : '09:30 AM',
+      volunteerAvailabilityEndTime:
+          json['volunteerAvailabilityEndTime']?.toString().trim().isNotEmpty ==
+                  true
+              ? json['volunteerAvailabilityEndTime'].toString().trim()
+              : '03:30 PM',
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : null,
@@ -158,6 +191,9 @@ class Config {
       'diseases': diseases,
       'plans': plans,
       'wards': wards.map((e) => e.toJson()).toList(),
+      'workingDays': workingDays,
+      'volunteerAvailabilityStartTime': volunteerAvailabilityStartTime,
+      'volunteerAvailabilityEndTime': volunteerAvailabilityEndTime,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };

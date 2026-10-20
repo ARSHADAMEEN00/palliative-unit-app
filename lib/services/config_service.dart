@@ -8,7 +8,8 @@ class ConfigService {
   static const _keyConfig = 'config';
   static const _ttl = Duration(minutes: 60);
 
-  static Future<Config> getConfig() async {
+  static Future<Config> getConfig({bool forceRefresh = false}) async {
+    if (forceRefresh) AppCache.invalidate(_keyConfig);
     return AppCache.get<Config>(
       _keyConfig,
       ttl: _ttl,
@@ -48,4 +49,3 @@ class ConfigService {
     }
   }
 }
-

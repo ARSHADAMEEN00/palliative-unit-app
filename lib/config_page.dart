@@ -204,7 +204,7 @@ class _ConfigPageState extends State<ConfigPage>
     });
 
     try {
-      final config = await ConfigService.getConfig();
+      final config = await ConfigService.getConfig(forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _config = config;
@@ -348,6 +348,20 @@ class _ConfigPageState extends State<ConfigPage>
       _config!.wards.removeWhere(
         (item) => item.village == ward.village && item.number == ward.number,
       );
+    });
+  }
+
+  void _toggleWorkingDay(int weekday, bool selected) {
+    if (_config == null) return;
+    setState(() {
+      if (selected) {
+        if (!_config!.workingDays.contains(weekday)) {
+          _config!.workingDays.add(weekday);
+        }
+      } else {
+        _config!.workingDays.remove(weekday);
+      }
+      _config!.workingDays.sort();
     });
   }
 
@@ -1315,6 +1329,8 @@ class _ConfigPageState extends State<ConfigPage>
         children: [
           _buildOverviewHeader(config),
           const SizedBox(height: AppSpacing.sm),
+          _buildWorkingDaysSection(),
+          _buildAvailabilityTimeSection(),
           _buildListSection(
             title: 'Villages',
             icon: Icons.location_city_outlined,
@@ -1395,11 +1411,228 @@ class _ConfigPageState extends State<ConfigPage>
                 value: config.plans.length.toString(),
                 icon: Icons.event_repeat_outlined,
               ),
+              _MetricPill(
+                label: 'Working days',
+                value: config.workingDays.length.toString(),
+                icon: Icons.event_available_outlined,
+              ),
+              _MetricPill(
+                label: 'Shift hours',
+                value: config.volunteerAvailabilityTimeWindow,
+                icon: Icons.schedule_outlined,
+              ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildWorkingDaysSection() {
+    const days = [
+      (value: DateTime.monday, label: 'Monday'),
+      (value: DateTime.tuesday, label: 'Tuesday'),
+      (value: DateTime.wednesday, label: 'Wednesday'),
+      (value: DateTime.thursday, label: 'Thursday'),
+      (value: DateTime.friday, label: 'Friday'),
+      (value: DateTime.saturday, label: 'Saturday'),
+      (value: DateTime.sunday, label: 'Sunday'),
+    ];
+    final selectedDays = _config?.workingDays ?? const <int>[];
+    return _ConfigSection(
+      title: 'Volunteer working days',
+      icon: Icons.event_available_outlined,
+      count: selectedDays.length,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Volunteers can request availability only on these weekdays.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: days.map((day) {
+              final selected = selectedDays.contains(day.value);
+              return FilterChip(
+                selected: selected,
+                showCheckmark: true,
+                label: Text(day.label),
+                onSelected: (value) => _toggleWorkingDay(day.value, value),
+              );
+            }).toList(),
+          ),
+          if (selectedDays.isEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'No dates will be available until at least one day is selected.',
+              style: TextStyle(color: AppColors.warning, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvailabilityTimeSection() {
+    final startTime = _config?.volunteerAvailabilityStartTime.isNotEmpty == true
+        ? _config!.volunteerAvailabilityStartTime
+        : '09:30 AM';
+    final endTime = _config?.volunteerAvailabilityEndTime.isNotEmpty == true
+        ? _config!.volunteerAvailabilityEndTime
+        : '03:30 PM';
+    return _ConfigSection(
+      title: 'Volunteer availability time',
+      icon: Icons.schedule_outlined,
+      badgeText: '$startTime - $endTime',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set the standard shift or availability hours shown to volunteers (e.g. 9:30 AM to 3:30 PM).',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTimePickerTile(
+                  label: 'Start time',
+                  value: startTime,
+                  onTap: () => _pickAvailabilityTime(isStart: true),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _buildTimePickerTile(
+                  label: 'End time',
+                  value: endTime,
+                  onTap: () => _pickAvailabilityTime(isStart: false),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Active time window: $startTime to $endTime',
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePickerTile({
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.sm,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.sm,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.access_time_rounded,
+              size: 20,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                  ),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              color: AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAvailabilityTime({required bool isStart}) async {
+    if (_config == null) return;
+    final currentStr = isStart
+        ? _config!.volunteerAvailabilityStartTime
+        : _config!.volunteerAvailabilityEndTime;
+    final initial = _parseTimeOfDay(currentStr) ??
+        (isStart
+            ? const TimeOfDay(hour: 9, minute: 30)
+            : const TimeOfDay(hour: 15, minute: 30));
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+    if (picked == null || !mounted) return;
+
+    final formatted = _formatTimeOfDay(picked);
+    setState(() {
+      if (isStart) {
+        _config!.volunteerAvailabilityStartTime = formatted;
+      } else {
+        _config!.volunteerAvailabilityEndTime = formatted;
+      }
+    });
+  }
+
+  static TimeOfDay? _parseTimeOfDay(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) return null;
+    final trimmed = timeStr.trim().toUpperCase();
+    final match = RegExp(r'^(\d{1,2}):(\d{2})\s*(AM|PM)?$').firstMatch(trimmed);
+    if (match == null) return null;
+    var hour = int.tryParse(match.group(1)!) ?? 0;
+    final minute = int.tryParse(match.group(2)!) ?? 0;
+    final period = match.group(3);
+    if (period == 'PM' && hour < 12) hour += 12;
+    if (period == 'AM' && hour == 12) hour = 0;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  static String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '${hour.toString().padLeft(2, '0')}:$minute $period';
   }
 
   Widget _buildListSection({
@@ -1979,13 +2212,15 @@ class _ConfigSection extends StatelessWidget {
   const _ConfigSection({
     required this.title,
     required this.icon,
-    required this.count,
+    this.count,
+    this.badgeText,
     required this.child,
   });
 
   final String title;
   final IconData icon;
-  final int count;
+  final int? count;
+  final String? badgeText;
   final Widget child;
 
   @override
@@ -2005,25 +2240,26 @@ class _ConfigSection extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              Container(
-                constraints: const BoxConstraints(minWidth: 34),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs,
-                  vertical: AppSpacing.xxs,
-                ),
-                decoration: const BoxDecoration(
-                  color: _ConfigPageState._softAccentColor,
-                  borderRadius: AppRadius.button,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  count.toString(),
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _ConfigPageState._primaryColor,
-                    fontWeight: FontWeight.w700,
+              if (badgeText != null || count != null)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 34),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                    vertical: AppSpacing.xxs,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: _ConfigPageState._softAccentColor,
+                    borderRadius: AppRadius.button,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    badgeText ?? count.toString(),
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: _ConfigPageState._primaryColor,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),

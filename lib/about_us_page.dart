@@ -7,6 +7,7 @@ import 'package:oruma_app/services/about_us_service.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/homscreen.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 
 class AboutUsPage extends StatefulWidget {
@@ -243,12 +244,13 @@ class _AboutUsPageState extends State<AboutUsPage> {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'NotoSansMalayalam',
+                style: GoogleFonts.chilanka(
                   color: ink,
                   fontSize: 24,
-                  height: 1.5,
-                  fontWeight: FontWeight.w700,
+                  height: 1.55,
+                  fontWeight: FontWeight.w400,
+                ).copyWith(
+                  fontFamilyFallback: const ['NotoSansMalayalam'],
                 ),
               ),
             ],

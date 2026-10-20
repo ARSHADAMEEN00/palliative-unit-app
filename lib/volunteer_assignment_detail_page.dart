@@ -26,6 +26,7 @@ class _VolunteerAssignmentDetailPageState
   VolunteerAssignment? _assignment;
   bool _loading = true;
   bool _submitting = false;
+  bool _wasCompleted = false;
 
   @override
   void initState() {
@@ -247,6 +248,7 @@ class _VolunteerAssignmentDetailPageState
           setState(() {
             _assignment = updated;
             _submitting = false;
+            _wasCompleted = true;
           });
 
           // Show Celebration Dialog
@@ -390,13 +392,22 @@ class _VolunteerAssignmentDetailPageState
       scheduledDate = DateTime.tryParse(assignment.scheduledDate);
     } catch (_) {}
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(assignment.typeLabel),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pop(context, _wasCompleted);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(assignment.typeLabel),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          leading: BackButton(
+            onPressed: () => Navigator.pop(context, _wasCompleted),
+          ),
+        ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: const BoxDecoration(
@@ -873,7 +884,8 @@ class _VolunteerAssignmentDetailPageState
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _sectionCard({
