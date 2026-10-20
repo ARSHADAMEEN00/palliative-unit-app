@@ -11,11 +11,21 @@ class _HomePreviewAuthService extends AuthService {
     this.previewRole, {
     this.volunteerApproved = true,
     this.aboutUsAvailable = true,
+    this.canAccessEquipmentOverride,
+    this.canAccessEquipmentDistributionOverride,
+    this.canAccessMedicineSupplyOverride,
+    this.canAccessMedicineMasterOverride,
+    this.canAccessNHCOverride,
   });
 
   final String previewRole;
   final bool volunteerApproved;
   final bool aboutUsAvailable;
+  final bool? canAccessEquipmentOverride;
+  final bool? canAccessEquipmentDistributionOverride;
+  final bool? canAccessMedicineSupplyOverride;
+  final bool? canAccessMedicineMasterOverride;
+  final bool? canAccessNHCOverride;
 
   @override
   String? get role => previewRole;
@@ -52,11 +62,19 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get canAccessVolunteers => true;
   @override
-  bool get canAccessEquipmentDistribution => !isMember && !isVolunteer;
+  bool get canAccessEquipment =>
+      canAccessEquipmentOverride ?? (!isMember && !isVolunteer);
   @override
-  bool get canAccessMedicineSupply => !isMember && !isVolunteer;
+  bool get canAccessEquipmentDistribution =>
+      canAccessEquipmentDistributionOverride ?? (!isMember && !isVolunteer);
   @override
-  bool get canAccessNHC => isAdmin || isStaff;
+  bool get canAccessMedicineSupply =>
+      canAccessMedicineSupplyOverride ?? (!isMember && !isVolunteer);
+  @override
+  bool get canAccessMedicineMaster =>
+      canAccessMedicineMasterOverride ?? (!isMember && !isVolunteer);
+  @override
+  bool get canAccessNHC => canAccessNHCOverride ?? (isAdmin || isStaff);
   @override
   bool get canAccessReports => true;
   @override
@@ -92,6 +110,11 @@ Future<void> _pumpHome(
   bool volunteerApproved = true,
   bool aboutUsAvailable = true,
   bool storyAvailable = true,
+  bool? canAccessEquipment,
+  bool? canAccessEquipmentDistribution,
+  bool? canAccessMedicineSupply,
+  bool? canAccessMedicineMaster,
+  bool? canAccessNHC,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -101,6 +124,11 @@ Future<void> _pumpHome(
         role,
         volunteerApproved: volunteerApproved,
         aboutUsAvailable: aboutUsAvailable,
+        canAccessEquipmentOverride: canAccessEquipment,
+        canAccessEquipmentDistributionOverride: canAccessEquipmentDistribution,
+        canAccessMedicineSupplyOverride: canAccessMedicineSupply,
+        canAccessMedicineMasterOverride: canAccessMedicineMaster,
+        canAccessNHCOverride: canAccessNHC,
       ),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -308,4 +336,64 @@ void main() {
     expect(find.text('Care that stays close'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'member home shows Equipment when equipment permission is granted',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'member',
+        canAccessEquipment: true,
+      );
+
+      expect(find.text('Equipment'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'member home shows Equipment supply when equipmentDistribution permission is granted',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'member',
+        canAccessEquipmentDistribution: true,
+      );
+
+      expect(find.text('Equipment supply'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'member home shows both Equipment and Equipment supply when both are granted',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'member',
+        canAccessEquipment: true,
+        canAccessEquipmentDistribution: true,
+      );
+
+      expect(find.text('Equipment'), findsOneWidget);
+      expect(find.text('Equipment supply'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'volunteer home shows Equipment and Reports when permissions are granted',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'volunteer',
+        canAccessEquipment: true,
+      );
+
+      expect(find.text('Equipment'), findsOneWidget);
+      expect(find.text('Reports'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
+

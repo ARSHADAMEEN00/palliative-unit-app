@@ -869,6 +869,24 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             }
           },
         ),
+      if (auth.canAccessEquipment && auth.canCreate)
+        _buildQuickActionItem(
+          icon: Icons.inventory_2_rounded,
+          label: "Equipment",
+          color: ModulePalettes.equipmentSupply.primary,
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ModuleTheme(
+                  palette: ModulePalettes.equipmentSupply,
+                  child: EquipmentFormPage(),
+                ),
+              ),
+            );
+          },
+        ),
       if (auth.canAccessVolunteers)
         _buildQuickActionItem(
           icon: Icons.volunteer_activism_rounded,
@@ -1743,31 +1761,34 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     Color? color,
   }) {
     final itemColor = color ?? AppColors.primary;
-    return ListTile(
-      leading: Container(
-        width: 44,
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: itemColor.withValues(alpha: 0.1),
-          borderRadius: AppRadius.md,
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        leading: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: itemColor.withValues(alpha: 0.1),
+            borderRadius: AppRadius.md,
+          ),
+          child: Icon(icon, color: itemColor, size: AppIcons.normal),
         ),
-        child: Icon(icon, color: itemColor, size: AppIcons.normal),
-      ),
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: color ?? AppColors.text,
+        title: Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: color ?? AppColors.text,
+          ),
         ),
+        trailing: const Icon(
+          Icons.chevron_right_rounded,
+          size: AppIcons.normal,
+          color: AppColors.textMuted,
+        ),
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       ),
-      trailing: const Icon(
-        Icons.chevron_right_rounded,
-        size: AppIcons.normal,
-        color: AppColors.textMuted,
-      ),
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
     );
   }
 
@@ -3218,7 +3239,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           ),
         )
         .toList();
-    final usesTwoRows = auth.isAdmin || auth.isStaff || auth.isMember;
+    final usesTwoRows =
+        auth.isAdmin || auth.isStaff || auth.isMember || chips.length > 3;
 
     if (usesTwoRows) {
       return SizedBox(
@@ -3284,22 +3306,41 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ModulePalettes.socialSupport,
       _openSocialSupport,
     );
-    if (!auth.isMember && !auth.isVolunteer) {
-      add(
-        auth.canAccessEquipmentDistribution,
-        'Equipment supply',
-        Icons.medical_services_outlined,
-        ModulePalettes.equipmentSupply,
-        _openEquipmentSupply,
-      );
-      add(
-        auth.canAccessMedicineSupply,
-        'Medicine supply',
-        Icons.medication_outlined,
-        ModulePalettes.medicineSupply,
-        _openMedicineSupply,
-      );
-    }
+    add(
+      auth.canAccessEquipmentDistribution,
+      'Equipment supply',
+      Icons.medical_services_outlined,
+      ModulePalettes.equipmentSupply,
+      _openEquipmentSupply,
+    );
+    add(
+      auth.canAccessEquipment,
+      'Equipment',
+      Icons.inventory_2_outlined,
+      ModulePalettes.equipmentSupply,
+      _openEquipmentInventory,
+    );
+    add(
+      auth.canAccessMedicineSupply,
+      'Medicine supply',
+      Icons.medication_outlined,
+      ModulePalettes.medicineSupply,
+      _openMedicineSupply,
+    );
+    add(
+      auth.canAccessMedicineMaster || auth.canAccessMedicineStock,
+      'Medicine inventory',
+      Icons.medication_liquid_outlined,
+      ModulePalettes.medicineSupply,
+      _openMedicine,
+    );
+    add(
+      auth.canAccessNHC && !auth.isAdmin && !auth.isStaff,
+      'Visit assessment',
+      Icons.assignment_outlined,
+      ModulePalettes.patients,
+      () => _openVisitAssessment(auth),
+    );
     add(
       auth.canAccessVolunteers,
       'Volunteers',
@@ -3307,15 +3348,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ModulePalettes.volunteers,
       _openVolunteers,
     );
-    if (!auth.isVolunteer) {
-      add(
-        auth.canAccessReports,
-        'Reports',
-        Icons.bar_chart_rounded,
-        ModulePalettes.reports,
-        _openReports,
-      );
-    }
+    add(
+      auth.canAccessReports,
+      'Reports',
+      Icons.bar_chart_rounded,
+      ModulePalettes.reports,
+      _openReports,
+    );
     add(
       auth.isAdmin,
       'Staff management',
@@ -3743,6 +3782,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  void _openEquipmentInventory() {
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.equipmentSupply,
+        child: EquipmentListPage(),
+      ),
+      after: _loadActiveSupplies,
+    );
+  }
+
   void _openEquipmentSupply() {
     _openPage(
       const ModuleTheme(
@@ -3750,6 +3799,15 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         child: EquipmentSupplyListPage(),
       ),
       after: _loadActiveSupplies,
+    );
+  }
+
+  void _openMedicine() {
+    _openPage(
+      const ModuleTheme(
+        palette: ModulePalettes.medicineSupply,
+        child: MedicineListPage(),
+      ),
     );
   }
 
@@ -3933,6 +3991,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               palette: ModulePalettes.patients,
                               page: const VisitAssessmentVisitPickerScreen(),
                             ),
+                          if (auth.canAccessEquipment)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Equipment',
+                              icon: Icons.inventory_2_rounded,
+                              palette: ModulePalettes.equipmentSupply,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.equipmentSupply,
+                                child: EquipmentListPage(),
+                              ),
+                            ),
                           if (auth.canAccessEquipmentDistribution)
                             _buildModernActionCard(
                               context,
@@ -3942,6 +4011,18 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               page: const ModuleTheme(
                                 palette: ModulePalettes.equipmentSupply,
                                 child: EquipmentSupplyListPage(),
+                              ),
+                            ),
+                          if (auth.canAccessMedicineMaster ||
+                              auth.canAccessMedicineStock)
+                            _buildModernActionCard(
+                              context,
+                              title: 'Medicine',
+                              icon: Icons.medication_rounded,
+                              palette: ModulePalettes.medicineSupply,
+                              page: const ModuleTheme(
+                                palette: ModulePalettes.medicineSupply,
+                                child: MedicineListPage(),
                               ),
                             ),
                           if (auth.canAccessMedicineSupply)

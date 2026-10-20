@@ -186,6 +186,8 @@ class AuthService with ChangeNotifier {
         final loginUnitId = _cleanString(data['unitId'] ?? data['unit']?['id']);
         AppCache.currentUnitId = loginUnitId;
         AppCache.clear();
+        _user = data;
+        _applyFeaturePermissions(data);
 
         final prefs = await SharedPreferences.getInstance();
 
