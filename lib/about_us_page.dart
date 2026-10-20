@@ -11,7 +11,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 
 class AboutUsPage extends StatefulWidget {
-  const AboutUsPage({super.key});
+  const AboutUsPage({super.key, this.initialData});
+
+  final AboutUsData? initialData;
 
   @override
   State<AboutUsPage> createState() => _AboutUsPageState();
@@ -25,7 +27,12 @@ class _AboutUsPageState extends State<AboutUsPage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    if (widget.initialData != null) {
+      _aboutUs = widget.initialData;
+      _isLoading = false;
+    } else {
+      _loadData();
+    }
   }
 
   Future<void> _loadData({bool refresh = false}) async {
@@ -249,9 +256,7 @@ class _AboutUsPageState extends State<AboutUsPage> {
                   fontSize: 24,
                   height: 1.55,
                   fontWeight: FontWeight.w400,
-                ).copyWith(
-                  fontFamilyFallback: const ['NotoSansMalayalam'],
-                ),
+                ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
               ),
             ],
           ),

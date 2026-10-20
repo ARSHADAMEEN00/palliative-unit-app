@@ -44,7 +44,7 @@ class ApiConfig {
   static String get requestUnitEndpoint => '$baseUrl/auth/request-unit';
   static String get volunteerActivityEndpoint =>
       '$v2VolunteersEndpoint/me/activity';
-  static String get aboutUsEndpoint => '$baseUrl/unit/about';
+  static String get aboutUsEndpoint => '$baseUrl/auth/unit-about';
   static String get aboutUsSummaryEndpoint => '$baseUrl/unit/about/summary';
   static String get adminAboutUsEndpoint => '$baseUrl/settings/about-us';
   static String get adminAboutUsPreviewEndpoint =>

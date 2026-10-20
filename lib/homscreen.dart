@@ -95,7 +95,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _checkingApproval = false;
   AboutUsData? _pendingVolunteerStory;
   bool _pendingVolunteerStoryLoading = false;
-  String? _pendingVolunteerStoryError;
   int _pendingVolunteerRegistrationCount = 0;
   int _pendingAvailabilityRequestCount = 0;
   bool _importantRequestsLoading = false;
@@ -173,7 +172,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     if (!mounted || (_pendingVolunteerStoryLoading && !refresh)) return;
     setState(() {
       _pendingVolunteerStoryLoading = true;
-      _pendingVolunteerStoryError = null;
     });
     try {
       final loader = widget.aboutUsLoader;
@@ -185,16 +183,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         _pendingVolunteerStory = story;
         _pendingVolunteerStoryLoading = false;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _pendingVolunteerStoryError = error
-            .toString()
-            .replaceFirst('Exception: ', '');
         _pendingVolunteerStoryLoading = false;
       });
     }
   }
+
+  bool get _hasPendingVolunteerStory =>
+      _pendingVolunteerStory?.content.trim().isNotEmpty == true;
 
   Future<void> _loadImportantRequests() async {
     if (!mounted || _importantRequestsLoading) return;
@@ -1790,95 +1788,187 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
     final declined = auth.isVolunteerDeclined;
     final color = declined ? AppColors.danger : AppColors.warning;
+    final supportName = auth.unitSupportName ?? auth.unitName;
+    final supportPhone = auth.unitSupportPhone;
+    final supportPhoneDial = auth.unitSupportPhoneDial;
+    final supportEmail = auth.unitSupportEmail;
+    final hasContact = supportPhone != null || supportEmail != null;
+
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
+        constraints: const BoxConstraints(maxWidth: 620),
         child: AppCard(
           surfaceLevel: AppSurfaceLevel.elevated,
-          padding: const EdgeInsets.all(AppSpacing.xl),
+          borderColor: color.withValues(alpha: 0.18),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  declined
-                      ? Icons.cancel_outlined
-                      : Icons.hourglass_top_rounded,
-                  color: color,
-                  size: 38,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                declined ? 'Application declined' : 'Approval is pending',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                declined
-                    ? 'Your volunteer application was not approved. Please contact the palliative care unit if you need help.'
-                    : 'Your volunteer registration was received. The palliative care unit must approve it before the app modules become available.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-              if (!declined) ...[
-                const SizedBox(height: AppSpacing.lg),
-                if (_checkingApproval) ...[
-                  const SizedBox(
-                    width: 220,
-                    child: ClipRRect(
-                      borderRadius: AppRadius.sm,
-                      child: LinearProgressIndicator(
-                        minHeight: 4,
-                        backgroundColor: AppColors.primaryLight,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
-                      ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.10),
+                      borderRadius: AppRadius.md,
+                    ),
+                    child: Icon(
+                      declined
+                          ? Icons.cancel_outlined
+                          : Icons.hourglass_top_rounded,
+                      color: color,
+                      size: 27,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            declined ? 'DECLINED' : 'WAITING FOR REVIEW',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          declined
+                              ? 'Application declined'
+                              : 'Approval is pending',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: AppColors.text,
+                                fontSize: 22,
+                                height: 1.15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
-                TextButton.icon(
-                  onPressed: _checkingApproval ? null : _checkApprovalStatus,
-                  icon: _checkingApproval
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                declined
+                    ? 'The unit could not approve your volunteer application. Contact the unit if you need more information.'
+                    : 'Your registration was received. The unit team will review it before your volunteer modules become available.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+              ),
+              if (hasContact) ...[
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface1,
+                    borderRadius: AppRadius.md,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.support_agent_rounded,
+                            size: 18,
                             color: AppColors.primary,
                           ),
-                        )
-                      : const Icon(Icons.refresh_rounded),
-                  label: Text(
-                    _checkingApproval
-                        ? 'Checking approval status...'
-                        : 'Check approval status',
+                          const SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              supportName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: AppColors.text,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          Text(
+                            'Unit contact',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                      if (supportPhone != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        _buildApprovalContactRow(
+                          icon: Icons.call_outlined,
+                          label: 'Phone',
+                          value: supportPhone,
+                          onTap: supportPhoneDial == null
+                              ? null
+                              : () => _launchApprovalContact(
+                                  Uri(scheme: 'tel', path: supportPhoneDial),
+                                  'Could not open the phone app',
+                                ),
+                        ),
+                      ],
+                      if (supportEmail != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        _buildApprovalContactRow(
+                          icon: Icons.mail_outline_rounded,
+                          label: 'Email',
+                          value: supportEmail,
+                          onTap: () => _launchApprovalContact(
+                            Uri(scheme: 'mailto', path: supportEmail),
+                            'Could not open the email app',
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
+              if (!declined) ...[
+                const SizedBox(height: AppSpacing.md),
+                AppPrimaryButton(
+                  label: _checkingApproval
+                      ? 'Checking approval status'
+                      : 'Check approval status',
+                  icon: Icons.refresh_rounded,
+                  fullWidth: true,
+                  height: 46,
+                  loading: _checkingApproval,
+                  onPressed: _checkingApproval ? null : _checkApprovalStatus,
+                ),
+              ],
               const SizedBox(height: AppSpacing.sm),
+              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: AppSpacing.xs),
               Wrap(
                 alignment: WrapAlignment.center,
-                spacing: AppSpacing.sm,
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xxs,
                 children: [
                   TextButton.icon(
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
+                      textStyle: const TextStyle(fontSize: 13),
                     ),
                     onPressed: () {
                       auth.logout();
@@ -1889,16 +1979,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         (route) => false,
                       );
                     },
-                    icon: const Icon(Icons.logout_rounded),
+                    icon: const Icon(Icons.logout_rounded, size: 18),
                     label: const Text('Logout'),
                   ),
                   TextButton.icon(
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.danger,
+                      textStyle: const TextStyle(fontSize: 13),
                     ),
                     onPressed: () => _confirmDeleteAccount(context),
-                    icon: const Icon(Icons.delete_forever_outlined),
-                    label: const Text('Delete Account'),
+                    icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                    label: const Text('Delete account'),
                   ),
                 ],
               ),
@@ -1909,11 +2000,83 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildApprovalContactRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.sm,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.sm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xs,
+            vertical: 7,
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 17, color: AppColors.textSecondary),
+              const SizedBox(width: AppSpacing.xs),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  label,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: AppColors.textMuted),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.text,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (onTap != null)
+                const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 15,
+                  color: AppColors.textMuted,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchApprovalContact(Uri uri, String errorMessage) async {
+    var launched = false;
+    try {
+      launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
   Widget _buildPendingVolunteerStoryCard() {
-    final story = _pendingVolunteerStory;
-    final content = story?.content.trim() ?? '';
-    final title = story?.title.trim().isNotEmpty == true
-        ? story!.title.trim()
+    final story = _pendingVolunteerStory!;
+    final content = story.content.trim();
+    final title = story.title.trim().isNotEmpty
+        ? story.title.trim()
         : AboutUsData.defaultTitle;
 
     return Center(
@@ -1955,69 +2118,29 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
-              if (_pendingVolunteerStoryLoading) ...[
-                const LinearProgressIndicator(
-                  minHeight: 4,
-                  backgroundColor: AppColors.surface2,
-                  color: Color(0xFF5E8072),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.chilanka(
+                  color: const Color(0xFF24446A),
+                  fontSize: 22,
+                  height: 1.5,
+                  fontWeight: FontWeight.w400,
+                ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Divider(color: Color(0xFFDDE7E2)),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                content,
+                style: const TextStyle(
+                  fontFamily: 'NotoSansMalayalam',
+                  fontSize: 16,
+                  height: 1.75,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.text,
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Loading the unit story…',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ] else if (_pendingVolunteerStoryError != null) ...[
-                Text(
-                  'Unable to load the unit story. ${_pendingVolunteerStoryError!}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => _loadPendingVolunteerStory(refresh: true),
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Try again'),
-                  ),
-                ),
-              ] else if (content.isEmpty) ...[
-                Text(
-                  'This unit has not published its story yet.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ] else ...[
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.chilanka(
-                    color: const Color(0xFF24446A),
-                    fontSize: 22,
-                    height: 1.5,
-                    fontWeight: FontWeight.w400,
-                  ).copyWith(
-                    fontFamilyFallback: const ['NotoSansMalayalam'],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const Divider(color: Color(0xFFDDE7E2)),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  content,
-                  style: const TextStyle(
-                    fontFamily: 'NotoSansMalayalam',
-                    fontSize: 16,
-                    height: 1.75,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.text,
-                  ),
-                ),
-              ],
+              ),
             ],
           ),
         ),
@@ -3757,7 +3880,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   if (isPendingApproval) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildVolunteerApprovalCard(auth),
-                    if (auth.isVolunteerPending) ...[
+                    if (auth.isVolunteerPending &&
+                        _hasPendingVolunteerStory) ...[
                       const SizedBox(height: AppSpacing.md),
                       _buildPendingVolunteerStoryCard(),
                     ],
@@ -4103,7 +4227,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
     final compactVolunteer = auth.isVolunteer;
     final compactHeader = compactVolunteer || isCompact;
-    final canOpenOurStory = auth.hasAboutUs || auth.isVolunteer;
+    final canOpenOurStory =
+        auth.hasAboutUs ||
+        (auth.isVolunteerPending && _hasPendingVolunteerStory);
     final achievementTier = _volunteerActivity?.achievementTier;
     final achievementColor = achievementTier == null
         ? null
@@ -4248,7 +4374,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   void _navigateToAboutUs() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const AboutUsPage()),
+      MaterialPageRoute(
+        builder: (context) => AboutUsPage(
+          initialData: _hasPendingVolunteerStory
+              ? _pendingVolunteerStory
+              : null,
+        ),
+      ),
     );
   }
 

@@ -64,6 +64,14 @@ class _HomePreviewAuthService extends AuthService {
   @override
   String get unitLocation => 'Kozhikode';
   @override
+  String? get unitSupportName => 'Compassion Care help desk';
+  @override
+  String? get unitSupportPhone => '+91 98765 43210';
+  @override
+  String? get unitSupportPhoneDial => '+919876543210';
+  @override
+  String? get unitSupportEmail => 'help@compassion.example';
+  @override
   Map<String, dynamic>? get user => {
     'name': switch (previewRole) {
       'admin' => 'Anita Rao',
@@ -83,6 +91,7 @@ Future<void> _pumpHome(
   String role, {
   bool volunteerApproved = true,
   bool aboutUsAvailable = true,
+  bool storyAvailable = true,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -97,14 +106,23 @@ Future<void> _pumpHome(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         home: Homescreen(
-          aboutUsLoader: ({bool refresh = false}) async => const AboutUsData(
-            hasAboutUs: true,
-            title: 'Care that stays close',
-            content: 'We support patients and families throughout their care.',
-            rawContent:
-                'We support patients and families throughout their care.',
-            unitName: 'Compassion Care',
-          ),
+          aboutUsLoader: ({bool refresh = false}) async => storyAvailable
+              ? const AboutUsData(
+                  hasAboutUs: true,
+                  title: 'Care that stays close',
+                  content:
+                      'We support patients and families throughout their care.',
+                  rawContent:
+                      'We support patients and families throughout their care.',
+                  unitName: 'Compassion Care',
+                )
+              : const AboutUsData(
+                  hasAboutUs: false,
+                  title: 'Our Story',
+                  content: '',
+                  rawContent: '',
+                  unitName: 'Compassion Care',
+                ),
         ),
       ),
     ),
@@ -216,7 +234,7 @@ void main() {
   testWidgets('volunteer home shows availability and task tabs', (
     tester,
   ) async {
-    await _pumpHome(tester, 'volunteer', aboutUsAvailable: false);
+    await _pumpHome(tester, 'volunteer');
 
     expect(find.text('Compassion Care'), findsOneWidget);
     expect(find.text('Our Story'), findsOneWidget);
@@ -234,7 +252,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('new volunteer home shows the Our Story link', (tester) async {
+  testWidgets('new volunteer home shows the Our Story content', (tester) async {
     await _pumpHome(
       tester,
       'volunteer',
@@ -243,6 +261,10 @@ void main() {
     );
 
     expect(find.text('Approval is pending'), findsOneWidget);
+    expect(find.text('WAITING FOR REVIEW'), findsOneWidget);
+    expect(find.text('Compassion Care help desk'), findsOneWidget);
+    expect(find.text('+91 98765 43210'), findsOneWidget);
+    expect(find.text('help@compassion.example'), findsOneWidget);
     expect(find.text('Our Story'), findsNWidgets(2));
     expect(find.text('Care that stays close'), findsOneWidget);
     expect(
@@ -252,7 +274,38 @@ void main() {
     final storyLink = tester.widget<InkWell>(
       find.ancestor(of: find.text('Our Story'), matching: find.byType(InkWell)),
     );
+    final approvalTitle = tester.widget<Text>(find.text('Approval is pending'));
+    expect(approvalTitle.style?.fontSize, 22);
     expect(storyLink.onTap, isNotNull);
+
+    await tester.tap(
+      find.ancestor(of: find.text('Our Story'), matching: find.byType(InkWell)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('About Our Unit'), findsOneWidget);
+    expect(find.text('Care that stays close'), findsOneWidget);
+    expect(
+      find.text('We support patients and families throughout their care.'),
+      findsOneWidget,
+    );
+    expect(find.text('Unable to Load Story'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pending volunteer hides Our Story when content is empty', (
+    tester,
+  ) async {
+    await _pumpHome(
+      tester,
+      'volunteer',
+      volunteerApproved: false,
+      aboutUsAvailable: false,
+      storyAvailable: false,
+    );
+
+    expect(find.text('Approval is pending'), findsOneWidget);
+    expect(find.text('Our Story'), findsNothing);
+    expect(find.text('Care that stays close'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
