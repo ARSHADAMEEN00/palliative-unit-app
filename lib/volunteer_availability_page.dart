@@ -336,8 +336,14 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
           ? const AppListSkeleton(itemCount: 4)
           : _error != null
           ? AppEmptyState(
-              icon: Icons.cloud_off_outlined,
-              title: 'Unable to load availability',
+              icon: _error!.toLowerCase().contains('approval') ||
+                      _error!.toLowerCase().contains('pending')
+                  ? Icons.hourglass_top_rounded
+                  : Icons.cloud_off_outlined,
+              title: _error!.toLowerCase().contains('approval') ||
+                      _error!.toLowerCase().contains('pending')
+                  ? 'Approval in Progress'
+                  : 'Unable to load availability',
               message: _error!,
               action: FilledButton.icon(
                 onPressed: _load,

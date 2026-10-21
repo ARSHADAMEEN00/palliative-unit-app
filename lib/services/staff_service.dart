@@ -155,6 +155,17 @@ class StaffService {
     throw Exception(result.error ?? 'Failed to update staff');
   }
 
+  static Future<void> removeFromUnit(String id) async {
+    final result = await ApiService.delete(
+      '${ApiConfig.staffEndpoint}/$id?mode=remove_from_unit',
+    );
+    if (result.isSuccess) {
+      AppCache.invalidate(_keyAll);
+      return;
+    }
+    throw Exception(result.error ?? 'Failed to remove user from unit');
+  }
+
   static Future<void> deleteStaff(String id) async {
     final result = await ApiService.delete('${ApiConfig.staffEndpoint}/$id');
     if (result.isSuccess) {

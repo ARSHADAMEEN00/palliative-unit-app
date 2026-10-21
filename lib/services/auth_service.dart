@@ -86,9 +86,10 @@ class AuthService with ChangeNotifier {
   bool get isVolunteerApproved => !isVolunteer || approvalStatus == 'approved';
   bool get isVolunteerPending => isVolunteer && approvalStatus == 'pending';
   bool get isVolunteerDeclined => isVolunteer && approvalStatus == 'declined';
-  bool get isVolunteerRemoved => isVolunteer && approvalStatus == 'removed';
+  bool get isVolunteerRemoved => approvalStatus == 'removed';
+  bool get isRemovedFromUnit => approvalStatus == 'removed';
   bool get isEmailVerified =>
-      (!isVolunteer && !isPublicUser) || _user?['emailVerified'] == true;
+      isAdmin || _role == 'superadmin' || _user?['emailVerified'] == true;
   bool get canVolunteerRegisterPatient =>
       canAccessPatients &&
       isVolunteer &&

@@ -14,6 +14,7 @@ import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
 
 enum ConfigPageMode { combined, settings, staff }
+enum _DeleteStaffOption { removeFromUnit, deleteUser }
 
 class ConfigPage extends StatefulWidget {
   const ConfigPage({
@@ -399,9 +400,9 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   Future<void> _confirmDeleteStaff(StaffUser staff) async {
-    if (staff.role != 'staff' || _updatingStaffIds.contains(staff.id)) return;
+    if (staff.role == 'admin' || _updatingStaffIds.contains(staff.id)) return;
 
-    final confirmed = await showDialog<bool>(
+    final selectedOption = await showDialog<_DeleteStaffOption>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surface,
@@ -417,7 +418,7 @@ class _ConfigPageState extends State<ConfigPage>
                 borderRadius: AppRadius.sm,
               ),
               child: const Icon(
-                Icons.delete_outline_rounded,
+                Icons.person_remove_rounded,
                 color: AppColors.danger,
               ),
             ),
@@ -425,52 +426,285 @@ class _ConfigPageState extends State<ConfigPage>
             const Expanded(child: Text('Delete user account?')),
           ],
         ),
-        content: Text(
-          'Delete ${staff.name} (${staff.email})? They will lose access to this unit. This action cannot be undone.',
-          style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.45,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose how you want to handle ${staff.name} (${staff.email}):',
+                style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              InkWell(
+                borderRadius: AppRadius.md,
+                onTap: () => Navigator.pop(
+                  dialogContext,
+                  _DeleteStaffOption.removeFromUnit,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.08),
+                    borderRadius: AppRadius.md,
+                    border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.xs),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.16),
+                          borderRadius: AppRadius.xs,
+                        ),
+                        child: const Icon(
+                          Icons.domain_disabled_rounded,
+                          color: AppColors.warning,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Delete from unit',
+                              style: Theme.of(dialogContext).textTheme.labelLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.text,
+                                  ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Removes user from this unit only. When they log in, no previous unit data is shown and they can request access to other units.',
+                              style: Theme.of(dialogContext).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    height: 1.35,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              InkWell(
+                borderRadius: AppRadius.md,
+                onTap: () => Navigator.pop(
+                  dialogContext,
+                  _DeleteStaffOption.deleteUser,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.08),
+                    borderRadius: AppRadius.md,
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.xs),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.16),
+                          borderRadius: AppRadius.xs,
+                        ),
+                        child: const Icon(
+                          Icons.delete_forever_rounded,
+                          color: AppColors.danger,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Delete user',
+                              style: Theme.of(dialogContext).textTheme.labelLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.danger,
+                                  ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Permanently deletes this user account and all their database records. This action cannot be undone.',
+                              style: Theme.of(dialogContext).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    height: 1.35,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,
-          0,
+          AppSpacing.sm,
           AppSpacing.lg,
           AppSpacing.lg,
         ),
         actions: [
-          AppSecondaryButton(
-            label: 'Cancel',
-            onPressed: () => Navigator.pop(dialogContext, false),
-          ),
-          AppDangerButton(
-            label: 'Delete user',
-            icon: Icons.delete_outline_rounded,
-            onPressed: () => Navigator.pop(dialogContext, true),
+          Builder(
+            builder: (context) {
+              final isNarrow = MediaQuery.sizeOf(context).width < 540;
+              if (isNarrow) {
+                return SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.warning,
+                          side: BorderSide(
+                            color: AppColors.warning.withValues(alpha: 0.8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: 12,
+                          ),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: AppRadius.button,
+                          ),
+                        ),
+                        icon: const Icon(
+                          Icons.domain_disabled_rounded,
+                          size: 18,
+                        ),
+                        label: const Text('Delete from unit'),
+                        onPressed: () => Navigator.pop(
+                          dialogContext,
+                          _DeleteStaffOption.removeFromUnit,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppDangerButton(
+                        label: 'Delete user',
+                        icon: Icons.delete_forever_rounded,
+                        fullWidth: true,
+                        onPressed: () => Navigator.pop(
+                          dialogContext,
+                          _DeleteStaffOption.deleteUser,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppSecondaryButton(
+                        label: 'Cancel',
+                        fullWidth: true,
+                        onPressed: () => Navigator.pop(dialogContext),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  AppSecondaryButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.warning,
+                      side: BorderSide(
+                        color: AppColors.warning.withValues(alpha: 0.8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: 11,
+                      ),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: AppRadius.button,
+                      ),
+                    ),
+                    icon: const Icon(
+                      Icons.domain_disabled_rounded,
+                      size: 16,
+                    ),
+                    label: const Text('Delete from unit'),
+                    onPressed: () => Navigator.pop(
+                      dialogContext,
+                      _DeleteStaffOption.removeFromUnit,
+                    ),
+                  ),
+                  AppDangerButton(
+                    label: 'Delete user',
+                    icon: Icons.delete_forever_rounded,
+                    onPressed: () => Navigator.pop(
+                      dialogContext,
+                      _DeleteStaffOption.deleteUser,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (selectedOption == null || !mounted) return;
 
     setState(() => _updatingStaffIds.add(staff.id));
     try {
-      await StaffService.deleteStaff(staff.id);
-      if (!mounted) return;
-      setState(() => _staff.removeWhere((item) => item.id == staff.id));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${staff.name} was deleted'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      if (selectedOption == _DeleteStaffOption.removeFromUnit) {
+        await StaffService.removeFromUnit(staff.id);
+        if (!mounted) return;
+        setState(() => _staff.removeWhere((item) => item.id == staff.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${staff.name} was removed from this unit'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        await StaffService.deleteStaff(staff.id);
+        if (!mounted) return;
+        setState(() => _staff.removeWhere((item) => item.id == staff.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${staff.name} was deleted from database'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Failed to delete user: ${error.toString().replaceFirst('Exception: ', '')}',
+            'Failed to ${selectedOption == _DeleteStaffOption.removeFromUnit ? "remove" : "delete"} user: ${error.toString().replaceFirst('Exception: ', '')}',
           ),
           backgroundColor: AppColors.danger,
         ),
@@ -1423,7 +1657,9 @@ class _ConfigPageState extends State<ConfigPage>
                                 auth.userEmail!.isNotEmpty &&
                                 staff.email.toLowerCase() ==
                                     auth.userEmail!.toLowerCase());
-                        if (isSelf) return const SizedBox.shrink();
+                        if (isSelf || staff.role == 'admin') {
+                          return const SizedBox.shrink();
+                        }
                         return TextButton.icon(
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.danger,
@@ -2234,7 +2470,9 @@ class _ConfigPageState extends State<ConfigPage>
                           auth.userEmail!.isNotEmpty &&
                           staff.email.toLowerCase() ==
                               auth.userEmail!.toLowerCase());
-                  if (isSelf) return const SizedBox.shrink();
+                  if (isSelf || staff.role == 'admin') {
+                    return const SizedBox.shrink();
+                  }
                   return IconButton(
                     tooltip: 'Delete user',
                     color: AppColors.danger,

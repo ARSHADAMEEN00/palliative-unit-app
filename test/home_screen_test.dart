@@ -85,6 +85,14 @@ class _HomePreviewAuthService extends AuthService {
   bool get canAccessMedicineMaster =>
       canAccessMedicineMasterOverride ?? (!isMember && !isVolunteer);
   @override
+  bool get canAccessMedicineStock =>
+      canAccessMedicineMasterOverride ?? (!isMember && !isVolunteer);
+  @override
+  bool get canAccessMedicine =>
+      canAccessMedicineMaster ||
+      canAccessMedicineStock ||
+      canAccessMedicineSupply;
+  @override
   bool get canAccessNHC => canAccessNHCOverride ?? (isAdmin || isStaff);
   @override
   bool get canAccessReports => true;
@@ -351,9 +359,9 @@ void main() {
   }
 
   for (final roleAndLabels in <(String, List<String>)>[
-    ('admin', const ['Home visit', 'Social support', 'Equipment supply']),
-    ('staff', const ['Home visit', 'Social support', 'Equipment supply']),
-    ('member', const ['Social support', 'Volunteers', 'Reports']),
+    ('admin', const ['Home visit', 'Equipment', 'Social support']),
+    ('staff', const ['Home visit', 'Equipment', 'Social support']),
+    ('member', const ['Home visit', 'Volunteers', 'Social support']),
   ]) {
     testWidgets('${roleAndLabels.$1} quick actions use two rows', (
       tester,
@@ -397,7 +405,7 @@ void main() {
     expect(attentionTitle.style?.color, quickActionsTitle.style?.color);
     expect(find.text('Equipment distributed'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Medicine'), findsOneWidget);
+    expect(find.text('Medicine'), findsWidgets);
     expect(find.text('Visits'), findsOneWidget);
     expect(find.text('NHC'), findsOneWidget);
     expect(find.text('Alerts'), findsNothing);
@@ -427,7 +435,7 @@ void main() {
     expect(find.text('Compassion Care'), findsOneWidget);
     expect(find.text('Visit\nAssessment'), findsOneWidget);
     expect(find.text('Latest notifications'), findsOneWidget);
-    expect(find.text('Medicine'), findsOneWidget);
+    expect(find.text('Medicine'), findsWidgets);
     expect(find.text('Visits'), findsOneWidget);
     expect(find.text('NHC'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -539,17 +547,17 @@ void main() {
   );
 
   testWidgets(
-    'member home shows Equipment supply when equipmentDistribution permission is granted',
+    'member home shows Equipment when equipmentDistribution permission is granted',
     (tester) async {
       await _pumpHome(tester, 'member', canAccessEquipmentDistribution: true);
 
-      expect(find.text('Equipment supply'), findsOneWidget);
+      expect(find.text('Equipment'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'member home shows both Equipment and Equipment supply when both are granted',
+    'member home shows single Equipment action when both permissions are granted',
     (tester) async {
       await _pumpHome(
         tester,
@@ -559,7 +567,7 @@ void main() {
       );
 
       expect(find.text('Equipment'), findsOneWidget);
-      expect(find.text('Equipment supply'), findsOneWidget);
+      expect(find.text('Equipment supply'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -574,4 +582,16 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('admin sidebar opens and shows More tools group', (tester) async {
+    await _pumpHome(tester, 'admin');
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('More tools'), findsOneWidget);
+    expect(find.text('Staff Management'), findsOneWidget);
+    expect(find.text('Patient Enquiries'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

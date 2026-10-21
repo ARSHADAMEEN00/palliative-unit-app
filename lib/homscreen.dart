@@ -56,7 +56,6 @@ import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/unit_brand_avatar.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_assessment_visit_picker_screen.dart';
-import 'package:oruma_app/features/visit_assessment/data/visit_assessment_service.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/widgets/volunteer_removed_unit_request_card.dart';
 
@@ -103,7 +102,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _importantRequestsLoading = false;
   int? _patientCount;
   int _newPatientCountThisWeek = 0;
-  int? _assessmentReviewCount;
   int? _upcomingHomeVisitCount;
   int _todayHomeVisitCount = 0;
   DateTime? _nextHomeVisitDate;
@@ -351,24 +349,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       );
     }
 
-    if (auth.canAccessNHC) {
-      futures.add(
-        VisitAssessmentService.getAssessments()
-            .then((assessments) {
-              if (!mounted) return;
-              setState(() {
-                _assessmentReviewCount = assessments
-                    .where(
-                      (assessment) =>
-                          assessment.status != 'submitted' &&
-                          !assessment.isComplete,
-                    )
-                    .length;
-              });
-            })
-            .catchError((_) {}),
-      );
-    }
 
     if (auth.canAccessHomeVisits) {
       futures.add(
@@ -2196,7 +2176,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  'Verify ${auth.userEmail ?? 'your email address'} to secure your account and submit enquiries.',
+                  auth.isStaff
+                      ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your staff account.'
+                      : auth.isMember
+                      ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your member account.'
+                      : 'Verify ${auth.userEmail ?? 'your email address'} to secure your account and submit enquiries.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                     height: 1.35,
@@ -2613,7 +2597,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   Widget _buildVolunteerApprovalCard(AuthService auth) {
-    if (auth.isVolunteerRemoved) {
+    if (auth.isVolunteerRemoved || auth.isRemovedFromUnit) {
       return VolunteerRemovedUnitRequestCard(
         onSubmitted: () => _bootstrapAccess(force: true),
       );
@@ -3956,7 +3940,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       Expanded(
                         child: _buildPublicImpactCard(
                           context,
-                          value: (story?.socialWorksPastYear != null &&
+                          value:
+                              (story?.socialWorksPastYear != null &&
                                   story!.socialWorksPastYear > 0)
                               ? story.socialWorksPastYear
                               : 340,
@@ -3969,7 +3954,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       Expanded(
                         child: _buildPublicImpactCard(
                           context,
-                          value: (story?.homeVisitsPastYear != null &&
+                          value:
+                              (story?.homeVisitsPastYear != null &&
                                   story!.homeVisitsPastYear > 0)
                               ? story.homeVisitsPastYear
                               : 450,
@@ -4145,7 +4131,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHomeHeader(context, auth),
-                  if (auth.isVolunteer && !auth.isEmailVerified) ...[
+                  if (!auth.isAdmin && !auth.isEmailVerified) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildEmailVerificationCard(auth),
                   ],
@@ -4255,7 +4241,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       return actions;
     }
 
-    final needsReview = _assessmentReviewCount;
     final actions = <_HomeMetricAction>[];
     if (auth.canAccessPatients) {
       actions.add(patients);
@@ -4263,15 +4248,134 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     actions.add(
       _HomeMetricAction(
         title: 'Visit\nAssessment',
-        value: _formatMetric(needsReview),
-        subtitle: needsReview == 0 ? 'All reviewed' : 'need review',
+        value: '',
+        subtitle: 'Clinical records',
         icon: Icons.assignment_outlined,
         iconBackground: ModulePalettes.patients.iconBackground,
         iconColor: ModulePalettes.patients.primary,
         onTap: () => _openVisitAssessment(auth),
+        customContent: _buildVisitAssessmentIllustrationContent(),
       ),
     );
     return actions;
+  }
+
+  Widget _buildVisitAssessmentIllustrationContent() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Review',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _homeInk,
+                        fontSize: 15,
+                        height: 1.1,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 13,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              const Text(
+                'Clinical records',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _homeMuted,
+                  fontSize: 11,
+                  height: 1.1,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 4),
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFEBF3FF),
+                Color(0xFFD4E5FF),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.22),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const Icon(
+                Icons.assignment_turned_in_rounded,
+                size: 18,
+                color: Color(0xFF1D4ED8),
+              ),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.check,
+                      size: 7,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildQuickActions(BuildContext context, AuthService auth) {
@@ -4376,88 +4480,59 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     }
 
     add(
-      !auth.isMember && auth.canAccessHomeVisits,
+      auth.isAdmin || auth.isStaff || auth.canAccessHomeVisits,
       'Home visit',
       Icons.home_outlined,
       ModulePalettes.homeVisits,
       () => _openHomeVisits(auth),
     );
     add(
-      auth.canAccessSocialSupport,
-      'Social support',
-      Icons.favorite_border_rounded,
-      ModulePalettes.socialSupport,
-      _openSocialSupport,
-    );
-    add(
-      auth.canAccessEquipmentDistribution,
-      'Equipment supply',
-      Icons.medical_services_outlined,
+      auth.isAdmin ||
+          auth.isStaff ||
+          auth.canAccessEquipmentDistribution ||
+          auth.canAccessEquipment,
+      'Equipment',
+      Icons.inventory_2_outlined,
       ModulePalettes.equipmentSupply,
       _openEquipmentSupply,
     );
     add(
-      auth.canAccessEquipment,
-      'Equipment',
-      Icons.inventory_2_outlined,
-      ModulePalettes.equipmentSupply,
-      _openEquipmentInventory,
-    );
-    add(
-      auth.canAccessMedicineSupply,
-      'Medicine supply',
+      auth.isAdmin ||
+          auth.isStaff ||
+          auth.canAccessMedicineSupply ||
+          auth.canAccessMedicine,
+      'Medicine',
       Icons.medication_outlined,
       ModulePalettes.medicineSupply,
       _openMedicineSupply,
     );
     add(
-      auth.canAccessMedicineMaster || auth.canAccessMedicineStock,
-      'Medicine inventory',
-      Icons.medication_liquid_outlined,
-      ModulePalettes.medicineSupply,
-      _openMedicine,
-    );
-    add(
-      auth.canAccessNHC && !auth.isAdmin && !auth.isStaff,
-      'Visit assessment',
-      Icons.assignment_outlined,
-      ModulePalettes.patients,
-      () => _openVisitAssessment(auth),
-    );
-    add(
-      auth.canAccessVolunteers,
+      auth.isAdmin || auth.isStaff || auth.canAccessVolunteers,
       'Volunteers',
       Icons.volunteer_activism_outlined,
       ModulePalettes.volunteers,
       _openVolunteers,
     );
     add(
-      auth.canAccessReports,
-      'Reports',
-      Icons.bar_chart_rounded,
-      ModulePalettes.reports,
-      _openReports,
+      auth.isAdmin || auth.isStaff || auth.canAccessSocialSupport,
+      'Social support',
+      Icons.favorite_border_rounded,
+      ModulePalettes.socialSupport,
+      _openSocialSupport,
     );
     add(
-      auth.isAdmin,
-      'Staff management',
-      Icons.manage_accounts_outlined,
-      ModulePalettes.patients,
-      _openStaffManagement,
-    );
-    add(
-      auth.isAdmin,
-      'Patient enquiries',
+      auth.isAdmin || auth.isStaff || auth.canAccessPatients,
+      'Patient enquires',
       Icons.mark_email_unread_outlined,
       ModulePalettes.patients,
       _openPatientEnquiries,
     );
     add(
-      auth.canVolunteerRegisterPatient,
-      'Register patient',
-      Icons.person_add_alt_1_rounded,
-      ModulePalettes.patients,
-      _openVolunteerPatientRegister,
+      auth.isAdmin || auth.isStaff || auth.canAccessReports,
+      'Reports',
+      Icons.bar_chart_rounded,
+      ModulePalettes.reports,
+      _openReports,
     );
     return actions;
   }
@@ -4891,15 +4966,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  void _openEquipmentInventory() {
-    _openPage(
-      const ModuleTheme(
-        palette: ModulePalettes.equipmentSupply,
-        child: EquipmentListPage(),
-      ),
-      after: _loadActiveSupplies,
-    );
-  }
 
   void _openEquipmentSupply() {
     _openPage(
@@ -4911,14 +4977,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  void _openMedicine() {
-    _openPage(
-      const ModuleTheme(
-        palette: ModulePalettes.medicineSupply,
-        child: MedicineListPage(),
-      ),
-    );
-  }
 
   void _openMedicineSupply() {
     _openPage(
@@ -4944,9 +5002,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  void _openStaffManagement() {
-    _openPage(const ConfigPage(mode: ConfigPageMode.staff));
-  }
 
   void _openPatientEnquiries() {
     _openPage(const PatientEnquiryListPage());
@@ -5021,7 +5076,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Widget _buildLegacyHome(BuildContext context) {
     final auth = context.watch<AuthService>();
-    final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
+    final isPendingApproval =
+        auth.isRemovedFromUnit ||
+        (auth.isVolunteer && !auth.isVolunteerApproved);
     final maintenanceNotification = !auth.isAdmin || auth.isTrialUnit
         ? null
         : _visibleMaintenanceDueNotification();
@@ -5444,7 +5501,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     bool isCompact = false,
   }) {
     final textTheme = Theme.of(context).textTheme;
-    final isPendingApproval = auth.isVolunteer && !auth.isVolunteerApproved;
+    final isPendingApproval =
+        auth.isRemovedFromUnit ||
+        (auth.isVolunteer && !auth.isVolunteerApproved);
     final compactVolunteer = auth.isVolunteer;
     final compactHeader = compactVolunteer || isCompact;
     final canOpenOurStory =
@@ -5542,7 +5601,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             child: SizedBox(
               width: double.infinity,
               child: Text(
-                auth.unitName,
+                auth.isRemovedFromUnit
+                    ? 'No Care Unit Assigned'
+                    : auth.unitName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.outfit(
@@ -6116,10 +6177,18 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final drawerWidth = MediaQuery.sizeOf(context).width > 520
         ? 360.0
         : MediaQuery.sizeOf(context).width * 0.88;
+    final hasMoreTools =
+        auth.isAdmin ||
+        auth.canAccessPatients ||
+        auth.canAccessHomeVisits ||
+        auth.canAccessNHC ||
+        auth.canAccessReports ||
+        auth.canAccessEquipmentDistribution ||
+        auth.canAccessMedicineSupply;
 
     return Drawer(
       width: drawerWidth,
-      backgroundColor: AppColors.surface,
+      backgroundColor: _homeBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.horizontal(
           right: Radius.circular(AppRadius.sheetValue),
@@ -6128,21 +6197,28 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       child: SafeArea(
         child: Column(
           children: [
-            Padding(
+            Container(
+              width: double.infinity,
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.lg,
                 AppSpacing.sm,
-                AppSpacing.md,
+                AppSpacing.lg,
+              ),
+              decoration: const BoxDecoration(
+                color: _homeBackground,
               ),
               child: Row(
                 children: [
                   UnitBrandAvatar(
-                    size: 56,
+                    size: 52,
                     preferAppIcon: true,
-                    backgroundColor: AppColors.primaryLight,
-                    iconColor: AppColors.primary,
-                    border: Border.all(color: AppColors.border),
+                    backgroundColor: AppColors.surface,
+                    iconColor: _homeInk,
+                    border: Border.all(
+                      color: AppColors.surface.withValues(alpha: 0.9),
+                      width: 2,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -6150,11 +6226,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Hello,',
-                          style: Theme.of(context).textTheme.titleMedium
+                          'CARE MENU',
+                          style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
-                                color: AppColors.text,
-                                fontWeight: FontWeight.w700,
+                                color: _homeMuted,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
                               ),
                         ),
                         const SizedBox(height: AppSpacing.xxs),
@@ -6162,70 +6239,69 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                           userName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w500,
+                          style:
+                              GoogleFonts.outfit(
+                                color: _homeInk,
+                                fontSize: 20,
+                                height: 1.05,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                              ).copyWith(
+                                fontFamilyFallback: const ['NotoSansMalayalam'],
                               ),
                         ),
+                        const SizedBox(height: AppSpacing.xxs),
                         Text(
-                          userDetail,
+                          '${_profileRoleLabel(auth.role)} · $userDetail',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(color: AppColors.textMuted),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: _homeMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Close menu',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                    color: AppColors.textMuted,
+                  Material(
+                    color: AppColors.surface.withValues(alpha: 0.88),
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: 'Close menu',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                      color: _homeInk,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
                   AppSpacing.sm,
+                  AppSpacing.md,
+                  AppSpacing.md,
                 ),
                 children: [
+                  // Daily work — compact items, no section title
                   _buildDrawerItem(
                     context,
                     icon: Icons.home_outlined,
                     title: "Dashboard",
                     onTap: () => Navigator.pop(context),
                     isSelected: true,
+                    compact: true,
                   ),
-                  if (auth.isAdmin)
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.manage_accounts_outlined,
-                      title: 'Staff Management',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const ConfigPage(mode: ConfigPageMode.staff),
-                          ),
-                        );
-                      },
-                    ),
                   if (auth.canAccessPatients)
                     _buildDrawerItem(
                       context,
                       icon: Icons.people_outline_rounded,
                       title: "Patients",
                       color: ModulePalettes.patients.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6239,61 +6315,53 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.isAdmin)
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.mark_email_unread_outlined,
-                      title: "Patient Enquiries",
-                      color: ModulePalettes.patients.primary,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _openPatientEnquiries();
-                      },
-                    ),
                   if (auth.canVolunteerRegisterPatient)
                     _buildDrawerItem(
                       context,
                       icon: Icons.person_add_alt_1_rounded,
                       title: "Register Patient",
                       color: ModulePalettes.patients.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         _openVolunteerPatientRegister();
                       },
                     ),
-                  if (auth.canAccessPatients)
+                  if (auth.canAccessEquipment)
                     _buildDrawerItem(
                       context,
-                      icon: Icons.person_off_outlined,
-                      title: "Passed Away Patients",
-                      color: ModulePalettes.patients.primary,
+                      icon: Icons.inventory_2_outlined,
+                      title: "Equipment",
+                      color: ModulePalettes.equipmentSupply.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const ModuleTheme(
-                              palette: ModulePalettes.patients,
-                              child: DeceasedPatientListPage(),
+                              palette: ModulePalettes.equipmentSupply,
+                              child: EquipmentListPage(),
                             ),
                           ),
                         );
                       },
                     ),
-                  if (auth.canAccessHomeVisits)
+                  if (auth.canAccessMedicineMaster)
                     _buildDrawerItem(
                       context,
-                      icon: Icons.home_work_outlined,
-                      title: "Home Visits",
-                      color: ModulePalettes.homeVisits.primary,
+                      icon: Icons.medication_liquid_outlined,
+                      title: "Medicine",
+                      color: ModulePalettes.medicineSupply.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const ModuleTheme(
-                              palette: ModulePalettes.homeVisits,
-                              child: HomeVisitListPage(),
+                              palette: ModulePalettes.medicineSupply,
+                              child: MedicineListPage(),
                             ),
                           ),
                         );
@@ -6305,6 +6373,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       icon: Icons.food_bank_outlined,
                       title: "Social Support",
                       color: ModulePalettes.socialSupport.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6324,6 +6393,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       icon: Icons.volunteer_activism_outlined,
                       title: "Volunteers",
                       color: ModulePalettes.volunteers.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6337,14 +6407,105 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.canAccessReports)
-                    _buildDrawerSectionLabel('REPORTS'),
+                  // More tools
+                  if (hasMoreTools) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildDrawerSectionLabel('More tools'),
+                  ],
+                  if (auth.isAdmin)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.manage_accounts_outlined,
+                      title: 'Staff Management',
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ConfigPage(mode: ConfigPageMode.staff),
+                          ),
+                        );
+                      },
+                    ),
+                  if (auth.isAdmin)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.mark_email_unread_outlined,
+                      title: "Patient Enquiries",
+                      color: ModulePalettes.patients.primary,
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _openPatientEnquiries();
+                      },
+                    ),
+                  if (auth.canAccessPatients)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.person_off_outlined,
+                      title: "Passed Away Patients",
+                      color: ModulePalettes.patients.primary,
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ModuleTheme(
+                              palette: ModulePalettes.patients,
+                              child: DeceasedPatientListPage(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (auth.canAccessHomeVisits)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.home_work_outlined,
+                      title: "Home Visits",
+                      color: ModulePalettes.homeVisits.primary,
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ModuleTheme(
+                              palette: ModulePalettes.homeVisits,
+                              child: HomeVisitListPage(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (auth.canAccessNHC)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.assignment_outlined,
+                      title: "Visit entry (NHC)",
+                      color: ModulePalettes.homeVisits.primary,
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const VisitAssessmentVisitPickerScreen(),
+                          ),
+                        );
+                      },
+                    ),
                   if (auth.canAccessReports)
                     _buildDrawerItem(
                       context,
                       icon: Icons.assessment_outlined,
                       title: 'Reports',
                       color: ModulePalettes.reports.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6358,35 +6519,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.canAccessEquipment ||
-                      auth.canAccessEquipmentDistribution ||
-                      auth.canAccessMedicine)
-                    _buildDrawerSectionLabel('INVENTORY'),
-                  if (auth.canAccessEquipment)
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.inventory_2_outlined,
-                      title: "Equipment Inventory",
-                      color: ModulePalettes.equipmentSupply.primary,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ModuleTheme(
-                              palette: ModulePalettes.equipmentSupply,
-                              child: EquipmentListPage(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                   if (auth.canAccessEquipmentDistribution)
                     _buildDrawerItem(
                       context,
                       icon: Icons.local_shipping_outlined,
-                      title: "Distributed",
+                      title: "Distributed Equipment",
                       color: ModulePalettes.equipmentSupply.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6406,6 +6545,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       icon: Icons.wheelchair_pickup_outlined,
                       title: "Supply Record",
                       color: ModulePalettes.equipmentSupply.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6419,31 +6559,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.canAccessMedicineMaster)
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.medication_liquid_outlined,
-                      title: "Medicine",
-                      color: ModulePalettes.medicineSupply.primary,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ModuleTheme(
-                              palette: ModulePalettes.medicineSupply,
-                              child: MedicineListPage(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                   if (auth.canAccessMedicineSupply)
                     _buildDrawerItem(
                       context,
                       icon: Icons.vaccines_outlined,
                       title: "Medicine Supply",
                       color: ModulePalettes.medicineSupply.primary,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6457,49 +6579,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.canAccessEquipmentDistribution)
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.wheelchair_pickup_outlined,
-                      title: "Equipments",
-                      color: ModulePalettes.equipmentSupply.primary,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ModuleTheme(
-                              palette: ModulePalettes.equipmentSupply,
-                              child: EquipmentSupplyListPage(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  if (auth.canAccessNHC)
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.assignment_outlined,
-                      title: "Visit entry (NHC)",
-                      color: ModulePalettes.homeVisits.primary,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const VisitAssessmentVisitPickerScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  if (auth.isAdmin) ...[
-                    _buildDrawerSectionLabel('REQUESTS'),
+                  if (auth.isAdmin)
                     _buildDrawerItem(
                       context,
                       icon: Icons.event_available_outlined,
                       title: 'Volunteer Requests',
                       color: AppColors.success,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6511,11 +6597,26 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                    _buildDrawerSectionLabel('SYSTEM'),
+                  // Setup
+                  const SizedBox(height: AppSpacing.sm),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.person_outline_rounded,
+                    title: 'Profile',
+                    compact: true,
+                    onTap: () {
+                      Navigator.pop(context);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _showUserProfile(this.context);
+                      });
+                    },
+                  ),
+                  if (auth.isAdmin) ...[
                     _buildDrawerItem(
                       context,
                       icon: Icons.settings_outlined,
                       title: "System Config",
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6531,6 +6632,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       context,
                       icon: Icons.auto_stories_outlined,
                       title: "About Our Unit",
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -6554,11 +6656,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 AppSpacing.md,
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildDrawerItem(
                     context,
                     icon: Icons.privacy_tip_outlined,
                     title: 'Privacy & Data Use',
+                    compact: true,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.of(context).push(
@@ -6577,6 +6681,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       icon: Icons.delete_forever_outlined,
                       title: "Delete Account",
                       color: AppColors.danger,
+                      compact: true,
                       onTap: () {
                         Navigator.pop(context);
                         _confirmDeleteAccount(context);
@@ -6587,6 +6692,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     icon: Icons.logout_rounded,
                     title: "Logout",
                     color: AppColors.danger,
+                    compact: true,
                     onTap: () {
                       auth.logout();
                       Navigator.of(context).pushAndRemoveUntil(
@@ -6597,28 +6703,36 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       );
                     },
                   ),
-                  InkWell(
-                    onTap: () async {
-                      final Uri url = Uri.parse('https://ameen.osperb.com');
-                      if (!await launchUrl(
-                        url,
-                        mode: LaunchMode.externalApplication,
-                      )) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Could not launch website'),
-                            ),
-                          );
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: InkWell(
+                      borderRadius: AppRadius.xs,
+                      onTap: () async {
+                        final Uri url = Uri.parse('https://ameen.osperb.com');
+                        if (!await launchUrl(
+                          url,
+                          mode: LaunchMode.externalApplication,
+                        )) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not launch website'),
+                              ),
+                            );
+                          }
                         }
-                      }
-                    },
-                    child: Text(
-                      "All rights reserved by Palliative App",
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.textMuted,
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.xxs,
+                        ),
+                        child: Text(
+                          'All rights reserved by Palliative App',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: AppColors.textMuted),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xxs),
@@ -6641,16 +6755,17 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   Widget _buildDrawerSectionLabel(String label) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.xs,
+        AppSpacing.sm,
         AppSpacing.xs,
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: AppColors.textMuted,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: _homeMuted,
           fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -6662,33 +6777,76 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required String title,
     required VoidCallback onTap,
     bool isSelected = false,
+    bool compact = true,
     Color? color,
   }) {
-    final itemColor = color ?? AppColors.text;
+    final itemColor = color ?? _homeInk;
+    final foregroundColor = isSelected ? AppColors.textInverse : _homeInk;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+      padding: EdgeInsets.only(
+        bottom: compact ? AppSpacing.xxs : AppSpacing.xs,
+      ),
       child: Material(
-        color: isSelected ? AppColors.surface2 : Colors.transparent,
-        borderRadius: AppRadius.md,
-        child: ListTile(
-          minLeadingWidth: 32,
-          leading: Icon(
-            icon,
-            color: isSelected ? AppColors.primary : itemColor,
-            size: AppIcons.large,
-          ),
-          title: Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: AppColors.text,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
+        color: isSelected ? _homeInk : const Color(0xFFEFEFEA),
+        borderRadius: compact ? AppRadius.sm : AppRadius.md,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: onTap,
-          dense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xxs,
+          borderRadius: compact ? AppRadius.sm : AppRadius.md,
+          hoverColor: isSelected
+              ? Colors.white.withValues(alpha: 0.08)
+              : _homeHoverOverlay,
+          highlightColor: isSelected
+              ? Colors.white.withValues(alpha: 0.12)
+              : _homePressedOverlay,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: compact ? 6 : 10,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: compact ? 34 : 40,
+                  height: compact ? 34 : 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.14)
+                        : AppColors.surface,
+                    borderRadius: compact ? AppRadius.xs : AppRadius.sm,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isSelected ? AppColors.textInverse : itemColor,
+                    size: compact ? AppIcons.normal : 21,
+                  ),
+                ),
+                SizedBox(width: compact ? 10 : AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: compact ? 13 : null,
+                      color: foregroundColor,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (!compact)
+                  Icon(
+                    isSelected
+                        ? Icons.check_rounded
+                        : Icons.chevron_right_rounded,
+                    color: isSelected
+                        ? AppColors.textInverse.withValues(alpha: 0.72)
+                        : AppColors.textMuted,
+                    size: AppIcons.normal,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -6705,6 +6863,7 @@ class _HomeMetricAction {
     required this.iconBackground,
     required this.iconColor,
     required this.onTap,
+    this.customContent,
   });
 
   final String title;
@@ -6714,6 +6873,7 @@ class _HomeMetricAction {
   final Color iconBackground;
   final Color iconColor;
   final VoidCallback onTap;
+  final Widget? customContent;
 }
 
 class _HomeQuickAction {
@@ -6799,29 +6959,33 @@ class _HomeMetricCard extends StatelessWidget {
                     ],
                   ),
                   const Spacer(),
-                  Text(
-                    action.value,
-                    maxLines: 1,
-                    style: TextStyle(
-                      color: _homeInk,
-                      fontSize: action.value.length > 3 ? 25 : 32,
-                      height: 0.95,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -1,
+                  if (action.customContent != null)
+                    action.customContent!
+                  else ...[
+                    Text(
+                      action.value,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: _homeInk,
+                        fontSize: action.value.length > 3 ? 25 : 32,
+                        height: 0.95,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -1,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    action.subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _homeMuted,
-                      fontSize: 13,
-                      height: 1,
-                      fontWeight: FontWeight.w400,
+                    const SizedBox(height: 5),
+                    Text(
+                      action.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _homeMuted,
+                        fontSize: 13,
+                        height: 1,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
