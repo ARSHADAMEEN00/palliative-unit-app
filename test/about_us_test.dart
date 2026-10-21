@@ -33,6 +33,7 @@ void main() {
           'patient_count': '120',
           'unit_name': 'ഒരുമ പാലിയേറ്റീവ് കെയർ',
         },
+        'impact': {'socialWorksPastYear': 340, 'homeVisitsPastYear': 450},
       };
 
       final data = AboutUsData.fromJson(json);
@@ -50,6 +51,8 @@ void main() {
       expect(data.availableTags.first.tag, equals('{{patient_count}}'));
       expect(data.availableTags.first.currentValue, equals('120'));
       expect(data.tagValues['patient_count'], equals('120'));
+      expect(data.socialWorksPastYear, 340);
+      expect(data.homeVisitsPastYear, 450);
     });
 
     test('AboutUsData handles empty state properly', () {

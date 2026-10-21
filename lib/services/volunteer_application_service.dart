@@ -31,6 +31,18 @@ class PublicUnit {
   );
 }
 
+class VolunteerApplicationResult {
+  const VolunteerApplicationResult({
+    required this.email,
+    required this.expiresInMinutes,
+    required this.resendAfterSeconds,
+  });
+
+  final String email;
+  final int expiresInMinutes;
+  final int resendAfterSeconds;
+}
+
 class VolunteerApplicationService {
   VolunteerApplicationService._();
 
@@ -48,7 +60,7 @@ class VolunteerApplicationService {
     throw Exception(result.error ?? 'Failed to load palliative care units');
   }
 
-  static Future<void> submit({
+  static Future<VolunteerApplicationResult> submit({
     required String unitId,
     required String name,
     required String email,
@@ -78,6 +90,44 @@ class VolunteerApplicationService {
     if (!result.isSuccess) {
       throw Exception(result.error ?? 'Failed to submit volunteer application');
     }
+    final application = result.data?['application'];
+    final data = application is Map
+        ? Map<String, dynamic>.from(application)
+        : <String, dynamic>{};
+    return VolunteerApplicationResult(
+      email: data['email']?.toString().trim().isNotEmpty == true
+          ? data['email'].toString().trim()
+          : email.trim(),
+      expiresInMinutes:
+          int.tryParse(data['expiresInMinutes']?.toString() ?? '') ?? 10,
+      resendAfterSeconds:
+          int.tryParse(data['resendAfterSeconds']?.toString() ?? '') ?? 60,
+    );
+  }
+
+  static Future<void> verifyEmail({
+    required String email,
+    required String otp,
+  }) async {
+    final result = await ApiService.post<Map<String, dynamic>>(
+      ApiConfig.verifyEmailEndpoint,
+      body: {'email': email.trim(), 'otp': otp.trim()},
+    );
+    if (!result.isSuccess) {
+      throw Exception(result.error ?? 'Failed to verify email address');
+    }
+  }
+
+  static Future<int> resendEmailVerification({required String email}) async {
+    final result = await ApiService.post<Map<String, dynamic>>(
+      ApiConfig.resendEmailVerificationEndpoint,
+      body: {'email': email.trim()},
+    );
+    if (!result.isSuccess) {
+      throw Exception(result.error ?? 'Failed to resend verification email');
+    }
+    return int.tryParse(result.data?['resendAfterSeconds']?.toString() ?? '') ??
+        60;
   }
 
   static Future<void> requestUnit({

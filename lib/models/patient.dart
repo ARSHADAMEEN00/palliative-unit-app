@@ -9,6 +9,7 @@ class Patient {
   final String address;
   final String phone;
   final String? phone2;
+  final String? caregiverName;
   final int age;
   final String place;
   final String village;
@@ -35,6 +36,7 @@ class Patient {
     required this.address,
     this.phone = '',
     this.phone2,
+    this.caregiverName,
     required this.age,
     required this.place,
     required this.village,
@@ -66,6 +68,7 @@ class Patient {
       address: json['address']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       phone2: json['phone2']?.toString(),
+      caregiverName: json['caregiverName']?.toString(),
       age: (json['age'] is int)
           ? json['age'] as int
           : int.tryParse(json['age']?.toString() ?? '0') ?? 0,
@@ -111,6 +114,7 @@ class Patient {
       'address': address,
       'phone': phone,
       'phone2': phone2,
+      'caregiverName': caregiverName,
       'age': age,
       'place': place,
       'village': village,
@@ -137,6 +141,7 @@ class Patient {
     String? address,
     String? phone,
     String? phone2,
+    String? caregiverName,
     int? age,
     String? place,
     String? village,
@@ -160,6 +165,7 @@ class Patient {
       address: address ?? this.address,
       phone: phone ?? this.phone,
       phone2: phone2 ?? this.phone2,
+      caregiverName: caregiverName ?? this.caregiverName,
       age: age ?? this.age,
       place: place ?? this.place,
       village: village ?? this.village,

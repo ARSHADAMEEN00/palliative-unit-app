@@ -42,6 +42,8 @@ class _patientrigisterState extends State<patientrigister> {
 
   // Controllers
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController caregiverNameController =
+      TextEditingController();
   final TextEditingController relationController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
@@ -80,6 +82,7 @@ class _patientrigisterState extends State<patientrigister> {
         widget.patient!.name,
       );
       relationController.text = widget.patient!.relation;
+      caregiverNameController.text = widget.patient!.caregiverName ?? '';
       addressController.text = widget.patient!.address;
       ageController.text = widget.patient!.age.toString();
       placeController.text = widget.patient!.place;
@@ -197,6 +200,7 @@ class _patientrigisterState extends State<patientrigister> {
   @override
   void dispose() {
     nameController.dispose();
+    caregiverNameController.dispose();
     relationController.dispose();
     addressController.dispose();
     ageController.dispose();
@@ -866,9 +870,21 @@ class _patientrigisterState extends State<patientrigister> {
 
                   const SizedBox(height: AppSpacing.md),
                   TextFormField(
+                    controller: caregiverNameController,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: [
+                      CapitalizeWordsInputFormatter(),
+                    ],
+                    decoration: _buildInputDecoration(
+                      "Caregiver Name",
+                      Icons.badge_outlined,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
                     controller: relationController,
                     decoration: _buildInputDecoration(
-                      "Caregiver/Relation",
+                      "Caregiver Relation",
                       Icons.people_outline,
                     ),
                     validator: (val) =>
@@ -1252,6 +1268,9 @@ class _patientrigisterState extends State<patientrigister> {
           phone2: phone2Controller.text.trim().isEmpty
               ? null
               : phone2Controller.text.trim(),
+          caregiverName: caregiverNameController.text.trim().isEmpty
+              ? null
+              : caregiverNameController.text.trim(),
           age: int.parse(ageController.text),
           place: placeController.text,
           village: _selectedVillage!,

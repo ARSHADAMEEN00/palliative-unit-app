@@ -334,6 +334,39 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    if (!auth.canAccessPatients) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Patient Details'),
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+        ),
+        backgroundColor: AppColors.background,
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline_rounded, size: 48, color: AppColors.danger),
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'Access Denied',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  'You do not have permission to view patient details.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final canShowMenu =
         auth.canDelete || (auth.canEdit && !_currentPatient.isDead);
     final visibleTabs = _visiblePatientTabs(auth);
@@ -827,6 +860,12 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   'Phone',
                   _value(_currentPatient.phone),
                   trailing: auth.canCall ? _phoneButton(_currentPatient.phone) : null,
+                ),
+              if (_currentPatient.caregiverName?.trim().isNotEmpty == true)
+                _infoRow(
+                  Icons.badge_outlined,
+                  'Caregiver name',
+                  _value(_currentPatient.caregiverName),
                 ),
               _infoRow(
                 Icons.family_restroom_outlined,

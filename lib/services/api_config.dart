@@ -39,8 +39,31 @@ class ApiConfig {
   static String get unitRegistrationEnquiryEndpoint =>
       '$baseUrl/public/unit-enquiries';
   static String get publicUnitsEndpoint => '$baseUrl/public/units';
+  static String publicUnitConfigEndpoint(String unitId) =>
+      '$baseUrl/public/units/$unitId/config';
+  static String get publicPatientEnquiriesEndpoint =>
+      '$baseUrl/public/patient-enquiries';
+  static String get patientEnquiriesEndpoint => '$baseUrl/patient-enquiries';
+  static String get patientEnquiriesCountEndpoint =>
+      '$baseUrl/patient-enquiries/count';
+  static String patientEnquiryStatusEndpoint(String id) =>
+      '$baseUrl/patient-enquiries/$id/status';
+  static String patientEnquiryDetailEndpoint(String id) =>
+      '$baseUrl/patient-enquiries/$id';
   static String get volunteerApplicationEndpoint =>
       '$baseUrl/public/volunteer-applications';
+  static String get publicUserRegistrationEndpoint =>
+      '$baseUrl/public/user-registrations';
+  static String get passwordResetRequestEndpoint =>
+      '$baseUrl/public/password-reset/request';
+  static String get passwordResetVerifyEndpoint =>
+      '$baseUrl/public/password-reset/verify';
+  static String get passwordResetCompleteEndpoint =>
+      '$baseUrl/public/password-reset/complete';
+  static String get verifyEmailEndpoint =>
+      '$baseUrl/public/email-verification/verify';
+  static String get resendEmailVerificationEndpoint =>
+      '$baseUrl/public/email-verification/resend';
   static String get requestUnitEndpoint => '$baseUrl/auth/request-unit';
   static String get volunteerActivityEndpoint =>
       '$v2VolunteersEndpoint/me/activity';

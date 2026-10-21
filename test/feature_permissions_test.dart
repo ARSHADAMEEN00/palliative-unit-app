@@ -37,24 +37,33 @@ void main() {
       }
     });
 
-    test('volunteers are a required module for members, volunteers, and staff', () {
-      expect(
-        FeatureAccessPolicy.isRequiredForRole('member', AppFeature.volunteers),
-        isTrue,
-      );
-      expect(
-        FeatureAccessPolicy.isRequiredForRole('volunteer', AppFeature.volunteers),
-        isTrue,
-      );
-      expect(
-        FeatureAccessPolicy.isRequiredForRole('staff', AppFeature.volunteers),
-        isTrue,
-      );
-      expect(
-        FeatureAccessPolicy.isRequiredForRole('member', AppFeature.patients),
-        isFalse,
-      );
-    });
+    test(
+      'volunteers are a required module for members, volunteers, and staff',
+      () {
+        expect(
+          FeatureAccessPolicy.isRequiredForRole(
+            'member',
+            AppFeature.volunteers,
+          ),
+          isTrue,
+        );
+        expect(
+          FeatureAccessPolicy.isRequiredForRole(
+            'volunteer',
+            AppFeature.volunteers,
+          ),
+          isTrue,
+        );
+        expect(
+          FeatureAccessPolicy.isRequiredForRole('staff', AppFeature.volunteers),
+          isTrue,
+        );
+        expect(
+          FeatureAccessPolicy.isRequiredForRole('member', AppFeature.patients),
+          isFalse,
+        );
+      },
+    );
 
     test('volunteers default to core care modules only', () {
       for (final featureId in [
@@ -72,6 +81,26 @@ void main() {
         AppFeature.advancedReports,
       ]) {
         expect(FeatureAccessPolicy.roleAllows('volunteer', featureId), isFalse);
+      }
+    });
+
+    test('public users can only use the patient enquiry module', () {
+      expect(
+        FeatureAccessPolicy.roleAllows('public', AppFeature.patients),
+        isTrue,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('public', AppFeature.patients),
+        isTrue,
+      );
+      for (final featureId in [
+        AppFeature.homeVisits,
+        AppFeature.volunteers,
+        AppFeature.socialSupport,
+        AppFeature.equipment,
+        AppFeature.advancedReports,
+      ]) {
+        expect(FeatureAccessPolicy.roleAllows('public', featureId), isFalse);
       }
     });
 

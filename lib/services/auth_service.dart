@@ -7,6 +7,42 @@ import 'package:oruma_app/services/app_cache.dart';
 import 'package:oruma_app/services/credential_store.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 
+class PasswordChangeResult {
+  const PasswordChangeResult._({
+    required this.isSuccess,
+    required this.message,
+  });
+
+  const PasswordChangeResult.success([String message = 'Password updated'])
+    : this._(isSuccess: true, message: message);
+
+  const PasswordChangeResult.failure(String message)
+    : this._(isSuccess: false, message: message);
+
+  final bool isSuccess;
+  final String message;
+}
+
+class UsernameUpdateResult {
+  const UsernameUpdateResult._({
+    required this.isSuccess,
+    required this.message,
+    this.username,
+  });
+
+  const UsernameUpdateResult.success({
+    required String message,
+    required String username,
+  }) : this._(isSuccess: true, message: message, username: username);
+
+  const UsernameUpdateResult.failure(String message)
+    : this._(isSuccess: false, message: message);
+
+  final bool isSuccess;
+  final String message;
+  final String? username;
+}
+
 class AuthService with ChangeNotifier {
   // Use ApiConfig to get the correct base URL
   String get _baseUrl => '${ApiConfig.baseUrl}/auth';
@@ -43,6 +79,7 @@ class AuthService with ChangeNotifier {
   bool get isStaff => _role == 'staff';
   bool get isMember => _role == 'member';
   bool get isVolunteer => _role == 'volunteer';
+  bool get isPublicUser => _role == 'public';
 
   String get approvalStatus =>
       _cleanString(_user?['approvalStatus'])?.toLowerCase() ?? 'approved';
@@ -50,6 +87,17 @@ class AuthService with ChangeNotifier {
   bool get isVolunteerPending => isVolunteer && approvalStatus == 'pending';
   bool get isVolunteerDeclined => isVolunteer && approvalStatus == 'declined';
   bool get isVolunteerRemoved => isVolunteer && approvalStatus == 'removed';
+  bool get isEmailVerified =>
+      (!isVolunteer && !isPublicUser) || _user?['emailVerified'] == true;
+  bool get canVolunteerRegisterPatient =>
+      canAccessPatients &&
+      isVolunteer &&
+      isVolunteerApproved &&
+      (_user?['emailVerified'] == true);
+  bool get canSubmitPatientEnquiry =>
+      canAccessPatients &&
+      isEmailVerified &&
+      ((isVolunteer && isVolunteerApproved) || isPublicUser);
   String? get volunteerId => _cleanString(_user?['volunteerId']);
   String? get userPhone => _cleanString(_user?['phone']);
   String? get userPhone2 => _cleanString(_user?['phone2']);
@@ -57,6 +105,9 @@ class AuthService with ChangeNotifier {
   String? get userWard => _cleanString(_user?['ward']);
   String? get userPlace => _cleanString(_user?['place']);
   String? get userAddress => _cleanString(_user?['address']);
+  String? get userId => _cleanString(_user?['id'] ?? _user?['_id']);
+  String? get userEmail => _cleanString(_user?['email']);
+  String? get username => _cleanString(_user?['username']);
 
   Set<String>? get permittedModuleIds {
     final value = _user?['permittedModuleIds'];
@@ -68,10 +119,12 @@ class AuthService with ChangeNotifier {
       _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canEdit => _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canDelete => _role == 'admin';
-  bool get canCall => !isVolunteer;
-  bool get canViewContactNumbers => !isVolunteer;
-  bool get canViewPatientDetails => !isVolunteer || isVolunteerApproved;
-  bool get canViewHomeVisitDetails => !isVolunteer || isVolunteerApproved;
+  bool get canCall => !isVolunteer && !isPublicUser;
+  bool get canViewContactNumbers => !isVolunteer && !isPublicUser;
+  bool get canViewPatientDetails =>
+      !isPublicUser && (!isVolunteer || isVolunteerApproved);
+  bool get canViewHomeVisitDetails =>
+      !isPublicUser && (!isVolunteer || isVolunteerApproved);
   bool get canAccessPatients => hasFeature(AppFeature.patients);
   bool get canAccessHomeVisits => hasFeature(AppFeature.homeVisits);
   bool get canAccessVolunteers => hasFeature(AppFeature.volunteers);
@@ -104,6 +157,7 @@ class AuthService with ChangeNotifier {
 
   bool hasFeature(String featureId) {
     if (_role == 'superadmin') return true;
+    if (isPublicUser) return featureId == AppFeature.patients;
     if (!isVolunteerApproved) return false;
     final explicitModules = permittedModuleIds;
     final permissionModule = _permissionModuleForFeature(featureId);
@@ -167,12 +221,18 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<bool> login(String identifier, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+        body: jsonEncode({
+          // Sending both fields keeps sign-in compatible during a staggered
+          // mobile/backend rollout.
+          'email': identifier,
+          'identifier': identifier,
+          'password': password,
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -220,6 +280,95 @@ class AuthService with ChangeNotifier {
       if (kDebugMode) debugPrint('Login error: $e');
       _loginErrorMessage = 'Unable to connect. Please try again.';
       return false;
+    }
+  }
+
+  Future<UsernameUpdateResult> updateUsername(String username) async {
+    if (_token == null) {
+      return const UsernameUpdateResult.failure(
+        'Your session has expired. Please sign in again.',
+      );
+    }
+
+    try {
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/username'),
+        headers: headers,
+        body: jsonEncode({'username': username}),
+      );
+      Map<String, dynamic> data = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) data = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+
+      if (response.statusCode == 200) {
+        final savedUsername = _cleanString(data['username']) ?? username;
+        _user?['username'] = savedUsername;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          if (_user != null) {
+            await prefs.setString(_cachedUserKey, jsonEncode(_user));
+          }
+        } catch (_) {}
+        notifyListeners();
+        return UsernameUpdateResult.success(
+          message:
+              data['message']?.toString() ?? 'Username updated successfully',
+          username: savedUsername,
+        );
+      }
+
+      return UsernameUpdateResult.failure(
+        data['error']?.toString() ?? 'Unable to update username',
+      );
+    } catch (error) {
+      if (kDebugMode) debugPrint('Username update error: $error');
+      return const UsernameUpdateResult.failure(
+        'Unable to connect. Please try again.',
+      );
+    }
+  }
+
+  Future<PasswordChangeResult> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_token == null) {
+      return const PasswordChangeResult.failure(
+        'Your session has expired. Please sign in again.',
+      );
+    }
+
+    try {
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/password'),
+        headers: headers,
+        body: jsonEncode({
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        }),
+      );
+      Map<String, dynamic> data = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) data = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+
+      if (response.statusCode == 200) {
+        return PasswordChangeResult.success(
+          data['message']?.toString() ?? 'Password updated successfully',
+        );
+      }
+
+      return PasswordChangeResult.failure(
+        data['error']?.toString() ?? 'Unable to update password',
+      );
+    } catch (error) {
+      if (kDebugMode) debugPrint('Password change error: $error');
+      return const PasswordChangeResult.failure(
+        'Unable to connect. Please try again.',
+      );
     }
   }
 
@@ -451,7 +600,7 @@ class AuthService with ChangeNotifier {
       AppCache.clear();
     } else {
       _loginErrorMessage =
-          data['error']?.toString() ?? 'Invalid email or password';
+          data['error']?.toString() ?? 'Invalid email, username, or password';
     }
 
     notifyListeners();

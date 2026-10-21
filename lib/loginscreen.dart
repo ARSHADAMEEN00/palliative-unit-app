@@ -7,6 +7,8 @@ import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/loading_screen.dart';
 import 'package:oruma_app/widgets/unit_registration_dialog.dart';
 import 'package:oruma_app/volunteer_registration_page.dart';
+import 'package:oruma_app/public_user_registration_page.dart';
+import 'package:oruma_app/forgot_password_page.dart';
 import 'package:provider/provider.dart';
 
 class Loginscreen extends StatefulWidget {
@@ -31,12 +33,12 @@ class _LoginscreenState extends State<Loginscreen> {
   }
 
   Future<void> _handleLogin() async {
-    final email = _emailController.text.trim();
+    final identifier = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
+    if (identifier.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage = 'Enter your email and password to continue.';
+        _errorMessage = 'Enter your email or username and password.';
       });
       return;
     }
@@ -47,7 +49,7 @@ class _LoginscreenState extends State<Loginscreen> {
     });
 
     final authService = context.read<AuthService>();
-    final success = await authService.login(email, password);
+    final success = await authService.login(identifier, password);
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -69,7 +71,8 @@ class _LoginscreenState extends State<Loginscreen> {
       if (authService.isAccessBlocked) return;
       setState(() {
         _errorMessage =
-            authService.loginErrorMessage ?? 'Invalid email or password.';
+            authService.loginErrorMessage ??
+            'Invalid email, username, or password.';
       });
     }
   }
@@ -197,37 +200,6 @@ class _LoginCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xxs,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.verified_user_outlined,
-                    size: 14,
-                    color: AppColors.primary,
-                  ),
-                  SizedBox(width: AppSpacing.xxs),
-                  Text(
-                    'SECURE ACCESS',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
             Text(
               'Welcome back',
               style: textTheme.headlineSmall?.copyWith(
@@ -237,7 +209,7 @@ class _LoginCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Sign in to continue to your care workspace.',
+              'Sign in to your care workspace, volunteer portal, or user account.',
               style: textTheme.bodySmall?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -250,14 +222,14 @@ class _LoginCard extends StatelessWidget {
             TextField(
               controller: emailController,
               style: const TextStyle(fontSize: 14, color: AppColors.text),
-              keyboardType: TextInputType.emailAddress,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.username],
               enabled: !isLoading,
               decoration: const InputDecoration(
-                labelText: 'Email address',
-                hintText: 'name@example.com',
-                prefixIcon: Icon(Icons.mail_outline_rounded, size: 20),
+                labelText: 'Email or username',
+                hintText: 'name@example.com or username',
+                prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -288,7 +260,23 @@ class _LoginCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: isLoading
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordPage(),
+                        ),
+                      ),
+                child: const Text(
+                  'Forgot password?',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
             AppPrimaryButton(
               label: 'Sign in',
               icon: Icons.arrow_forward_rounded,
@@ -318,10 +306,23 @@ class _LoginCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final actions = [
-                  _RegistrationAction(
+            _RegistrationAction(
+              icon: Icons.people_alt_outlined,
+              title: 'User',
+              subtitle: 'View our story and send a patient enquiry',
+              onTap: isLoading
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PublicUserRegistrationPage(),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: _RegistrationAction(
                     icon: Icons.volunteer_activism_outlined,
                     title: 'Volunteer',
                     subtitle: 'Join a care unit',
@@ -329,12 +330,14 @@ class _LoginCard extends StatelessWidget {
                         ? null
                         : () => Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  const VolunteerRegistrationPage(),
+                              builder: (_) => const VolunteerRegistrationPage(),
                             ),
                           ),
                   ),
-                  _RegistrationAction(
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _RegistrationAction(
                     icon: Icons.domain_add_outlined,
                     title: 'New unit',
                     subtitle: 'Register a centre',
@@ -342,31 +345,12 @@ class _LoginCard extends StatelessWidget {
                         ? null
                         : () => showDialog(
                             context: context,
-                            builder: (context) =>
-                                const UnitRegistrationDialog(),
+                            builder: (_) => const UnitRegistrationDialog(),
                           ),
                   ),
-                ];
-                if (constraints.maxWidth < 330) {
-                  return Column(
-                    children: [
-                      actions.first,
-                      const SizedBox(height: AppSpacing.sm),
-                      actions.last,
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(child: actions.first),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: actions.last),
-                  ],
-                );
-              },
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpacing.md),
-            const _SupportStrip(),
             const SizedBox(height: AppSpacing.sm),
             Center(
               child: TextButton.icon(
@@ -724,36 +708,3 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-class _SupportStrip extends StatelessWidget {
-  const _SupportStrip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: const BoxDecoration(
-        color: AppColors.surface1,
-        borderRadius: AppRadius.md,
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.support_agent_rounded,
-            size: AppIcons.normal,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              'Need access? Contact your unit administrator.',
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(color: AppColors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

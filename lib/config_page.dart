@@ -69,6 +69,7 @@ class _ConfigPageState extends State<ConfigPage>
   String _selectedStaffSection = 'staff';
   String _selectedPermissionRole = 'staff';
   final Set<String> _updatingStaffIds = <String>{};
+  final Set<String> _expandedStaffModuleCardIds = <String>{};
 
   bool _isLoadingConfig = true;
   bool _isLoadingStaff = true;
@@ -421,7 +422,7 @@ class _ConfigPageState extends State<ConfigPage>
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            const Expanded(child: Text('Delete staff account?')),
+            const Expanded(child: Text('Delete user account?')),
           ],
         ),
         content: Text(
@@ -443,7 +444,7 @@ class _ConfigPageState extends State<ConfigPage>
             onPressed: () => Navigator.pop(dialogContext, false),
           ),
           AppDangerButton(
-            label: 'Delete staff',
+            label: 'Delete user',
             icon: Icons.delete_outline_rounded,
             onPressed: () => Navigator.pop(dialogContext, true),
           ),
@@ -469,7 +470,7 @@ class _ConfigPageState extends State<ConfigPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Failed to delete staff: ${error.toString().replaceFirst('Exception: ', '')}',
+            'Failed to delete user: ${error.toString().replaceFirst('Exception: ', '')}',
           ),
           backgroundColor: AppColors.danger,
         ),
@@ -682,6 +683,7 @@ class _ConfigPageState extends State<ConfigPage>
     var selectedModules = <String>{..._modulesForRole('staff')};
     var obscurePassword = true;
     var isSubmitting = false;
+    var modulesExpanded = false;
     String? formError;
 
     try {
@@ -902,50 +904,128 @@ class _ConfigPageState extends State<ConfigPage>
                                     }),
                             ),
                             const SizedBox(height: AppSpacing.md),
-                            Text(
-                              'Permitted modules',
-                              style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(
-                                    color: AppColors.text,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                            InkWell(
+                              borderRadius: AppRadius.sm,
+                              onTap: () => setSheetState(
+                                () => modulesExpanded = !modulesExpanded,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                  vertical: AppSpacing.xs,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface1,
+                                  borderRadius: AppRadius.input,
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.tune_outlined,
+                                      size: 18,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                'Permitted modules',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelLarge
+                                                    ?.copyWith(
+                                                      color: AppColors.text,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                              const SizedBox(
+                                                width: AppSpacing.xs,
+                                              ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 7,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.primarySoft,
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Text(
+                                                  '${selectedModules.length} selected',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            modulesExpanded
+                                                ? 'Locked modules are not included in the current subscription.'
+                                                : 'Default collapsed • Tap to view and edit module permissions',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: AppColors.textMuted,
+                                                  fontSize: 11.5,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      modulesExpanded
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            Text(
-                              'Locked modules are not included in the current subscription.',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textMuted,
-                                    fontSize: 11.5,
-                                  ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Wrap(
-                              spacing: AppSpacing.xs,
-                              runSpacing: AppSpacing.xs,
-                              children: _staffModuleIds.map((moduleId) {
-                                final selected = selectedModules.contains(
-                                  moduleId,
-                                );
-                                return _permissionChip(
-                                  moduleId: moduleId,
-                                  selected: selected,
-                                  disabled: !_subscribedModuleIds.contains(
+                            if (modulesExpanded) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              Wrap(
+                                spacing: AppSpacing.xs,
+                                runSpacing: AppSpacing.xs,
+                                children: _staffModuleIds.map((moduleId) {
+                                  final selected = selectedModules.contains(
                                     moduleId,
-                                  ),
-                                  readOnly: isSubmitting,
-                                  onSelected: (enabled) {
-                                    if (isSubmitting) return;
-                                    setSheetState(() {
-                                      if (enabled) {
-                                        selectedModules.add(moduleId);
-                                      } else {
-                                        selectedModules.remove(moduleId);
-                                      }
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                            ),
+                                  );
+                                  return _permissionChip(
+                                    moduleId: moduleId,
+                                    selected: selected,
+                                    disabled: !_subscribedModuleIds.contains(
+                                      moduleId,
+                                    ),
+                                    readOnly: isSubmitting,
+                                    onSelected: (enabled) {
+                                      if (isSubmitting) return;
+                                      setSheetState(() {
+                                        if (enabled) {
+                                          selectedModules.add(moduleId);
+                                        } else {
+                                          selectedModules.remove(moduleId);
+                                        }
+                                      });
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            ],
                             if (formError != null) ...[
                               const SizedBox(height: AppSpacing.sm),
                               Container(
@@ -1014,6 +1094,7 @@ class _ConfigPageState extends State<ConfigPage>
     };
     var obscurePassword = true;
     var saving = false;
+    var modulesExpanded = false;
     String? errorMessage;
 
     try {
@@ -1073,7 +1154,7 @@ class _ConfigPageState extends State<ConfigPage>
                   Icon(Icons.manage_accounts_outlined, size: 21),
                   SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Edit staff access',
+                    'Edit user access',
                     style: TextStyle(
                       color: AppColors.text,
                       fontSize: 19,
@@ -1194,47 +1275,125 @@ class _ConfigPageState extends State<ConfigPage>
                                 }),
                         ),
                         const SizedBox(height: AppSpacing.md),
-                        Text(
-                          'Permitted modules',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: AppColors.text,
-                                fontWeight: FontWeight.w700,
-                              ),
+                        InkWell(
+                          borderRadius: AppRadius.sm,
+                          onTap: () => setDialogState(
+                            () => modulesExpanded = !modulesExpanded,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface1,
+                              borderRadius: AppRadius.input,
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.tune_outlined,
+                                  size: 18,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Permitted modules',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge
+                                                ?.copyWith(
+                                                  color: AppColors.text,
+                                                  fontWeight:
+                                                      FontWeight.w700,
+                                                ),
+                                          ),
+                                          const SizedBox(
+                                            width: AppSpacing.xs,
+                                          ),
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primarySoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              '${selectedModules.length} selected',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        modulesExpanded
+                                            ? 'Locked modules are not included in the current subscription.'
+                                            : 'Default collapsed • Tap to view and edit module permissions',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: AppColors.textMuted,
+                                              fontSize: 11.5,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  modulesExpanded
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        Text(
-                          'Locked modules are not included in the current subscription.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: AppColors.textMuted,
-                                fontSize: 11.5,
-                              ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Wrap(
-                          spacing: AppSpacing.xs,
-                          runSpacing: AppSpacing.xs,
-                          children: _staffModuleIds.map((moduleId) {
-                            return _permissionChip(
-                              moduleId: moduleId,
-                              selected: selectedModules.contains(moduleId),
-                              disabled: !_subscribedModuleIds.contains(
-                                moduleId,
-                              ),
-                              readOnly: saving,
-                              onSelected: (enabled) {
-                                if (saving) return;
-                                setDialogState(() {
-                                  if (enabled) {
-                                    selectedModules.add(moduleId);
-                                  } else {
-                                    selectedModules.remove(moduleId);
-                                  }
-                                });
-                              },
-                            );
-                          }).toList(),
-                        ),
+                        if (modulesExpanded) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Wrap(
+                            spacing: AppSpacing.xs,
+                            runSpacing: AppSpacing.xs,
+                            children: _staffModuleIds.map((moduleId) {
+                              return _permissionChip(
+                                moduleId: moduleId,
+                                selected: selectedModules.contains(moduleId),
+                                disabled: !_subscribedModuleIds.contains(
+                                  moduleId,
+                                ),
+                                readOnly: saving,
+                                onSelected: (enabled) {
+                                  if (saving) return;
+                                  setDialogState(() {
+                                    if (enabled) {
+                                      selectedModules.add(moduleId);
+                                    } else {
+                                      selectedModules.remove(moduleId);
+                                    }
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ],
                         if (errorMessage != null) ...[
                           const SizedBox(height: AppSpacing.sm),
                           Text(
@@ -1254,15 +1413,50 @@ class _ConfigPageState extends State<ConfigPage>
                 AppSpacing.lg,
               ),
               actions: [
-                AppSecondaryButton(
-                  label: 'Cancel',
-                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                ),
-                AppPrimaryButton(
-                  label: 'Save changes',
-                  icon: Icons.check_circle_outline_rounded,
-                  loading: saving,
-                  onPressed: saving ? null : save,
+                Row(
+                  children: [
+                    Builder(
+                      builder: (btnContext) {
+                        final auth = btnContext.watch<AuthService>();
+                        final isSelf = staff.id == auth.userId ||
+                            (auth.userEmail != null &&
+                                auth.userEmail!.isNotEmpty &&
+                                staff.email.toLowerCase() ==
+                                    auth.userEmail!.toLowerCase());
+                        if (isSelf) return const SizedBox.shrink();
+                        return TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.danger,
+                          ),
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('Delete user'),
+                          onPressed: saving
+                              ? null
+                              : () {
+                                  Navigator.pop(dialogContext);
+                                  _confirmDeleteStaff(staff);
+                                },
+                        );
+                      },
+                    ),
+                    const Spacer(),
+                    AppSecondaryButton(
+                      label: 'Cancel',
+                      onPressed: saving
+                          ? null
+                          : () => Navigator.pop(dialogContext),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    AppPrimaryButton(
+                      label: 'Save changes',
+                      icon: Icons.check_circle_outline_rounded,
+                      loading: saving,
+                      onPressed: saving ? null : save,
+                    ),
+                  ],
                 ),
               ],
             );
@@ -2026,60 +2220,131 @@ class _ConfigPageState extends State<ConfigPage>
                 ),
               ),
               IconButton(
-                tooltip: 'Edit staff, password and permissions',
+                tooltip: 'Edit access and permissions',
                 onPressed: isUpdating
                     ? null
                     : () => _showEditStaffDialog(staff),
                 icon: const Icon(Icons.edit_outlined),
               ),
-              if (staff.role == 'staff')
-                IconButton(
-                  tooltip: 'Delete staff',
-                  color: AppColors.danger,
-                  onPressed: isUpdating
-                      ? null
-                      : () => _confirmDeleteStaff(staff),
-                  icon: const Icon(Icons.delete_outline_rounded),
-                ),
+              Builder(
+                builder: (btnContext) {
+                  final auth = btnContext.watch<AuthService>();
+                  final isSelf = staff.id == auth.userId ||
+                      (auth.userEmail != null &&
+                          auth.userEmail!.isNotEmpty &&
+                          staff.email.toLowerCase() ==
+                              auth.userEmail!.toLowerCase());
+                  if (isSelf) return const SizedBox.shrink();
+                  return IconButton(
+                    tooltip: 'Delete user',
+                    color: AppColors.danger,
+                    onPressed: isUpdating
+                        ? null
+                        : () => _confirmDeleteStaff(staff),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  );
+                },
+              ),
             ],
           );
 
           final visibleModules = staff.hasExplicitModulePermissions
               ? staff.permittedModuleIds
               : _modulesForRole(staff.role);
+          final isModulesExpanded =
+              _expandedStaffModuleCardIds.contains(staff.id);
+
           final permissions = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Permitted modules',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w700,
+              const SizedBox(height: AppSpacing.xs),
+              InkWell(
+                borderRadius: AppRadius.sm,
+                onTap: () {
+                  setState(() {
+                    if (isModulesExpanded) {
+                      _expandedStaffModuleCardIds.remove(staff.id);
+                    } else {
+                      _expandedStaffModuleCardIds.add(staff.id);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isModulesExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Permitted modules',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySoft,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${visibleModules.length} enabled',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        isModulesExpanded ? 'Hide' : 'Show',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.xs),
-              if (visibleModules.isEmpty)
-                Text(
-                  'No modules permitted',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppColors.danger),
-                )
-              else
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: visibleModules
-                      .map(
-                        (moduleId) => Chip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: const Icon(Icons.check_rounded, size: 15),
-                          label: Text(AppFeature.label(moduleId)),
-                        ),
-                      )
-                      .toList(),
-                ),
+              if (isModulesExpanded) ...[
+                const SizedBox(height: AppSpacing.xs),
+                if (visibleModules.isEmpty)
+                  Text(
+                    'No modules permitted',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.danger),
+                  )
+                else
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: visibleModules
+                        .map(
+                          (moduleId) => Chip(
+                            visualDensity: VisualDensity.compact,
+                            avatar: const Icon(Icons.check_rounded, size: 15),
+                            label: Text(AppFeature.label(moduleId)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+              ],
             ],
           );
 

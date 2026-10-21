@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
+import 'package:oruma_app/email_verification_page.dart';
 import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 
@@ -89,7 +90,7 @@ class _VolunteerRegistrationPageState extends State<VolunteerRegistrationPage> {
       _error = null;
     });
     try {
-      await VolunteerApplicationService.submit(
+      final result = await VolunteerApplicationService.submit(
         unitId: _selectedUnitId!,
         name: _name.text,
         email: _email.text,
@@ -102,29 +103,15 @@ class _VolunteerRegistrationPageState extends State<VolunteerRegistrationPage> {
         address: _address.text,
       );
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          icon: const Icon(
-            Icons.check_circle_rounded,
-            color: AppColors.success,
-            size: 48,
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => EmailVerificationPage(
+            email: result.email,
+            expiresInMinutes: result.expiresInMinutes,
+            initialResendAfterSeconds: result.resendAfterSeconds,
           ),
-          title: const Text('Application submitted'),
-          content: const Text(
-            'You can sign in now. Your home screen will show the application status until the unit approves your registration.',
-            textAlign: TextAlign.center,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Continue to sign in'),
-            ),
-          ],
         ),
       );
-      if (mounted) Navigator.pop(context);
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = _friendlyError(error));

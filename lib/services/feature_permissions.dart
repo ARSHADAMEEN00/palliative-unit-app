@@ -75,15 +75,17 @@ class FeatureAccessPolicy {
     if (normalized == 'volunteer') {
       return _volunteerDefaultFeatures.contains(featureId);
     }
+    if (normalized == 'public') return featureId == AppFeature.patients;
     return true;
   }
 
   static bool isRequiredForRole(String? role, String featureId) {
     final normalized = role?.trim().toLowerCase();
-    return (normalized == 'member' ||
-            normalized == 'volunteer' ||
-            normalized == 'staff') &&
-        featureId == AppFeature.volunteers;
+    return ((normalized == 'public' && featureId == AppFeature.patients) ||
+        (normalized == 'member' ||
+                normalized == 'volunteer' ||
+                normalized == 'staff') &&
+            featureId == AppFeature.volunteers);
   }
 }
 

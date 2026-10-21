@@ -57,6 +57,20 @@ class AboutUsTag {
       currentValue: '28',
     ),
     AboutUsTag(
+      tag: '{{social_works_past_year}}',
+      name: 'social_works_past_year',
+      label: 'Social Works (Past Year)',
+      description: 'Social support activities completed in the past 365 days',
+      currentValue: '340',
+    ),
+    AboutUsTag(
+      tag: '{{home_visits_past_year}}',
+      name: 'home_visits_past_year',
+      label: 'Home Visits (Past Year)',
+      description: 'Home visits completed in the past 365 days',
+      currentValue: '450',
+    ),
+    AboutUsTag(
       tag: '{{start_date}}',
       name: 'start_date',
       label: 'Start Date',
@@ -120,6 +134,8 @@ class AboutUsData {
   final String? updatedByName;
   final List<AboutUsTag> availableTags;
   final Map<String, String> tagValues;
+  final int socialWorksPastYear;
+  final int homeVisitsPastYear;
 
   const AboutUsData({
     required this.hasAboutUs,
@@ -131,6 +147,8 @@ class AboutUsData {
     this.updatedByName,
     this.availableTags = const [],
     this.tagValues = const {},
+    this.socialWorksPastYear = 0,
+    this.homeVisitsPastYear = 0,
   });
 
   factory AboutUsData.fromJson(Map<String, dynamic> json) {
@@ -157,6 +175,10 @@ class AboutUsData {
       });
     }
 
+    final impact = json['impact'] is Map
+        ? Map<String, dynamic>.from(json['impact'] as Map)
+        : <String, dynamic>{};
+
     return AboutUsData(
       hasAboutUs: json['has_about_us'] == true || json['hasAboutUs'] == true,
       title: json['title']?.toString().trim().isNotEmpty == true
@@ -170,6 +192,10 @@ class AboutUsData {
       updatedByName: json['updated_by_name']?.toString(),
       availableTags: tagsList,
       tagValues: valuesMap,
+      socialWorksPastYear:
+          int.tryParse(impact['socialWorksPastYear']?.toString() ?? '') ?? 0,
+      homeVisitsPastYear:
+          int.tryParse(impact['homeVisitsPastYear']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -181,5 +207,9 @@ class AboutUsData {
     'unit_name': unitName,
     'updated_at': updatedAt?.toIso8601String(),
     'updated_by_name': updatedByName,
+    'impact': {
+      'socialWorksPastYear': socialWorksPastYear,
+      'homeVisitsPastYear': homeVisitsPastYear,
+    },
   };
 }

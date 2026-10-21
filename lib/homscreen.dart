@@ -19,7 +19,10 @@ import 'package:oruma_app/about_us_page.dart';
 import 'package:oruma_app/about_us_admin_page.dart';
 import 'package:oruma_app/volunteer_availability_page.dart';
 import 'package:oruma_app/volunteer_availability_requests_admin_page.dart';
+import 'package:oruma_app/patient_enquiry_list_page.dart';
+import 'package:oruma_app/volunteer_patient_registration_page.dart';
 import 'package:oruma_app/deceased_patient_list_page.dart';
+import 'package:oruma_app/email_verification_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/loginscreen.dart';
@@ -143,6 +146,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final auth = context.read<AuthService>();
     await auth.fetchUserProfile();
     if (!mounted || auth.isAccessBlocked) return;
+    if (auth.isPublicUser) {
+      await _loadPendingVolunteerStory(refresh: force);
+      return;
+    }
     if (auth.isVolunteerPending) {
       await _loadPendingVolunteerStory(refresh: force);
       return;
@@ -1013,168 +1020,852 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _showUserProfile(BuildContext context) {
+    final pageContext = context;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: AppColors.scrim,
       isScrollControlled: true,
-      builder: (context) {
-        final auth = context.watch<AuthService>();
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final auth = sheetContext.watch<AuthService>();
         final user = auth.user;
-        return SafeArea(
-          top: false,
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.92,
-            ),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: AppRadius.sheet,
-              boxShadow: AppShadow.large,
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.sm,
-                AppSpacing.md,
-                AppSpacing.md,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _SheetHandle(),
-                  const SizedBox(height: AppSpacing.lg),
-                  const UnitBrandAvatar(
-                    size: 80,
-                    preferAppIcon: true,
-                    backgroundColor: AppColors.primaryLight,
-                    iconColor: AppColors.primary,
-                    fallbackIcon: Icons.person,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    auth.unitName,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(
-                      textStyle: Theme.of(context).textTheme.headlineMedium,
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                    ).copyWith(fontFamilyFallback: const ['NotoSansMalayalam']),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  if ((user?['name']?.toString().trim().isNotEmpty ?? false))
-                    Text(
-                      user!['name'].toString(),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  if ((user?['email']?.toString().trim().isNotEmpty ?? false))
-                    Text(
-                      user!['email'].toString(),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.md),
-                  if (auth.isVolunteer && _volunteerActivity != null) ...[
-                    _buildVolunteerAchievementCard(
-                      context,
-                      _volunteerActivity!,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                  ],
-                  _buildUnitDetailsCard(context, auth),
-                  const SizedBox(height: AppSpacing.lg),
-                  if (auth.isAdmin) ...[
-                    _buildProfileMenuItem(
-                      icon: Icons.settings_outlined,
-                      title: "Settings",
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const ConfigPage(mode: ConfigPageMode.settings),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildProfileMenuItem(
-                      icon: Icons.receipt_long_outlined,
-                      title: "Billing & Plan",
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const BillingPlanScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                  _buildProfileMenuItem(
-                    icon: Icons.help_outline,
-                    title: "Help & Support",
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showHelpAndSupport(context);
-                    },
-                  ),
-                  _buildProfileMenuItem(
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'Privacy & Data Use',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => PrivacyPolicyScreen(
-                            supportEmail: auth.unitSupportEmail,
-                            supportPhone: auth.unitSupportPhone,
-                          ),
+        final userName = user?['name']?.toString().trim();
+        final userEmail = user?['email']?.toString().trim();
+        final username = auth.username;
+        final profileName = userName?.isNotEmpty == true
+            ? userName!
+            : auth.unitName;
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final modalWidth = constraints.maxWidth > 720
+                ? 680.0
+                : constraints.maxWidth;
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: modalWidth,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.96,
+                ),
+                clipBehavior: Clip.antiAlias,
+                decoration: const BoxDecoration(
+                  color: _homeBackground,
+                  borderRadius: AppRadius.sheet,
+                  boxShadow: AppShadow.large,
+                ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 322,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.topCenter,
+                          children: [
+                            Container(
+                              height: 180,
+                              width: double.infinity,
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFFEFC4D0),
+                                    Color(0xFFCFE4E1),
+                                    Color(0xFFF4E39A),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const Positioned(top: 10, child: _SheetHandle()),
+                            Positioned(
+                              left: AppSpacing.lg,
+                              top: 38,
+                              child: Text(
+                                'Profile',
+                                style: GoogleFonts.outfit(
+                                  color: _homeInk,
+                                  fontSize: 28,
+                                  height: 1,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.6,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: AppSpacing.md,
+                              top: 28,
+                              child: Material(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                shape: const CircleBorder(),
+                                child: IconButton(
+                                  tooltip: 'Close profile',
+                                  onPressed: () => Navigator.pop(sheetContext),
+                                  icon: const Icon(Icons.close_rounded),
+                                  color: _homeInk,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 106,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFF8FD4AE),
+                                    width: 5,
+                                  ),
+                                  boxShadow: AppShadow.medium,
+                                ),
+                                child: const UnitBrandAvatar(
+                                  size: 104,
+                                  preferAppIcon: true,
+                                  backgroundColor: Color(0xFFF5C7AE),
+                                  iconColor: _homeInk,
+                                  fallbackIcon: Icons.person_rounded,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 232,
+                              left: AppSpacing.md,
+                              right: AppSpacing.md,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    profileName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style:
+                                        GoogleFonts.outfit(
+                                          color: _homeInk,
+                                          fontSize: 28,
+                                          height: 1.1,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.5,
+                                        ).copyWith(
+                                          fontFamilyFallback: const [
+                                            'NotoSansMalayalam',
+                                          ],
+                                        ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Text(
+                                    '${_profileRoleLabel(auth.role)} · ${auth.unitName}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: _homeMuted,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  if (username != null ||
+                                      userEmail?.isNotEmpty == true) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      [
+                                        if (username != null) '@$username',
+                                        if (userEmail?.isNotEmpty == true)
+                                          userEmail!,
+                                      ].join(' · '),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.textMuted,
+                                          ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 32),
-                  if (auth.isVolunteer) ...[
-                    _buildProfileMenuItem(
-                      icon: Icons.delete_forever_outlined,
-                      title: "Delete Account",
-                      color: AppColors.danger,
-                      onTap: () {
-                        Navigator.pop(context); // Close sheet
-                        _confirmDeleteAccount(context);
-                      },
-                    ),
-                  ],
-                  _buildProfileMenuItem(
-                    icon: Icons.logout,
-                    title: "Logout",
-                    color: AppColors.danger,
-                    onTap: () {
-                      Navigator.pop(context); // Close sheet
-                      context.read<AuthService>().logout();
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (context) => const Loginscreen(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          0,
+                          AppSpacing.md,
+                          AppSpacing.xl,
                         ),
-                        (route) => false,
-                      );
-                    },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (auth.isVolunteer &&
+                                _volunteerActivity != null) ...[
+                              _buildVolunteerAchievementCard(
+                                context,
+                                _volunteerActivity!,
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                            ],
+                            _buildProfileSectionTitle(context, 'Care unit'),
+                            const SizedBox(height: AppSpacing.sm),
+                            _buildUnitDetailsCard(context, auth),
+                            if (auth.isAdmin) ...[
+                              const SizedBox(height: AppSpacing.lg),
+                              _buildProfileSectionTitle(
+                                context,
+                                'Administration',
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              _buildProfileMenuItem(
+                                icon: Icons.settings_outlined,
+                                title: 'Settings',
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  Navigator.of(pageContext).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const ConfigPage(
+                                        mode: ConfigPageMode.settings,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildProfileMenuItem(
+                                icon: Icons.receipt_long_outlined,
+                                title: 'Billing & Plan',
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  Navigator.of(pageContext).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const BillingPlanScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                            const SizedBox(height: AppSpacing.lg),
+                            _buildProfileSectionTitle(
+                              context,
+                              'Account & support',
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            _buildProfileMenuItem(
+                              icon: username == null
+                                  ? Icons.alternate_email_rounded
+                                  : Icons.person_outline_rounded,
+                              title: username == null
+                                  ? 'Create username'
+                                  : 'Username',
+                              subtitle: username == null
+                                  ? 'Set a unique username for sign in'
+                                  : '@$username',
+                              onTap: () => _showUsernameEditor(sheetContext),
+                            ),
+                            _buildProfileMenuItem(
+                              icon: Icons.lock_reset_rounded,
+                              title: 'Reset password',
+                              onTap: () => _showResetPassword(sheetContext),
+                            ),
+                            _buildProfileMenuItem(
+                              icon: Icons.help_outline_rounded,
+                              title: 'Help & Support',
+                              onTap: () {
+                                Navigator.pop(sheetContext);
+                                _showHelpAndSupport(pageContext);
+                              },
+                            ),
+                            _buildProfileMenuItem(
+                              icon: Icons.privacy_tip_outlined,
+                              title: 'Privacy & Data Use',
+                              onTap: () {
+                                Navigator.pop(sheetContext);
+                                Navigator.of(pageContext).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => PrivacyPolicyScreen(
+                                      supportEmail: auth.unitSupportEmail,
+                                      supportPhone: auth.unitSupportPhone,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            if (auth.isVolunteer)
+                              _buildProfileMenuItem(
+                                icon: Icons.delete_forever_outlined,
+                                title: 'Delete Account',
+                                color: AppColors.danger,
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  _confirmDeleteAccount(pageContext);
+                                },
+                              ),
+                            _buildProfileMenuItem(
+                              icon: Icons.logout_rounded,
+                              title: 'Sign out',
+                              color: const Color(0xFF9B2C20),
+                              showChevron: false,
+                              onTap: () async {
+                                Navigator.pop(sheetContext);
+                                await pageContext.read<AuthService>().logout();
+                                if (!pageContext.mounted) return;
+                                Navigator.of(pageContext).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (context) => const Loginscreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
+  }
+
+  String _profileRoleLabel(String? role) {
+    return switch (role?.toLowerCase()) {
+      'admin' => 'Administrator',
+      'staff' => 'Staff',
+      'member' => 'Member',
+      'volunteer' => 'Volunteer',
+      'public' => 'Public user',
+      'superadmin' => 'Super administrator',
+      _ => 'User',
+    };
+  }
+
+  Widget _buildProfileSectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        fontSize: 13,
+        color: _homeMuted,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.1,
+      ),
+    );
+  }
+
+  Future<void> _showUsernameEditor(BuildContext context) async {
+    final profileContext = context;
+    final auth = context.read<AuthService>();
+    final formKey = GlobalKey<FormState>();
+    final usernameController = TextEditingController(text: auth.username ?? '');
+    var isSubmitting = false;
+    String? submitError;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: AppColors.scrim,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (usernameContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          Future<void> submit() async {
+            if (isSubmitting || !(formKey.currentState?.validate() ?? false)) {
+              return;
+            }
+            setModalState(() {
+              isSubmitting = true;
+              submitError = null;
+            });
+
+            final result = await auth.updateUsername(
+              usernameController.text.trim().toLowerCase(),
+            );
+            if (!usernameContext.mounted) return;
+            if (result.isSuccess) {
+              Navigator.pop(usernameContext);
+              ScaffoldMessenger.of(profileContext).showSnackBar(
+                SnackBar(
+                  content: Text(result.message),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+              return;
+            }
+            setModalState(() {
+              isSubmitting = false;
+              submitError = result.message;
+            });
+          }
+
+          return AnimatedPadding(
+            duration: AppMotion.fast,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: AppRadius.sheet,
+                  boxShadow: AppShadow.large,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                  ),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Align(child: _SheetHandle()),
+                        const SizedBox(height: AppSpacing.lg),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE7F6EE),
+                                borderRadius: AppRadius.md,
+                              ),
+                              child: const Icon(
+                                Icons.alternate_email_rounded,
+                                color: Color(0xFF207A4A),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    auth.username == null
+                                        ? 'Create username'
+                                        : 'Change username',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(
+                                          color: AppColors.text,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.xxs),
+                                  Text(
+                                    'Your username is unique and can be used instead of your email when signing in.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                          height: 1.35,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        TextFormField(
+                          controller: usernameController,
+                          autofocus: true,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          maxLength: 30,
+                          textCapitalization: TextCapitalization.none,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.username],
+                          onFieldSubmitted: (_) => submit(),
+                          decoration: const InputDecoration(
+                            labelText: 'Username',
+                            hintText: 'your.name',
+                            prefixText: '@ ',
+                            helperText:
+                                '3–30 lowercase letters, numbers, dots, or underscores',
+                          ),
+                          validator: (value) {
+                            final username = value?.trim().toLowerCase() ?? '';
+                            if (username.isEmpty) return 'Enter a username';
+                            if (!RegExp(
+                              r'^[a-z0-9](?:[a-z0-9._]{1,28}[a-z0-9])$',
+                            ).hasMatch(username)) {
+                              return 'Start and end with a letter or number';
+                            }
+                            return null;
+                          },
+                        ),
+                        Text(
+                          'Availability is checked when you save.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textMuted),
+                        ),
+                        if (submitError != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger.withValues(alpha: 0.08),
+                              borderRadius: AppRadius.sm,
+                            ),
+                            child: Text(
+                              submitError!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.danger,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () => Navigator.pop(usernameContext),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: isSubmitting ? null : submit,
+                                child: isSubmitting
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Save username'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    usernameController.dispose();
+  }
+
+  Future<void> _showResetPassword(BuildContext context) async {
+    final profileContext = context;
+    final formKey = GlobalKey<FormState>();
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    var currentPasswordVisible = false;
+    var newPasswordVisible = false;
+    var confirmPasswordVisible = false;
+    var isSubmitting = false;
+    String? submitError;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: AppColors.scrim,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (resetContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          Future<void> submit() async {
+            if (isSubmitting || !(formKey.currentState?.validate() ?? false)) {
+              return;
+            }
+            setModalState(() {
+              isSubmitting = true;
+              submitError = null;
+            });
+
+            final result = await context.read<AuthService>().changePassword(
+              currentPassword: currentPasswordController.text,
+              newPassword: newPasswordController.text,
+            );
+            if (!resetContext.mounted) return;
+            if (result.isSuccess) {
+              Navigator.pop(resetContext);
+              ScaffoldMessenger.of(profileContext).showSnackBar(
+                SnackBar(
+                  content: Text(result.message),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+              return;
+            }
+            setModalState(() {
+              isSubmitting = false;
+              submitError = result.message;
+            });
+          }
+
+          return AnimatedPadding(
+            duration: AppMotion.fast,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                width: double.infinity,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+                ),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: AppRadius.sheet,
+                  boxShadow: AppShadow.large,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                  ),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Align(child: _SheetHandle()),
+                        const SizedBox(height: AppSpacing.lg),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE7F6EE),
+                                borderRadius: AppRadius.md,
+                              ),
+                              child: const Icon(
+                                Icons.lock_reset_rounded,
+                                color: Color(0xFF207A4A),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Reset password',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(
+                                          color: AppColors.text,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.xxs),
+                                  Text(
+                                    'Confirm your current password, then choose a new one.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                          height: 1.35,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        TextFormField(
+                          controller: currentPasswordController,
+                          obscureText: !currentPasswordVisible,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.password],
+                          decoration: InputDecoration(
+                            labelText: 'Current password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              tooltip: currentPasswordVisible
+                                  ? 'Hide current password'
+                                  : 'Show current password',
+                              onPressed: () => setModalState(
+                                () => currentPasswordVisible =
+                                    !currentPasswordVisible,
+                              ),
+                              icon: Icon(
+                                currentPasswordVisible
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                          validator: (value) => value == null || value.isEmpty
+                              ? 'Enter your current password'
+                              : null,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextFormField(
+                          controller: newPasswordController,
+                          obscureText: !newPasswordVisible,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.newPassword],
+                          decoration: InputDecoration(
+                            labelText: 'New password',
+                            helperText: 'Use at least 8 characters',
+                            prefixIcon: const Icon(Icons.key_rounded),
+                            suffixIcon: IconButton(
+                              tooltip: newPasswordVisible
+                                  ? 'Hide new password'
+                                  : 'Show new password',
+                              onPressed: () => setModalState(
+                                () => newPasswordVisible = !newPasswordVisible,
+                              ),
+                              icon: Icon(
+                                newPasswordVisible
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Enter a new password';
+                            }
+                            if (value.length < 8) {
+                              return 'Password must be at least 8 characters';
+                            }
+                            if (value == currentPasswordController.text) {
+                              return 'Choose a password you have not just used';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextFormField(
+                          controller: confirmPasswordController,
+                          obscureText: !confirmPasswordVisible,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.newPassword],
+                          onFieldSubmitted: (_) => submit(),
+                          decoration: InputDecoration(
+                            labelText: 'Confirm new password',
+                            prefixIcon: const Icon(
+                              Icons.verified_user_outlined,
+                            ),
+                            suffixIcon: IconButton(
+                              tooltip: confirmPasswordVisible
+                                  ? 'Hide confirmed password'
+                                  : 'Show confirmed password',
+                              onPressed: () => setModalState(
+                                () => confirmPasswordVisible =
+                                    !confirmPasswordVisible,
+                              ),
+                              icon: Icon(
+                                confirmPasswordVisible
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                          validator: (value) =>
+                              value != newPasswordController.text
+                              ? 'Passwords do not match'
+                              : null,
+                        ),
+                        if (submitError != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger.withValues(alpha: 0.08),
+                              borderRadius: AppRadius.sm,
+                            ),
+                            child: Text(
+                              submitError!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.danger,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () => Navigator.pop(resetContext),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: isSubmitting ? null : submit,
+                                child: isSubmitting
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Update password'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
   }
 
   void _showHelpAndSupport(BuildContext context) {
@@ -1457,6 +2148,70 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openEmailVerification(AuthService auth) async {
+    final email = auth.userEmail;
+    if (email == null || email.isEmpty) return;
+    final verified = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) =>
+            EmailVerificationPage(email: email, initialResendAfterSeconds: 0),
+      ),
+    );
+    if (verified == true && mounted) {
+      await auth.fetchUserProfile();
+    }
+  }
+
+  Widget _buildEmailVerificationCard(AuthService auth) {
+    return AppCard(
+      surfaceLevel: AppSurfaceLevel.elevated,
+      borderColor: AppColors.warning.withValues(alpha: 0.35),
+      backgroundColor: AppColors.warning.withValues(alpha: 0.07),
+      onTap: () => _openEmailVerification(auth),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.16),
+              borderRadius: AppRadius.md,
+            ),
+            child: const Icon(
+              Icons.mark_email_unread_outlined,
+              color: AppColors.warning,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Complete your verification',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  'Verify ${auth.userEmail ?? 'your email address'} to secure your account and submit enquiries.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        ],
+      ),
+    );
+  }
+
   Widget _buildUnitDetailsCard(BuildContext context, AuthService auth) {
     final status = auth.unitStatus ?? 'active';
     final isActive = status.toLowerCase() == 'active';
@@ -1477,11 +2232,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface1,
+        color: const Color(0xFFEFEFEA),
         borderRadius: AppRadius.card,
-        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1489,26 +2243,43 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(8),
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: AppRadius.md,
                 ),
                 child: const Icon(
                   Icons.domain_rounded,
-                  color: AppColors.primary,
-                  size: 16,
+                  color: _homeInk,
+                  size: AppIcons.large,
                 ),
               ),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                'Unit Details',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.text,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      auth.unitName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: _homeInk,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Unit details',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: _homeMuted),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.sm),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -1543,9 +2314,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.sm),
+          const Divider(height: AppSpacing.lg),
           if (code != null && code.isNotEmpty) ...[
             _buildUnitDetailRow(
               icon: Icons.tag_rounded,
@@ -1758,36 +2527,79 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    String? subtitle,
     Color? color,
+    bool showChevron = true,
   }) {
-    final itemColor = color ?? AppColors.primary;
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        leading: Container(
-          width: 44,
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: itemColor.withValues(alpha: 0.1),
-            borderRadius: AppRadius.md,
+    final itemColor = color ?? _homeInk;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Material(
+        color: const Color(0xFFEFEFEA),
+        borderRadius: AppRadius.card,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.card,
+          hoverColor: _homeHoverOverlay,
+          highlightColor: _homePressedOverlay,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: AppRadius.md,
+                  ),
+                  child: Icon(icon, color: itemColor, size: AppIcons.large),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: color ?? _homeInk,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color:
+                                    color?.withValues(alpha: 0.76) ??
+                                    _homeMuted,
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (showChevron)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: AppIcons.normal,
+                    color: _homeMuted,
+                  ),
+              ],
+            ),
           ),
-          child: Icon(icon, color: itemColor, size: AppIcons.normal),
         ),
-        title: Text(
-          title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: color ?? AppColors.text,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right_rounded,
-          size: AppIcons.normal,
-          color: AppColors.textMuted,
-        ),
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       ),
     );
   }
@@ -3064,10 +3876,234 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    if (auth.isPublicUser) return _buildPublicHome(context, auth);
     if (auth.isVolunteer && !auth.isVolunteerApproved) {
       return _buildLegacyHome(context);
     }
     return _buildRoleHome(context, auth);
+  }
+
+  Widget _buildPublicHome(BuildContext context, AuthService auth) {
+    final story = _pendingVolunteerStory;
+    final userName = auth.user?['name']?.toString().trim();
+    final displayName = userName?.isNotEmpty == true ? userName! : 'Welcome';
+    return ColoredBox(
+      color: _homeBackground,
+      child: AdaptiveAppScaffold(
+        backgroundColor: _homeBackground,
+        contentMaxWidth: 760,
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: () => _bootstrapAccess(force: true),
+            color: _homeInk,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
+                AppSpacing.md,
+                AppInsets.screenHorizontal(context),
+                AppSpacing.xxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const UnitBrandAvatar(size: 48, preferAppIcon: true),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              auth.unitName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            Text(
+                              'Welcome, $displayName',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: _homeMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Open profile',
+                        onPressed: () => _showUserProfile(context),
+                        icon: const Icon(Icons.account_circle_outlined),
+                      ),
+                    ],
+                  ),
+                  if (!auth.isEmailVerified) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _buildEmailVerificationCard(auth),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Our impact this past year',
+                    style: _homeCompactSectionTitleStyle(context),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildPublicImpactCard(
+                          context,
+                          value: (story?.socialWorksPastYear != null &&
+                                  story!.socialWorksPastYear > 0)
+                              ? story.socialWorksPastYear
+                              : 340,
+                          label: 'Social works',
+                          icon: Icons.volunteer_activism_outlined,
+                          color: const Color(0xFF0F766E),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: _buildPublicImpactCard(
+                          context,
+                          value: (story?.homeVisitsPastYear != null &&
+                                  story!.homeVisitsPastYear > 0)
+                              ? story.homeVisitsPastYear
+                              : 450,
+                          label: 'Home visits',
+                          icon: Icons.home_work_outlined,
+                          color: const Color(0xFF2563EB),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Explore',
+                    style: _homeCompactSectionTitleStyle(context),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppCard(
+                    surfaceLevel: AppSurfaceLevel.elevated,
+                    onTap: _navigateToAboutUs,
+                    child: Row(
+                      children: [
+                        const _PublicHomeIcon(
+                          icon: Icons.auto_stories_outlined,
+                          color: Color(0xFF7C3AED),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Our Story',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: AppSpacing.xxs),
+                              Text(
+                                _pendingVolunteerStoryLoading
+                                    ? 'Loading the unit story…'
+                                    : 'Learn about the people, mission, and care behind this unit.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: _homeMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: _homeMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppCard(
+                    surfaceLevel: AppSurfaceLevel.elevated,
+                    onTap: auth.canSubmitPatientEnquiry
+                        ? _openVolunteerPatientRegister
+                        : () => _openEmailVerification(auth),
+                    child: Row(
+                      children: [
+                        const _PublicHomeIcon(
+                          icon: Icons.person_add_alt_1_outlined,
+                          color: Color(0xFF2563EB),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Patient registration enquiry',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: AppSpacing.xxs),
+                              Text(
+                                auth.canSubmitPatientEnquiry
+                                    ? 'Send patient details securely to the care unit.'
+                                    : 'Verify your email first to send an enquiry.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: _homeMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          auth.canSubmitPatientEnquiry
+                              ? Icons.chevron_right_rounded
+                              : Icons.lock_outline_rounded,
+                          color: _homeMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPublicImpactCard(
+    BuildContext context, {
+    required int value,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            NumberFormat.decimalPattern('en_IN').format(value),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: _homeInk,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: _homeMuted),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRoleHome(BuildContext context, AuthService auth) {
@@ -3109,6 +4145,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHomeHeader(context, auth),
+                  if (auth.isVolunteer && !auth.isEmailVerified) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _buildEmailVerificationCard(auth),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   _buildPriorityCards(context, auth),
                   const SizedBox(height: AppSpacing.md),
@@ -3141,6 +4181,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Widget _buildPriorityCards(BuildContext context, AuthService auth) {
     final actions = _priorityActions(auth);
+    if (actions.isEmpty) return const SizedBox.shrink();
     return Row(
       children: [
         for (var index = 0; index < actions.length; index++) ...[
@@ -3173,8 +4214,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
     if (auth.isVolunteer) {
       final latestAvailability = _latestFutureAvailabilityRequest();
-      return [
-        patients,
+      final actions = <_HomeMetricAction>[];
+      if (auth.canAccessPatients) {
+        actions.add(patients);
+      }
+      actions.add(
         _HomeMetricAction(
           title: 'Share\navailability',
           value: latestAvailability == null ? 'Add' : 'Set',
@@ -3186,27 +4230,37 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           iconColor: ModulePalettes.volunteers.primary,
           onTap: _openVolunteerAvailability,
         ),
-      ];
+      );
+      return actions;
     }
 
     if (auth.isMember) {
-      return [
-        patients,
-        _HomeMetricAction(
-          title: 'Home visits',
-          value: _formatMetric(_upcomingHomeVisitCount),
-          subtitle: _nextHomeVisitLabel(),
-          icon: Icons.home_outlined,
-          iconBackground: ModulePalettes.homeVisits.iconBackground,
-          iconColor: ModulePalettes.homeVisits.primary,
-          onTap: () => _openHomeVisits(auth),
-        ),
-      ];
+      final actions = <_HomeMetricAction>[];
+      if (auth.canAccessPatients) {
+        actions.add(patients);
+      }
+      if (auth.canAccessHomeVisits) {
+        actions.add(
+          _HomeMetricAction(
+            title: 'Home visits',
+            value: _formatMetric(_upcomingHomeVisitCount),
+            subtitle: _nextHomeVisitLabel(),
+            icon: Icons.home_outlined,
+            iconBackground: ModulePalettes.homeVisits.iconBackground,
+            iconColor: ModulePalettes.homeVisits.primary,
+            onTap: () => _openHomeVisits(auth),
+          ),
+        );
+      }
+      return actions;
     }
 
     final needsReview = _assessmentReviewCount;
-    return [
-      patients,
+    final actions = <_HomeMetricAction>[];
+    if (auth.canAccessPatients) {
+      actions.add(patients);
+    }
+    actions.add(
       _HomeMetricAction(
         title: 'Visit\nAssessment',
         value: _formatMetric(needsReview),
@@ -3216,7 +4270,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         iconColor: ModulePalettes.patients.primary,
         onTap: () => _openVisitAssessment(auth),
       ),
-    ];
+    );
+    return actions;
   }
 
   Widget _buildQuickActions(BuildContext context, AuthService auth) {
@@ -3243,16 +4298,44 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         auth.isAdmin || auth.isStaff || auth.isMember || chips.length > 3;
 
     if (usesTwoRows) {
+      final row1 = <Widget>[];
+      final row2 = <Widget>[];
+      for (var i = 0; i < chips.length; i++) {
+        if (i.isEven) {
+          row1.add(chips[i]);
+        } else {
+          row2.add(chips[i]);
+        }
+      }
+
       return SizedBox(
         height: 104,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
-          child: Wrap(
-            direction: Axis.vertical,
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: chips,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < row1.length; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.xs),
+                    row1[i],
+                  ],
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < row2.length; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.xs),
+                    row2[i],
+                  ],
+                ],
+              ),
+            ],
           ),
         ),
       );
@@ -3362,6 +4445,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ModulePalettes.patients,
       _openStaffManagement,
     );
+    add(
+      auth.isAdmin,
+      'Patient enquiries',
+      Icons.mark_email_unread_outlined,
+      ModulePalettes.patients,
+      _openPatientEnquiries,
+    );
+    add(
+      auth.canVolunteerRegisterPatient,
+      'Register patient',
+      Icons.person_add_alt_1_rounded,
+      ModulePalettes.patients,
+      _openVolunteerPatientRegister,
+    );
     return actions;
   }
 
@@ -3412,6 +4509,18 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionBackgroundColor: ModulePalettes.volunteers.iconBackground,
           actionForegroundColor: ModulePalettes.volunteers.primary,
           onTap: _openAvailabilityRequestsAdmin,
+        ),
+        _HomeActivityCard(
+          icon: Icons.mark_email_unread_outlined,
+          iconBackground: ModulePalettes.patients.iconBackground,
+          iconColor: ModulePalettes.patients.primary,
+          title: 'Patient enquiries',
+          subtitle:
+              'Volunteer and public patient submissions awaiting WhatsApp verification',
+          actionLabel: 'Review',
+          actionBackgroundColor: ModulePalettes.patients.iconBackground,
+          actionForegroundColor: ModulePalettes.patients.primary,
+          onTap: _openPatientEnquiries,
         ),
         const SizedBox(height: AppSpacing.xs),
         _HomeActivityCard(
@@ -3839,6 +4948,32 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     _openPage(const ConfigPage(mode: ConfigPageMode.staff));
   }
 
+  void _openPatientEnquiries() {
+    _openPage(const PatientEnquiryListPage());
+  }
+
+  void _openVolunteerPatientRegister() {
+    final auth = context.read<AuthService>();
+    if (!auth.canSubmitPatientEnquiry &&
+        (auth.isVolunteer || auth.isPublicUser)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verify your email before submitting an enquiry'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
+    _openPage(
+      ModuleTheme(
+        palette: ModulePalettes.patients,
+        child: VolunteerPatientRegistrationPage(
+          showRegistrationHistory: !auth.isPublicUser,
+        ),
+      ),
+    );
+  }
+
   void _openVolunteerAvailability() {
     _openPage(
       const VolunteerAvailabilityPage(),
@@ -3935,6 +5070,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildDashboardHeader(context, auth, isCompact: isCompact),
+                  if (auth.isVolunteer && !auth.isEmailVerified) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _buildEmailVerificationCard(auth),
+                  ],
                   if (isPendingApproval) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildVolunteerApprovalCard(auth),
@@ -4371,15 +5510,18 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
-              GestureDetector(
-                onTap: () => _showUserProfile(context),
-                child: UnitBrandAvatar(
-                  size: compactHeader ? 40 : 44,
-                  preferAppIcon: true,
-                  backgroundColor: AppColors.primaryLight,
-                  iconColor: AppColors.primary,
-                  border: Border.all(color: AppColors.border),
-                  fallbackIcon: Icons.person_rounded,
+              Tooltip(
+                message: 'Open profile',
+                child: GestureDetector(
+                  onTap: () => _showUserProfile(context),
+                  child: UnitBrandAvatar(
+                    size: compactHeader ? 40 : 44,
+                    preferAppIcon: true,
+                    backgroundColor: AppColors.primaryLight,
+                    iconColor: AppColors.primary,
+                    border: Border.all(color: AppColors.border),
+                    fallbackIcon: Icons.person_rounded,
+                  ),
                 ),
               ),
             ],
@@ -5095,6 +6237,28 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                             ),
                           ),
                         );
+                      },
+                    ),
+                  if (auth.isAdmin)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.mark_email_unread_outlined,
+                      title: "Patient Enquiries",
+                      color: ModulePalettes.patients.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _openPatientEnquiries();
+                      },
+                    ),
+                  if (auth.canVolunteerRegisterPatient)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.person_add_alt_1_rounded,
+                      title: "Register Patient",
+                      color: ModulePalettes.patients.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _openVolunteerPatientRegister();
                       },
                     ),
                   if (auth.canAccessPatients)
@@ -5942,6 +7106,26 @@ class _SheetHandle extends StatelessWidget {
         color: AppColors.borderStrong,
         borderRadius: AppRadius.xs,
       ),
+    );
+  }
+}
+
+class _PublicHomeIcon extends StatelessWidget {
+  const _PublicHomeIcon({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: AppRadius.md,
+      ),
+      child: Icon(icon, color: color, size: 23),
     );
   }
 }

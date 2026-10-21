@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oruma_app/core/theme/app_theme.dart';
 import 'package:oruma_app/homscreen.dart';
+import 'package:oruma_app/loginscreen.dart';
 import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,8 @@ class _HomePreviewAuthService extends AuthService {
     this.canAccessMedicineSupplyOverride,
     this.canAccessMedicineMasterOverride,
     this.canAccessNHCOverride,
+    this.previewUsername,
+    this.emailVerified = true,
   });
 
   final String previewRole;
@@ -26,6 +29,8 @@ class _HomePreviewAuthService extends AuthService {
   final bool? canAccessMedicineSupplyOverride;
   final bool? canAccessMedicineMasterOverride;
   final bool? canAccessNHCOverride;
+  final String? previewUsername;
+  final bool emailVerified;
 
   @override
   String? get role => previewRole;
@@ -37,6 +42,12 @@ class _HomePreviewAuthService extends AuthService {
   bool get isMember => previewRole == 'member';
   @override
   bool get isVolunteer => previewRole == 'volunteer';
+  @override
+  bool get isPublicUser => previewRole == 'public';
+  @override
+  bool get isEmailVerified => emailVerified;
+  @override
+  bool get canSubmitPatientEnquiry => isPublicUser && emailVerified;
   @override
   bool get isVolunteerApproved => volunteerApproved;
   @override
@@ -78,9 +89,27 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get canAccessReports => true;
   @override
+  String? get username => previewUsername;
+  @override
   String get unitName => 'Compassion Care';
   @override
   String get unitLocation => 'Kozhikode';
+  @override
+  String? get unitCode => 'CC001';
+  @override
+  String? get unitVillage => 'Kozhikode';
+  @override
+  String? get unitDistrict => 'Kozhikode';
+  @override
+  String? get unitAddress => 'Care Street, Kozhikode';
+  @override
+  String? get unitContactEmail => 'unit@compassion.example';
+  @override
+  List<String> get unitContactPhones => const ['+91 98765 43210'];
+  @override
+  String? get unitNotes => 'Community palliative care unit';
+  @override
+  String? get unitStatus => 'active';
   @override
   String? get unitSupportName => 'Compassion Care help desk';
   @override
@@ -115,6 +144,8 @@ Future<void> _pumpHome(
   bool? canAccessMedicineSupply,
   bool? canAccessMedicineMaster,
   bool? canAccessNHC,
+  String? username,
+  bool emailVerified = true,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -129,6 +160,8 @@ Future<void> _pumpHome(
         canAccessMedicineSupplyOverride: canAccessMedicineSupply,
         canAccessMedicineMasterOverride: canAccessMedicineMaster,
         canAccessNHCOverride: canAccessNHC,
+        previewUsername: username,
+        emailVerified: emailVerified,
       ),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -143,6 +176,8 @@ Future<void> _pumpHome(
                   rawContent:
                       'We support patients and families throughout their care.',
                   unitName: 'Compassion Care',
+                  socialWorksPastYear: 340,
+                  homeVisitsPastYear: 450,
                 )
               : const AboutUsData(
                   hasAboutUs: false,
@@ -159,6 +194,162 @@ Future<void> _pumpHome(
 }
 
 void main() {
+  testWidgets('login identifies the account by email or username', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthService>.value(
+        value: _HomePreviewAuthService('admin'),
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          home: const Loginscreen(),
+        ),
+      ),
+    );
+
+    expect(find.text('Email or username'), findsOneWidget);
+    expect(find.text('name@example.com or username'), findsOneWidget);
+    expect(find.text('Forgot password?'), findsOneWidget);
+    expect(find.text('User'), findsOneWidget);
+    expect(find.text('Volunteer'), findsOneWidget);
+    expect(find.text('New unit'), findsOneWidget);
+
+    final userTop = tester.getTopLeft(find.text('User')).dy;
+    final volunteerTop = tester.getTopLeft(find.text('Volunteer')).dy;
+    final unitTop = tester.getTopLeft(find.text('New unit')).dy;
+    expect(volunteerTop, greaterThan(userTop));
+    expect(unitTop, volunteerTop);
+
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+    expect(find.text('Find your account'), findsOneWidget);
+    expect(find.text('Send verification code'), findsOneWidget);
+  });
+
+  testWidgets('public user sees only story and patient enquiry', (
+    tester,
+  ) async {
+    await _pumpHome(tester, 'public');
+
+    expect(find.text('Our impact this past year'), findsOneWidget);
+    expect(find.text('340'), findsOneWidget);
+    expect(find.text('450'), findsOneWidget);
+    expect(find.text('Our Story'), findsOneWidget);
+    expect(find.text('Patient registration enquiry'), findsOneWidget);
+    expect(find.text('Quick actions'), findsNothing);
+    expect(find.byTooltip('Open menu'), findsNothing);
+    expect(find.text('Home'), findsNothing);
+    expect(find.text('Visits'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unverified public user is prompted before enquiry access', (
+    tester,
+  ) async {
+    await _pumpHome(tester, 'public', emailVerified: false);
+
+    expect(find.text('Complete your verification'), findsOneWidget);
+    expect(
+      find.text('Verify your email first to send an enquiry.'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('profile redesign preserves unit data and admin actions', (
+    tester,
+  ) async {
+    await _pumpHome(tester, 'admin');
+
+    await tester.tap(find.byTooltip('Open profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Anita Rao'), findsOneWidget);
+    expect(find.text('Administrator · Compassion Care'), findsOneWidget);
+    expect(find.text('preview@example.com'), findsOneWidget);
+    expect(find.text('Care unit'), findsOneWidget);
+    expect(find.text('CC001'), findsOneWidget);
+    expect(find.text('Kozhikode, Kozhikode'), findsOneWidget);
+    expect(find.text('+91 98765 43210'), findsOneWidget);
+    expect(find.text('unit@compassion.example'), findsOneWidget);
+    expect(find.text('Care Street, Kozhikode'), findsOneWidget);
+    expect(find.text('Community palliative care unit'), findsOneWidget);
+    expect(find.text('Administration'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Billing & Plan'), findsOneWidget);
+    expect(find.text('Create username'), findsOneWidget);
+    expect(find.text('Set a unique username for sign in'), findsOneWidget);
+    expect(find.text('Reset password'), findsOneWidget);
+    expect(find.text('Sign out'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Administration')).style?.fontSize,
+      13,
+    );
+    expect(tester.widget<Text>(find.text('Settings')).style?.fontSize, 15);
+    expect(
+      tester.widget<Text>(find.text('Reset password')).style?.fontSize,
+      15,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('username editor is available only after opening profile', (
+    tester,
+  ) async {
+    await _pumpHome(tester, 'member');
+
+    expect(find.text('Create username'), findsNothing);
+    await tester.tap(find.byTooltip('Open profile'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Create username'));
+    await tester.tap(find.text('Create username'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Save username'), findsOneWidget);
+    expect(find.text('Availability is checked when you save.'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), 'invalid@name');
+    await tester.tap(find.text('Save username'));
+    await tester.pump();
+    expect(find.text('Start and end with a letter or number'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saved username is shown in the profile', (tester) async {
+    await _pumpHome(tester, 'admin', username: 'anita.rao');
+
+    await tester.tap(find.byTooltip('Open profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('@anita.rao · preview@example.com'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.text('@anita.rao'), findsOneWidget);
+    expect(find.text('Create username'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final role in const ['admin', 'staff', 'member', 'volunteer']) {
+    testWidgets('reset password is available to $role profiles', (
+      tester,
+    ) async {
+      await _pumpHome(tester, role);
+
+      await tester.tap(find.byTooltip('Open profile'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Reset password'));
+      await tester.tap(find.text('Reset password'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current password'), findsOneWidget);
+      expect(find.text('New password'), findsOneWidget);
+      expect(find.text('Confirm new password'), findsOneWidget);
+      expect(find.text('Update password'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final roleAndLabels in <(String, List<String>)>[
     ('admin', const ['Home visit', 'Social support', 'Equipment supply']),
     ('staff', const ['Home visit', 'Social support', 'Equipment supply']),
@@ -340,11 +531,7 @@ void main() {
   testWidgets(
     'member home shows Equipment when equipment permission is granted',
     (tester) async {
-      await _pumpHome(
-        tester,
-        'member',
-        canAccessEquipment: true,
-      );
+      await _pumpHome(tester, 'member', canAccessEquipment: true);
 
       expect(find.text('Equipment'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -354,11 +541,7 @@ void main() {
   testWidgets(
     'member home shows Equipment supply when equipmentDistribution permission is granted',
     (tester) async {
-      await _pumpHome(
-        tester,
-        'member',
-        canAccessEquipmentDistribution: true,
-      );
+      await _pumpHome(tester, 'member', canAccessEquipmentDistribution: true);
 
       expect(find.text('Equipment supply'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -384,11 +567,7 @@ void main() {
   testWidgets(
     'volunteer home shows Equipment and Reports when permissions are granted',
     (tester) async {
-      await _pumpHome(
-        tester,
-        'volunteer',
-        canAccessEquipment: true,
-      );
+      await _pumpHome(tester, 'volunteer', canAccessEquipment: true);
 
       expect(find.text('Equipment'), findsOneWidget);
       expect(find.text('Reports'), findsOneWidget);
@@ -396,4 +575,3 @@ void main() {
     },
   );
 }
-

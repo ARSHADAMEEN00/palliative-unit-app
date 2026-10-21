@@ -15,6 +15,8 @@ import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/app_bottom_nav_router.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:oruma_app/volunteer_patient_registration_page.dart';
+import 'package:oruma_app/patient_enquiry_list_page.dart';
 
 class PatientListPage extends StatefulWidget {
   const PatientListPage({super.key});
@@ -133,11 +135,47 @@ class _PatientListPageState extends State<PatientListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthService>(context);
+
     void handleBottomNavigation(AppBottomSection section) {
       AppBottomNavRouter.handle(
         context,
         current: AppBottomSection.patients,
         target: section,
+      );
+    }
+
+    if (!auth.canAccessPatients) {
+      return AdaptiveAppScaffold(
+        appBar: AppBar(
+          title: const Text('Patients'),
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.text,
+          elevation: 0,
+        ),
+        backgroundColor: AppColors.background,
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline_rounded, size: 48, color: AppColors.danger),
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'Access Denied',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  'You do not have permission to access patient management.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -170,6 +208,24 @@ class _PatientListPageState extends State<PatientListPage> {
               },
             ),
           ),
+          if (!_isSearching && auth.isAdmin)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Tooltip(
+                message: 'Patient Enquiries',
+                child: _PatientIconButton(
+                  icon: Icons.mark_email_unread_outlined,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PatientEnquiryListPage(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
           if (!_isSearching)
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -251,13 +307,19 @@ class _PatientListPageState extends State<PatientListPage> {
                     title: 'No patients yet',
                     message:
                         'Create the first patient record to begin managing home visits and care history.',
-                    action: Provider.of<AuthService>(context).canCreate
+                    action: auth.canCreate
                         ? AppPrimaryButton(
                             label: 'Add Patient',
                             icon: Icons.person_add_alt_1,
                             onPressed: _navigateToCreatePatient,
                           )
-                        : null,
+                        : (auth.canVolunteerRegisterPatient
+                            ? AppPrimaryButton(
+                                label: 'Register Patient',
+                                icon: Icons.person_add_alt_1,
+                                onPressed: _navigateToVolunteerPatientRegister,
+                              )
+                            : null),
                   );
                 }
 
@@ -286,13 +348,23 @@ class _PatientListPageState extends State<PatientListPage> {
           ),
         ],
       ),
-      floatingActionButton: Provider.of<AuthService>(context).canCreate
-          ? RevealActionFab(
-              onPressed: _navigateToCreatePatient,
-              label: 'Add Patient',
-              icon: Icons.person_add,
-            )
-          : null,
+      floatingActionButton: () {
+        if (auth.canCreate) {
+          return RevealActionFab(
+            onPressed: _navigateToCreatePatient,
+            label: 'Add Patient',
+            icon: Icons.person_add,
+          );
+        }
+        if (auth.canVolunteerRegisterPatient) {
+          return RevealActionFab(
+            onPressed: _navigateToVolunteerPatientRegister,
+            label: 'Register Patient',
+            icon: Icons.person_add_alt_1,
+          );
+        }
+        return null;
+      }(),
     );
   }
 
@@ -339,6 +411,18 @@ class _PatientListPageState extends State<PatientListPage> {
     if (result == true) {
       _loadPatients();
     }
+  }
+
+  Future<void> _navigateToVolunteerPatientRegister() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ModuleTheme(
+          palette: ModulePalettes.patients,
+          child: VolunteerPatientRegistrationPage(),
+        ),
+      ),
+    );
   }
 
   Widget _buildFilterTabs() {
