@@ -192,7 +192,9 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                   const SizedBox(height: AppSpacing.xs),
 
                   // Filter Chips (Pending vs All)
-                  Row(
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xxs,
                     children: [
                       FilterChip(
                         selected: _statusFilter == 'pending',
@@ -214,7 +216,6 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                           }
                         },
                       ),
-                      const SizedBox(width: AppSpacing.xs),
                       FilterChip(
                         selected: _statusFilter == 'all',
                         label: const Text('All Submissions'),
@@ -415,7 +416,7 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                     ),
                   ),
                 ),
-                if (auth.isAdmin)
+                if (auth.canManagePatientEnquiries)
                   PopupMenuButton<String>(
                     icon: const Icon(
                       Icons.more_vert,
@@ -428,6 +429,8 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                         _updateStatus(enquiry, 'verified');
                       } else if (val == 'pending') {
                         _updateStatus(enquiry, 'pending');
+                      } else if (val == 'reject') {
+                        _updateStatus(enquiry, 'rejected');
                       } else if (val == 'delete') {
                         _deleteEnquiry(enquiry);
                       }
@@ -456,18 +459,39 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                             ],
                           ),
                         ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline,
-                                color: AppColors.danger, size: 18),
-                            SizedBox(width: 8),
-                            Text('Delete Enquiry',
-                                style: TextStyle(color: AppColors.danger)),
-                          ],
+                      if (!enquiry.isRejected)
+                        const PopupMenuItem(
+                          value: 'reject',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.cancel_outlined,
+                                color: AppColors.danger,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Mark as Rejected'),
+                            ],
+                          ),
                         ),
-                      ),
+                      if (auth.isAdmin)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_outline,
+                                color: AppColors.danger,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Delete Enquiry',
+                                style: TextStyle(color: AppColors.danger),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
               ],
@@ -500,19 +524,17 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                 'Address',
                 enquiry.address.trim(),
               ),
-            if (enquiry.caregiverName != null &&
-                enquiry.caregiverName!.trim().isNotEmpty)
+            if (enquiry.displayReferredByName != null)
               _buildDetailRow(
-                Icons.badge_outlined,
-                'Caregiver Name',
-                enquiry.caregiverName!.trim(),
+                Icons.person_pin_circle_outlined,
+                'Referred By',
+                enquiry.displayReferredByName!,
               ),
-            if (enquiry.caregiverPhone != null &&
-                enquiry.caregiverPhone!.trim().isNotEmpty)
+            if (enquiry.displayReferredByPhone != null)
               _buildDetailRow(
                 Icons.contact_phone_outlined,
-                'Caregiver Phone',
-                enquiry.caregiverPhone!.trim(),
+                'Referred Phone',
+                enquiry.displayReferredByPhone!,
               ),
             if (enquiry.submittedByVolunteerName != null &&
                 enquiry.submittedByVolunteerName!.trim().isNotEmpty)
@@ -528,38 +550,39 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                 DateFormat('dd MMM yyyy, hh:mm a').format(enquiry.createdAt!),
               ),
 
-            const SizedBox(height: AppSpacing.md),
+            if (auth.isAdmin) ...[
+              const SizedBox(height: AppSpacing.md),
 
-            // PRIMARY ACTION: SHARE TO WHATSAPP
-            // User requirement: "from this module only one option share full data with label to whatsapp"
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF25D366), // WhatsApp Green
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.button,
+              // PRIMARY ACTION: SHARE TO WHATSAPP (Admin only)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366), // WhatsApp Green
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.button,
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.share_rounded, size: 18),
-                label: const Text(
-                  'Share Details to WhatsApp',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    letterSpacing: 0.2,
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text(
+                    'Share Details to WhatsApp',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      letterSpacing: 0.2,
+                    ),
                   ),
-                ),
-                onPressed: () => PatientEnquiryService.shareToWhatsApp(
-                  enquiry,
-                  context,
-                  unitName: auth.unitName,
+                  onPressed: () => PatientEnquiryService.shareToWhatsApp(
+                    enquiry,
+                    context,
+                    unitName: auth.unitName,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

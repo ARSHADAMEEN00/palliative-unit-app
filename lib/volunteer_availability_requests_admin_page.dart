@@ -347,8 +347,10 @@ class _VolunteerAvailabilityRequestsAdminPageState
           ),
           const SizedBox(height: AppSpacing.sm),
           _detailLine(Icons.phone_outlined, request.phone),
-          const SizedBox(height: AppSpacing.xs),
-          _detailLine(Icons.location_on_outlined, request.address),
+          if (request.address.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            _detailLine(Icons.location_on_outlined, request.address),
+          ],
           if (request.decisionNote?.trim().isNotEmpty == true) ...[
             const Divider(height: AppSpacing.lg),
             _detailLine(Icons.sticky_note_2_outlined, request.decisionNote!),

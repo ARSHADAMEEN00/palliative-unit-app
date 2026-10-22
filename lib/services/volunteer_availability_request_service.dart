@@ -29,16 +29,17 @@ class VolunteerAvailabilityRequestService {
     required String requestedDate,
     required String contactName,
     required String phone,
-    required String address,
+    String? address,
     String? timeSlot,
   }) async {
+    final cleanAddress = address?.trim() ?? '';
     final result = await ApiService.post<Map<String, dynamic>>(
       ApiConfig.volunteerAvailabilityRequestsEndpoint,
       body: {
         'requestedDate': requestedDate,
         'contactName': contactName,
         'phone': phone,
-        'address': address,
+        if (cleanAddress.isNotEmpty) 'address': cleanAddress,
         if (timeSlot != null && timeSlot.trim().isNotEmpty)
           'timeSlot': timeSlot.trim(),
       },

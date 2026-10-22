@@ -124,11 +124,9 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
     final phoneController = TextEditingController(
       text: latest?.phone ?? latest?.volunteer?.phone ?? '',
     );
-    final addressController = TextEditingController(
-      text: latest?.address.trim().isNotEmpty == true
-          ? latest!.address
-          : latest?.volunteer?.address ?? '',
-    );
+    final fallbackAddress = latest?.address.trim().isNotEmpty == true
+        ? latest!.address.trim()
+        : (latest?.volunteer?.address ?? '').trim();
     final formKey = GlobalKey<FormState>();
     var submitting = false;
 
@@ -222,19 +220,6 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
                     },
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  TextFormField(
-                    controller: addressController,
-                    minLines: 2,
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Address',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                      alignLabelWithHint: true,
-                    ),
-                    validator: _requiredValidator,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
                   Text(
                     'The admin will use these details to contact you. This does not assign you to a home visit.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -267,7 +252,7 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
                               ).format(date),
                               contactName: nameController.text.trim(),
                               phone: phoneController.text.trim(),
-                              address: addressController.text.trim(),
+                              address: fallbackAddress,
                               timeSlot: _availabilityTime,
                             );
                         if (!dialogContext.mounted) return;
@@ -303,7 +288,6 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
     );
     nameController.dispose();
     phoneController.dispose();
-    addressController.dispose();
     if (submitted == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

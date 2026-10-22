@@ -19,12 +19,18 @@ class VolunteerPatientRegistrationPage extends StatefulWidget {
   final String? initialUnitId;
   final String? initialUnitName;
   final bool showRegistrationHistory;
+  final int initialTabIndex;
+  final Future<List<PatientEnquiry>> Function()? enquiriesLoader;
+  final Future<Config> Function()? configLoader;
 
   const VolunteerPatientRegistrationPage({
     super.key,
     this.initialUnitId,
     this.initialUnitName,
     this.showRegistrationHistory = true,
+    this.initialTabIndex = 0,
+    this.enquiriesLoader,
+    this.configLoader,
   });
 
   @override
@@ -45,16 +51,16 @@ class _VolunteerPatientRegistrationPageState
   // 4. 2 phone numbers (one required, one optional)
   // 5. Village select
   // 6. Ward select + type
-  // 7. Caregiver name & Caregiver phone
+  // 7. Referred by name & Referred by phone
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _phone2Controller = TextEditingController();
   final TextEditingController _wardController = TextEditingController();
-  final TextEditingController _caregiverNameController =
+  final TextEditingController _referredByNameController =
       TextEditingController();
-  final TextEditingController _caregiverPhoneController =
+  final TextEditingController _referredByPhoneController =
       TextEditingController();
 
   // Unit and config state
@@ -89,6 +95,8 @@ class _VolunteerPatientRegistrationPageState
     _tabController = TabController(
       length: widget.showRegistrationHistory ? 2 : 1,
       vsync: this,
+      initialIndex:
+          widget.showRegistrationHistory && widget.initialTabIndex > 0 ? 1 : 0,
     );
     _tabController.addListener(() {
       if (mounted) setState(() {});
@@ -115,8 +123,8 @@ class _VolunteerPatientRegistrationPageState
     _phoneController.dispose();
     _phone2Controller.dispose();
     _wardController.dispose();
-    _caregiverNameController.dispose();
-    _caregiverPhoneController.dispose();
+    _referredByNameController.dispose();
+    _referredByPhoneController.dispose();
     super.dispose();
   }
 
@@ -135,7 +143,7 @@ class _VolunteerPatientRegistrationPageState
       } else {
         _loadAuthenticatedConfig();
       }
-      if (widget.showRegistrationHistory) _loadMyEnquiries();
+      _loadMyEnquiries();
     } else {
       // Public form: load units list
       _selectedUnitId = widget.initialUnitId;
@@ -147,10 +155,21 @@ class _VolunteerPatientRegistrationPageState
     }
   }
 
+  bool get _isRestrictedRole {
+    final auth = context.read<AuthService>();
+    return auth.isVolunteer || auth.isPublicUser;
+  }
+
+  PatientEnquiry? get _activePendingEnquiry {
+    if (!_isRestrictedRole) return null;
+    return _myEnquiries.where((e) => e.isPending).firstOrNull;
+  }
+
+  bool get hasActivePendingEnquiry => _activePendingEnquiry != null;
+
   Future<void> _loadMyEnquiries() async {
     final auth = context.read<AuthService>();
-    if (!widget.showRegistrationHistory ||
-        !auth.isAuthenticated ||
+    if (!auth.isAuthenticated ||
         !auth.canAccessPatients) {
       return;
     }
@@ -161,7 +180,9 @@ class _VolunteerPatientRegistrationPageState
     });
 
     try {
-      final list = await PatientEnquiryService.getEnquiries();
+      final list = widget.enquiriesLoader != null
+          ? await widget.enquiriesLoader!()
+          : await PatientEnquiryService.getEnquiries();
       if (!mounted) return;
       setState(() {
         _myEnquiries = list;
@@ -179,7 +200,9 @@ class _VolunteerPatientRegistrationPageState
   Future<void> _loadAuthenticatedConfig() async {
     setState(() => _loadingConfig = true);
     try {
-      final config = await ConfigService.getConfig();
+      final config = widget.configLoader != null
+          ? await widget.configLoader!()
+          : await ConfigService.getConfig();
       if (!mounted) return;
       setState(() {
         _villages = List.from(config.villages)..sort();
@@ -219,6 +242,20 @@ class _VolunteerPatientRegistrationPageState
   Future<void> _loadPublicConfig(String unitId) async {
     setState(() => _loadingConfig = true);
     try {
+      if (widget.configLoader != null) {
+        final cfg = await widget.configLoader!();
+        if (!mounted) return;
+        setState(() {
+          _villages = List.from(cfg.villages)..sort();
+          _allWards = sortWardConfigs(cfg.wards);
+          _selectedVillage = null;
+          _selectedWardDropdown = null;
+          _wardController.clear();
+          _filteredWards = [];
+          _loadingConfig = false;
+        });
+        return;
+      }
       final config = await PatientEnquiryService.getPublicUnitConfig(unitId);
       if (!mounted) return;
       setState(() {
@@ -288,6 +325,18 @@ class _VolunteerPatientRegistrationPageState
       return;
     }
 
+    final isRestrictedUser = auth.isVolunteer || auth.isPublicUser;
+    final activePending = isRestrictedUser
+        ? _myEnquiries.where((e) => e.isPending).firstOrNull
+        : null;
+    if (activePending != null) {
+      setState(
+        () => _errorMessage =
+            'You already have a pending patient enquiry (${activePending.name}) awaiting verification. You can submit another enquiry once your current enquiry is approved or rejected by the unit.',
+      );
+      return;
+    }
+
     // Determine final ward value
     final finalWard = _isCustomWard
         ? _wardController.text.trim()
@@ -309,13 +358,13 @@ class _VolunteerPatientRegistrationPageState
         phone2: _phone2Controller.text.trim(),
         village: _selectedVillage!,
         ward: finalWard.isEmpty ? null : finalWard,
-        caregiverName: _caregiverNameController.text.trim(),
-        caregiverPhone: _caregiverPhoneController.text.trim(),
+        referredByName: _referredByNameController.text.trim(),
+        referredByPhone: _referredByPhoneController.text.trim(),
       );
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      if (widget.showRegistrationHistory) _loadMyEnquiries();
+      await _loadMyEnquiries();
       _showSuccessDialog();
     } catch (e) {
       if (!mounted) return;
@@ -323,10 +372,14 @@ class _VolunteerPatientRegistrationPageState
         _isSubmitting = false;
         _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
+      _loadMyEnquiries();
     }
   }
 
   void _showSuccessDialog() {
+    final auth = context.read<AuthService>();
+    final isUserOrVolunteer = auth.isVolunteer || auth.isPublicUser || !auth.isAdmin;
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -359,11 +412,13 @@ class _VolunteerPatientRegistrationPageState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Patient details have been submitted successfully as an unapproved enquiry.',
-              style: const TextStyle(fontSize: 15, height: 1.4),
+            const Text(
+              'Patient details have been submitted successfully.',
+              style: TextStyle(fontSize: 15, height: 1.4),
             ),
-            if (_selectedUnitName != null && _selectedUnitName!.isNotEmpty) ...[
+            if (!isUserOrVolunteer &&
+                _selectedUnitName != null &&
+                _selectedUnitName!.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Care Unit: $_selectedUnitName',
@@ -374,55 +429,51 @@ class _VolunteerPatientRegistrationPageState
                 ),
               ),
             ],
-            const SizedBox(height: AppSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: AppRadius.sm,
-                border: Border.all(color: AppColors.primaryLight),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: AppColors.primary, size: 20),
-                  SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      'The unit admin will verify these details via WhatsApp and add the patient record manually.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _resetForm();
-            },
-            child: const Text('Add Another'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
-            ),
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _resetForm();
-              _tabController.animateTo(1);
-            },
-            child: const Text('View Registrations'),
-          ),
-        ],
+        actions: isUserOrVolunteer
+            ? [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.button,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _resetForm();
+                  },
+                  child: const Text('Close'),
+                ),
+              ]
+            : [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _resetForm();
+                  },
+                  child: const Text('Add Another'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.button,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _resetForm();
+                    if (widget.showRegistrationHistory) {
+                      _tabController.animateTo(1);
+                    }
+                  },
+                  child: const Text('View Registrations'),
+                ),
+              ],
       ),
     );
   }
@@ -434,8 +485,8 @@ class _VolunteerPatientRegistrationPageState
     _phoneController.clear();
     _phone2Controller.clear();
     _wardController.clear();
-    _caregiverNameController.clear();
-    _caregiverPhoneController.clear();
+    _referredByNameController.clear();
+    _referredByPhoneController.clear();
     setState(() {
       _selectedVillage = null;
       _selectedWardDropdown = null;
@@ -686,7 +737,11 @@ class _VolunteerPatientRegistrationPageState
 
     return AdaptiveAppScaffold(
       appBar: AppBar(
-        title: const Text('Register Patient'),
+        title: Text(
+          auth.isPublicUser
+              ? 'Patient Registration Enquiry'
+              : 'Register Patient',
+        ),
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.text,
         elevation: 0,
@@ -730,20 +785,33 @@ class _VolunteerPatientRegistrationPageState
     bool isAuthenticated,
     AuthService auth,
   ) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppInsets.screenHorizontal(context),
-        vertical: AppSpacing.md,
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (widget.showRegistrationHistory && _myEnquiries.isNotEmpty) ...[
+    final isRestrictedUser = auth.isVolunteer || auth.isPublicUser;
+    final activePending = isRestrictedUser
+        ? _myEnquiries.where((e) => e.isPending).firstOrNull
+        : null;
+
+    return RefreshIndicator(
+      onRefresh: _loadMyEnquiries,
+      color: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppInsets.screenHorizontal(context),
+          vertical: AppSpacing.md,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (activePending != null) ...[
+                    _buildPendingEnquiryAlertCard(context, activePending),
+                    const SizedBox(height: AppSpacing.md),
+                  ] else if (widget.showRegistrationHistory && _myEnquiries.isNotEmpty) ...[
                   InkWell(
                     onTap: () => _tabController.animateTo(1),
                     borderRadius: AppRadius.card,
@@ -1054,10 +1122,10 @@ class _VolunteerPatientRegistrationPageState
 
                 const SizedBox(height: AppSpacing.lg),
 
-                // Caregiver Details: Caregiver Name & Caregiver Phone
+                // Referred By: Name & Phone
                 _buildSectionHeader(
-                  'Caregiver Details',
-                  Icons.family_restroom_rounded,
+                  'Referred By',
+                  Icons.person_pin_circle_rounded,
                 ),
                 const SizedBox(height: AppSpacing.xs),
 
@@ -1073,22 +1141,22 @@ class _VolunteerPatientRegistrationPageState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 7. Caregiver name
+                        // Referred By Name
                         TextFormField(
-                          controller: _caregiverNameController,
+                          controller: _referredByNameController,
                           textCapitalization: TextCapitalization.words,
                           inputFormatters: [CapitalizeWordsInputFormatter()],
                           decoration: _buildDecoration(
-                            label: 'Caregiver Name',
-                            icon: Icons.badge_outlined,
-                            hint: 'Name of caregiver or primary contact',
+                            label: 'Name',
+                            icon: Icons.person_outline_rounded,
+                            hint: 'Name',
                           ),
                         ),
                         const SizedBox(height: AppSpacing.md),
 
-                        // 8. Caregiver phone
+                        // Referred By Phone
                         TextFormField(
-                          controller: _caregiverPhoneController,
+                          controller: _referredByPhoneController,
                           keyboardType: TextInputType.phone,
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(
@@ -1096,9 +1164,9 @@ class _VolunteerPatientRegistrationPageState
                             ),
                           ],
                           decoration: _buildDecoration(
-                            label: 'Caregiver Phone Number',
-                            icon: Icons.contact_phone_outlined,
-                            hint: 'Contact number of caregiver',
+                            label: 'Phone',
+                            icon: Icons.phone_outlined,
+                            hint: 'Phone',
                           ),
                         ),
                       ],
@@ -1108,28 +1176,194 @@ class _VolunteerPatientRegistrationPageState
 
                 const SizedBox(height: AppSpacing.xl),
 
-                // Submit Action Button
-                AppPrimaryButton(
-                  label: 'Submit Patient Enquiry',
-                  icon: Icons.send_rounded,
-                  loading: _isSubmitting,
-                  onPressed: _isSubmitting ? null : _submit,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Note: This submission does not directly create a patient. It will appear in the Admin Panel for verification before manual registration.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                    height: 1.3,
+                // Submit Action Button or Pending Lock Card
+                if (activePending != null) ...[
+                  _buildPendingSubmissionLockedCard(context, activePending),
+                ] else ...[
+                  AppPrimaryButton(
+                    label: 'Submit Patient Enquiry',
+                    icon: Icons.send_rounded,
+                    loading: _isSubmitting,
+                    onPressed: _isSubmitting ? null : _submit,
                   ),
-                  textAlign: TextAlign.center,
-                ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Note: This submission does not directly create a patient. It will appear in the Admin Panel for verification before manual registration.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                      height: 1.3,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xl),
               ],
             ),
           ),
         ),
+      ),
+    ),
+  );
+}
+
+  Widget _buildPendingEnquiryAlertCard(
+    BuildContext context,
+    PatientEnquiry pending,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: AppRadius.card,
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.hourglass_top_rounded,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Pending Enquiry Awaiting Verification',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Current enquiry: ${pending.name}${pending.village.isNotEmpty ? ' (${pending.village})' : ''}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.showRegistrationHistory)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                  ),
+                  onPressed: () => _tabController.animateTo(1),
+                  child: const Text('View Status →'),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          const Text(
+            'To prevent duplicate submissions and misuse, you can only submit one enquiry until the admin approves or rejects the current enquiry.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingSubmissionLockedCard(
+    BuildContext context,
+    PatientEnquiry pending,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: AppRadius.card,
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.xs),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.lock_clock_rounded,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const Expanded(
+                child: Text(
+                  'Submission on Hold',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'You already have a pending enquiry for ${pending.name} waiting for approval or rejection. You can submit another patient enquiry once this one has been reviewed by the care unit.',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          if (widget.showRegistrationHistory) ...[
+            const SizedBox(height: AppSpacing.md),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.button,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.sm,
+                  horizontal: AppSpacing.md,
+                ),
+              ),
+              onPressed: () => _tabController.animateTo(1),
+              icon: const Icon(Icons.list_alt_rounded, size: 18),
+              label: const Text('View Current Enquiry Status'),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1185,8 +1419,8 @@ class _VolunteerPatientRegistrationPageState
             (item.phone2 ?? '').toLowerCase().contains(q) ||
             item.village.toLowerCase().contains(q) ||
             (item.ward ?? '').toLowerCase().contains(q) ||
-            (item.caregiverName ?? '').toLowerCase().contains(q) ||
-            (item.caregiverPhone ?? '').toLowerCase().contains(q);
+            (item.displayReferredByName ?? '').toLowerCase().contains(q) ||
+            (item.displayReferredByPhone ?? '').toLowerCase().contains(q);
         if (!matches) return false;
       }
       return true;
@@ -1530,24 +1764,22 @@ class _VolunteerPatientRegistrationPageState
               ),
             ],
 
-            // 4. Caregiver (if provided)
-            if (item.caregiverName != null &&
-                item.caregiverName!.trim().isNotEmpty) ...[
+            // 4. Referred By (if provided)
+            if (item.displayReferredByName != null) ...[
               const SizedBox(height: 6),
               Row(
                 children: [
                   const Icon(
-                    Icons.family_restroom_rounded,
+                    Icons.person_pin_circle_outlined,
                     size: 15,
                     color: AppColors.primary,
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      item.caregiverPhone != null &&
-                              item.caregiverPhone!.trim().isNotEmpty
-                          ? 'Caregiver: ${item.caregiverName} (${item.caregiverPhone})'
-                          : 'Caregiver: ${item.caregiverName}',
+                      item.displayReferredByPhone != null
+                          ? 'Referred By: ${item.displayReferredByName} (${item.displayReferredByPhone})'
+                          : 'Referred By: ${item.displayReferredByName}',
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
@@ -1580,33 +1812,68 @@ class _VolunteerPatientRegistrationPageState
               ),
             ],
 
-            const SizedBox(height: AppSpacing.md),
-
-            // Share to WhatsApp Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF25D366),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+            // 6. Review Notes / Reason (if provided)
+            if (item.notes != null && item.notes!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 6,
                 ),
-                icon: const Icon(Icons.share_rounded, size: 16),
-                label: const Text(
-                  'Share to WhatsApp',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                decoration: BoxDecoration(
+                  color: item.isRejected
+                      ? const Color(0xFFFEE2E2)
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: item.isRejected
+                        ? const Color(0xFFFECACA)
+                        : AppColors.border,
+                  ),
                 ),
-                onPressed: () {
-                  PatientEnquiryService.shareToWhatsApp(
-                    item,
-                    context,
-                    unitName: _selectedUnitName ?? auth.unitName,
-                  );
-                },
+                child: Text(
+                  'Note: ${item.notes!.trim()}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: item.isRejected
+                        ? const Color(0xFFB91C1C)
+                        : AppColors.textSecondary,
+                  ),
+                ),
               ),
-            ),
+            ],
+
+            if (auth.isAdmin) ...[
+              const SizedBox(height: AppSpacing.md),
+
+              // Share to WhatsApp Button (Admin only)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                  ),
+                  icon: const Icon(Icons.share_rounded, size: 16),
+                  label: const Text(
+                    'Share to WhatsApp',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                  onPressed: () {
+                    PatientEnquiryService.shareToWhatsApp(
+                      item,
+                      context,
+                      unitName: _selectedUnitName ?? auth.unitName,
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1644,8 +1911,10 @@ class _VolunteerPatientRegistrationPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Volunteer Patient Enquiry',
-                      style: TextStyle(
+                      auth.isPublicUser
+                          ? 'Patient Registration Enquiry'
+                          : 'Volunteer Patient Enquiry',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         color: AppColors.text,

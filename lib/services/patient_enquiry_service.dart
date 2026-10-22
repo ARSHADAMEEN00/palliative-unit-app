@@ -64,9 +64,13 @@ class PatientEnquiryService {
     String? ward,
     String? caregiverName,
     String? caregiverPhone,
+    String? referredByName,
+    String? referredByPhone,
     String? submittedByVolunteerId,
     String? submittedByVolunteerName,
   }) async {
+    final refName = (referredByName ?? caregiverName)?.trim();
+    final refPhone = (referredByPhone ?? caregiverPhone)?.trim();
     final result = await ApiService.post<Map<String, dynamic>>(
       ApiConfig.publicPatientEnquiriesEndpoint,
       body: {
@@ -78,10 +82,14 @@ class PatientEnquiryService {
         if (phone2 != null && phone2.trim().isNotEmpty) 'phone2': phone2.trim(),
         'village': village.trim(),
         if (ward != null && ward.trim().isNotEmpty) 'ward': ward.trim(),
-        if (caregiverName != null && caregiverName.trim().isNotEmpty)
-          'caregiverName': caregiverName.trim(),
-        if (caregiverPhone != null && caregiverPhone.trim().isNotEmpty)
-          'caregiverPhone': caregiverPhone.trim(),
+        if (refName != null && refName.isNotEmpty) ...{
+          'caregiverName': refName,
+          'referredByName': refName,
+        },
+        if (refPhone != null && refPhone.isNotEmpty) ...{
+          'caregiverPhone': refPhone,
+          'referredByPhone': refPhone,
+        },
         if (submittedByVolunteerId != null)
           'submittedByVolunteerId': submittedByVolunteerId,
         if (submittedByVolunteerName != null)
@@ -104,7 +112,11 @@ class PatientEnquiryService {
     String? ward,
     String? caregiverName,
     String? caregiverPhone,
+    String? referredByName,
+    String? referredByPhone,
   }) async {
+    final refName = (referredByName ?? caregiverName)?.trim();
+    final refPhone = (referredByPhone ?? caregiverPhone)?.trim();
     final result = await ApiService.post<Map<String, dynamic>>(
       ApiConfig.patientEnquiriesEndpoint,
       body: {
@@ -115,10 +127,14 @@ class PatientEnquiryService {
         if (phone2 != null && phone2.trim().isNotEmpty) 'phone2': phone2.trim(),
         'village': village.trim(),
         if (ward != null && ward.trim().isNotEmpty) 'ward': ward.trim(),
-        if (caregiverName != null && caregiverName.trim().isNotEmpty)
-          'caregiverName': caregiverName.trim(),
-        if (caregiverPhone != null && caregiverPhone.trim().isNotEmpty)
-          'caregiverPhone': caregiverPhone.trim(),
+        if (refName != null && refName.isNotEmpty) ...{
+          'caregiverName': refName,
+          'referredByName': refName,
+        },
+        if (refPhone != null && refPhone.isNotEmpty) ...{
+          'caregiverPhone': refPhone,
+          'referredByPhone': refPhone,
+        },
       },
     );
     if (!result.isSuccess) {

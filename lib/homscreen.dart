@@ -8,6 +8,7 @@ import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/equipment_list_page.dart';
 import 'package:oruma_app/equipment_supply_list_page.dart';
 import 'package:oruma_app/home_visit_list_page.dart';
+import 'package:oruma_app/models/home_visit.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
 import 'package:oruma_app/social_support_list_page.dart';
@@ -30,6 +31,7 @@ import 'package:oruma_app/services/equipment_supply_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/notification_service.dart';
+import 'package:oruma_app/services/patient_enquiry_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/about_us.dart';
@@ -67,9 +69,26 @@ const _homeHoverOverlay = Color(0x08000000);
 const _homePressedOverlay = Color(0x10000000);
 
 class Homescreen extends StatefulWidget {
-  const Homescreen({super.key, this.aboutUsLoader});
+  const Homescreen({
+    super.key,
+    this.aboutUsLoader,
+    this.homeVisitsLoader,
+    this.initialPendingVolunteerRegistrationCount,
+    this.initialPendingAvailabilityRequestCount,
+    this.initialPendingPatientEnquiryCount,
+    this.initialTodayHomeVisitCount,
+    this.initialLatestHomeVisitDate,
+    this.initialLatestHomeVisitCount,
+  });
 
   final Future<AboutUsData> Function({bool refresh})? aboutUsLoader;
+  final Future<List<HomeVisit>> Function()? homeVisitsLoader;
+  final int? initialPendingVolunteerRegistrationCount;
+  final int? initialPendingAvailabilityRequestCount;
+  final int? initialPendingPatientEnquiryCount;
+  final int? initialTodayHomeVisitCount;
+  final DateTime? initialLatestHomeVisitDate;
+  final int? initialLatestHomeVisitCount;
 
   @override
   State<Homescreen> createState() => _HomescreenState();
@@ -99,18 +118,38 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _pendingVolunteerStoryLoading = false;
   int _pendingVolunteerRegistrationCount = 0;
   int _pendingAvailabilityRequestCount = 0;
+  int _pendingPatientEnquiryCount = 0;
+  bool _dismissedEmailVerificationBanner = false;
+  bool _dismissedVolunteerRequestsBanner = false;
+  bool _dismissedPatientEnquiriesBanner = false;
   bool _importantRequestsLoading = false;
+  bool _patientEnquiriesLoading = false;
   int? _patientCount;
   int _newPatientCountThisWeek = 0;
-  int? _upcomingHomeVisitCount;
   int _todayHomeVisitCount = 0;
-  DateTime? _nextHomeVisitDate;
+  DateTime? _latestHomeVisitDate;
+  int _latestHomeVisitCount = 0;
+  bool _homeVisitsLoaded = false;
   int _selectedVolunteerTaskTab = 0;
   final Set<String> _updatingAssignmentIds = {};
 
   @override
   void initState() {
     super.initState();
+    _pendingVolunteerRegistrationCount =
+        widget.initialPendingVolunteerRegistrationCount ?? 0;
+    _pendingAvailabilityRequestCount =
+        widget.initialPendingAvailabilityRequestCount ?? 0;
+    _pendingPatientEnquiryCount =
+        widget.initialPendingPatientEnquiryCount ?? 0;
+    if (widget.initialTodayHomeVisitCount != null ||
+        widget.initialLatestHomeVisitDate != null ||
+        widget.initialLatestHomeVisitCount != null) {
+      _todayHomeVisitCount = widget.initialTodayHomeVisitCount ?? 0;
+      _latestHomeVisitDate = widget.initialLatestHomeVisitDate;
+      _latestHomeVisitCount = widget.initialLatestHomeVisitCount ?? 0;
+      _homeVisitsLoaded = true;
+    }
     WidgetsBinding.instance.addObserver(this);
     _bootstrapAccess();
   }
@@ -139,6 +178,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         now.difference(_lastBootstrapAt!) < const Duration(minutes: 3)) {
       return;
     }
+    if (force) {
+      _dismissedVolunteerRequestsBanner = false;
+      _dismissedPatientEnquiriesBanner = false;
+    }
     _lastBootstrapAt = now;
 
     final auth = context.read<AuthService>();
@@ -159,8 +202,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       _loadVolunteerAssignments();
       _loadVolunteerAvailabilityRequests();
     }
-    if (auth.isAdmin) {
+    if (auth.canManageVolunteerRequests) {
       _loadImportantRequests();
+    }
+    if (_canViewPatientEnquiries(auth)) {
+      _loadPatientEnquiryCount();
     }
     if (auth.canAccessEquipmentDistribution) {
       _loadActiveSupplies();
@@ -225,6 +271,25 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       // The dashboard remains usable if request summaries cannot be refreshed.
     } finally {
       if (mounted) setState(() => _importantRequestsLoading = false);
+    }
+  }
+
+  bool _canViewPatientEnquiries(AuthService auth) {
+    return (auth.isAdmin || auth.isStaff || auth.isMember) &&
+        auth.canAccessPatients;
+  }
+
+  Future<void> _loadPatientEnquiryCount() async {
+    if (!mounted || _patientEnquiriesLoading) return;
+    if (widget.initialPendingPatientEnquiryCount != null) return;
+
+    setState(() => _patientEnquiriesLoading = true);
+    try {
+      final count = await PatientEnquiryService.getPendingCount();
+      if (!mounted) return;
+      setState(() => _pendingPatientEnquiryCount = count);
+    } finally {
+      if (mounted) setState(() => _patientEnquiriesLoading = false);
     }
   }
 
@@ -351,34 +416,63 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
 
     if (auth.canAccessHomeVisits) {
+      final visitsFuture = widget.homeVisitsLoader != null
+          ? widget.homeVisitsLoader!()
+          : HomeVisitService.getAllHomeVisits();
       futures.add(
-        HomeVisitService.getAllHomeVisits()
+        visitsFuture
             .then((visits) {
               if (!mounted) return;
               final today = DateTime.now();
               final startOfToday = DateTime(today.year, today.month, today.day);
-              final upcoming =
-                  visits
-                      .map((visit) => DateTime.tryParse(visit.visitDate))
-                      .whereType<DateTime>()
-                      .where((date) => !date.isBefore(startOfToday))
-                      .toList()
-                    ..sort();
-              final todayCount = upcoming
-                  .where(
-                    (date) =>
-                        date.year == startOfToday.year &&
-                        date.month == startOfToday.month &&
-                        date.day == startOfToday.day,
-                  )
-                  .length;
+
+              final Map<DateTime, int> visitCountsByDate = {};
+              for (final visit in visits) {
+                final parsed = DateTime.tryParse(visit.visitDate);
+                if (parsed == null) continue;
+                final local = parsed.toLocal();
+                final dateOnly = DateTime(local.year, local.month, local.day);
+                visitCountsByDate[dateOnly] =
+                    (visitCountsByDate[dateOnly] ?? 0) + 1;
+              }
+
+              final todayCount = visitCountsByDate[startOfToday] ?? 0;
+
+              DateTime? latestDate;
+              int latestCount = 0;
+
+              if (visitCountsByDate.isNotEmpty) {
+                final allDates = visitCountsByDate.keys.toList()..sort();
+                final pastDates =
+                    allDates.where((d) => d.isBefore(startOfToday)).toList();
+                if (pastDates.isNotEmpty) {
+                  latestDate = pastDates.last;
+                  latestCount = visitCountsByDate[latestDate] ?? 0;
+                } else {
+                  final otherDates =
+                      allDates
+                          .where((d) => !d.isAtSameMomentAs(startOfToday))
+                          .toList();
+                  if (otherDates.isNotEmpty) {
+                    latestDate = otherDates.first;
+                    latestCount = visitCountsByDate[latestDate] ?? 0;
+                  }
+                }
+              }
+
               setState(() {
-                _upcomingHomeVisitCount = upcoming.length;
+                _homeVisitsLoaded = true;
                 _todayHomeVisitCount = todayCount;
-                _nextHomeVisitDate = upcoming.isEmpty ? null : upcoming.first;
+                _latestHomeVisitDate = latestDate;
+                _latestHomeVisitCount = latestCount;
               });
             })
-            .catchError((_) {}),
+            .catchError((_) {
+              if (!mounted) return;
+              setState(() {
+                _homeVisitsLoaded = true;
+              });
+            }),
       );
     }
 
@@ -427,6 +521,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   bool _canShowNotification(AppNotification notification, AuthService auth) {
     if (_isBillingNotification(notification)) return auth.isAdmin;
+    if (notification.type == 'volunteer_availability_request' ||
+        notification.type == 'volunteer_registration') {
+      return auth.canManageVolunteerRequests;
+    }
     if (notification.type == 'equipment_overdue') {
       return auth.canAccessEquipmentDistribution;
     }
@@ -706,7 +804,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     }
 
     if (notification.type == 'volunteer_availability_request') {
-      if (!context.read<AuthService>().isAdmin) return;
+      if (!context.read<AuthService>().canManageVolunteerRequests) return;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -741,7 +839,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     }
 
     if (notification.type == 'volunteer_registration') {
-      if (!context.read<AuthService>().isAdmin) return;
+      if (!context.read<AuthService>().canManageVolunteerRequests) return;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -1250,6 +1348,19 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                   : '@$username',
                               onTap: () => _showUsernameEditor(sheetContext),
                             ),
+                            if (!auth.isEmailVerified)
+                              _buildProfileMenuItem(
+                                icon: Icons.mark_email_unread_outlined,
+                                title: 'Verify email',
+                                subtitle: userEmail?.isNotEmpty == true
+                                    ? 'Complete verification for $userEmail'
+                                    : 'Complete your account verification',
+                                color: AppColors.warning,
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  _openEmailVerification(auth);
+                                },
+                              ),
                             _buildProfileMenuItem(
                               icon: Icons.lock_reset_rounded,
                               title: 'Reset password',
@@ -2143,33 +2254,46 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   Widget _buildEmailVerificationCard(AuthService auth) {
+    if (_dismissedEmailVerificationBanner) {
+      return const SizedBox.shrink();
+    }
+
     return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       surfaceLevel: AppSurfaceLevel.elevated,
       borderColor: AppColors.warning.withValues(alpha: 0.35),
       backgroundColor: AppColors.warning.withValues(alpha: 0.07),
-      onTap: () => _openEmailVerification(auth),
+      onTap: () {
+        _dismissEmailVerificationBanner();
+        _openEmailVerification(auth);
+      },
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.16),
-              borderRadius: AppRadius.md,
+              borderRadius: AppRadius.sm,
             ),
             child: const Icon(
               Icons.mark_email_unread_outlined,
               color: AppColors.warning,
+              size: 20,
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Complete your verification',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.text,
                     fontWeight: FontWeight.w700,
                   ),
@@ -2181,19 +2305,208 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       : auth.isMember
                       ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your member account.'
                       : 'Verify ${auth.userEmail ?? 'your email address'} to secure your account and submit enquiries.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
-                    height: 1.35,
+                    height: 1.2,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          const SizedBox(width: AppSpacing.xs),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textMuted,
+            size: 20,
+          ),
+          const SizedBox(width: AppSpacing.xxs),
+          IconButton(
+            tooltip: 'Dismiss verification reminder',
+            icon: const Icon(Icons.close_rounded, size: 18),
+            color: AppColors.textMuted,
+            splashRadius: 18,
+            visualDensity: VisualDensity.compact,
+            onPressed: _dismissEmailVerificationBanner,
+          ),
         ],
       ),
     );
+  }
+
+  void _dismissEmailVerificationBanner() {
+    setState(() => _dismissedEmailVerificationBanner = true);
+  }
+
+  Widget _buildVolunteerRequestsInfoBanner(
+    BuildContext context,
+    AuthService auth,
+  ) {
+    if (!auth.canManageVolunteerRequests || (!auth.isStaff && !auth.isMember)) {
+      return const SizedBox.shrink();
+    }
+    final pendingCount =
+        _pendingVolunteerRegistrationCount + _pendingAvailabilityRequestCount;
+    if (_importantRequestsLoading && pendingCount == 0) {
+      return const SizedBox.shrink();
+    }
+    if (pendingCount == 0 || _dismissedVolunteerRequestsBanner) {
+      return const SizedBox.shrink();
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      surfaceLevel: AppSurfaceLevel.elevated,
+      borderColor: AppColors.info.withValues(alpha: 0.28),
+      backgroundColor: AppColors.info.withValues(alpha: 0.07),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.14),
+              borderRadius: AppRadius.sm,
+            ),
+            child: const Icon(
+              Icons.info_outline_rounded,
+              color: AppColors.info,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'New volunteer requests',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  '$_pendingVolunteerRegistrationCount ${_pendingVolunteerRegistrationCount == 1 ? 'registration' : 'registrations'} · '
+                  '$_pendingAvailabilityRequestCount availability ${_pendingAvailabilityRequestCount == 1 ? 'request' : 'requests'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textSecondary, height: 1.2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xxs),
+          IconButton(
+            tooltip: 'Dismiss new volunteer requests',
+            icon: const Icon(Icons.close_rounded, size: 18),
+            color: AppColors.textMuted,
+            splashRadius: 18,
+            visualDensity: VisualDensity.compact,
+            onPressed: _dismissVolunteerRequestsBanner,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dismissVolunteerRequestsBanner() {
+    setState(() => _dismissedVolunteerRequestsBanner = true);
+  }
+
+  Widget _buildPatientEnquiriesInfoBanner(
+    BuildContext context,
+    AuthService auth,
+  ) {
+    if (!_canViewPatientEnquiries(auth) ||
+        (!auth.isStaff && !auth.isMember)) {
+      return const SizedBox.shrink();
+    }
+    if (_pendingPatientEnquiryCount == 0 ||
+        _dismissedPatientEnquiriesBanner) {
+      return const SizedBox.shrink();
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      surfaceLevel: AppSurfaceLevel.elevated,
+      borderColor: AppColors.info.withValues(alpha: 0.28),
+      backgroundColor: AppColors.info.withValues(alpha: 0.07),
+      onTap: () {
+        _dismissPatientEnquiriesBanner();
+        _openPatientEnquiries();
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.14),
+              borderRadius: AppRadius.sm,
+            ),
+            child: const Icon(
+              Icons.mark_email_unread_outlined,
+              color: AppColors.info,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'New patient enquiries',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  '$_pendingPatientEnquiryCount pending ${_pendingPatientEnquiryCount == 1 ? 'enquiry' : 'enquiries'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textSecondary, height: 1.2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textMuted,
+            size: 20,
+          ),
+          const SizedBox(width: AppSpacing.xxs),
+          IconButton(
+            tooltip: 'Dismiss new patient enquiries',
+            icon: const Icon(Icons.close_rounded, size: 18),
+            color: AppColors.textMuted,
+            splashRadius: 18,
+            visualDensity: VisualDensity.compact,
+            onPressed: _dismissPatientEnquiriesBanner,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dismissPatientEnquiriesBanner() {
+    setState(() => _dismissedPatientEnquiriesBanner = true);
   }
 
   Widget _buildUnitDetailsCard(BuildContext context, AuthService auth) {
@@ -3925,7 +4238,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       ),
                     ],
                   ),
-                  if (!auth.isEmailVerified) ...[
+                  if (!auth.isEmailVerified &&
+                      !_dismissedEmailVerificationBanner) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildEmailVerificationCard(auth),
                   ],
@@ -4095,9 +4409,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   Widget _buildRoleHome(BuildContext context, AuthService auth) {
     final showActivity =
         auth.isAdmin ||
-        auth.isStaff ||
         auth.isVolunteer ||
-        (auth.isMember && _notifications.isNotEmpty);
+        (auth.isStaff
+            ? (auth.canManageVolunteerRequests || _canViewPatientEnquiries(auth))
+            : (auth.canManageVolunteerRequests ||
+                _canViewPatientEnquiries(auth) ||
+                (auth.isMember && _notifications.isNotEmpty)));
     final screenWidth = MediaQuery.sizeOf(context).width;
     final horizontalPadding = screenWidth < AppBreakpoints.tablet
         ? AppSpacing.md
@@ -4131,9 +4448,27 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHomeHeader(context, auth),
-                  if (!auth.isAdmin && !auth.isEmailVerified) ...[
+                  if (!auth.isAdmin &&
+                      !auth.isEmailVerified &&
+                      !_dismissedEmailVerificationBanner) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildEmailVerificationCard(auth),
+                  ],
+                  if ((auth.isStaff || auth.isMember) &&
+                      auth.canManageVolunteerRequests &&
+                      _pendingVolunteerRegistrationCount +
+                              _pendingAvailabilityRequestCount >
+                          0 &&
+                      !_dismissedVolunteerRequestsBanner) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildVolunteerRequestsInfoBanner(context, auth),
+                  ],
+                  if ((auth.isStaff || auth.isMember) &&
+                      _canViewPatientEnquiries(auth) &&
+                      _pendingPatientEnquiryCount > 0 &&
+                      !_dismissedPatientEnquiriesBanner) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildPatientEnquiriesInfoBanner(context, auth),
                   ],
                   const SizedBox(height: AppSpacing.md),
                   _buildPriorityCards(context, auth),
@@ -4229,8 +4564,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         actions.add(
           _HomeMetricAction(
             title: 'Home visits',
-            value: _formatMetric(_upcomingHomeVisitCount),
-            subtitle: _nextHomeVisitLabel(),
+            value: _homeVisitMetricValue(),
+            subtitle: _homeVisitMetricSubtitle(),
             icon: Icons.home_outlined,
             iconBackground: ModulePalettes.homeVisits.iconBackground,
             iconColor: ModulePalettes.homeVisits.primary,
@@ -4507,7 +4842,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       _openMedicineSupply,
     );
     add(
-      auth.isAdmin || auth.isStaff || auth.canAccessVolunteers,
+      auth.canAccessVolunteers,
       'Volunteers',
       Icons.volunteer_activism_outlined,
       ModulePalettes.volunteers,
@@ -4522,7 +4857,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
     add(
       auth.isAdmin || auth.isStaff || auth.canAccessPatients,
-      'Patient enquires',
+      'Patient enquiries',
       Icons.mark_email_unread_outlined,
       ModulePalettes.patients,
       _openPatientEnquiries,
@@ -4539,25 +4874,109 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Widget _buildRoleActivitySection(BuildContext context, AuthService auth) {
     if (auth.isVolunteer) return _buildVolunteerHomeTasks(context);
-    if (auth.isAdmin) return _buildAdminAttentionSection(context);
+    if (auth.isAdmin) return _buildAdminAttentionSection(context, auth);
+    if (auth.isStaff) {
+      if (auth.canManageVolunteerRequests || _canViewPatientEnquiries(auth)) {
+        return _buildNewRequestsSection(context, auth);
+      }
+      return const SizedBox.shrink();
+    }
+    if (auth.canManageVolunteerRequests || _canViewPatientEnquiries(auth)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildNewRequestsSection(context, auth),
+          const SizedBox(height: AppSpacing.md),
+          _buildLatestNotificationsSection(context),
+        ],
+      );
+    }
     return _buildLatestNotificationsSection(context);
   }
 
-  Widget _buildAdminAttentionSection(BuildContext context) {
+  Widget _buildNewRequestsSection(BuildContext context, AuthService auth) {
     final registrationCount = _importantRequestsLoading
         ? null
         : _pendingVolunteerRegistrationCount;
     final availabilityCount = _importantRequestsLoading
         ? null
         : _pendingAvailabilityRequestCount;
-    final equipmentCount = _activeSuppliesLoading
+    final patientEnquiryCount = _patientEnquiriesLoading
         ? null
-        : _activeSupplies.length;
+        : _pendingPatientEnquiryCount;
+    final cards = <Widget>[
+      if (auth.canManageVolunteerRequests) ...[
+        _HomeActivityCard(
+          icon: Icons.how_to_reg_rounded,
+          iconBackground: AppColors.info.withValues(alpha: 0.1),
+          iconColor: AppColors.info,
+          title: 'Volunteer registrations',
+          subtitle: registrationCount == null
+              ? 'Checking pending registrations…'
+              : '$registrationCount pending ${registrationCount == 1 ? 'registration' : 'registrations'}',
+          actionLabel: 'Review',
+          actionBackgroundColor: AppColors.info.withValues(alpha: 0.12),
+          actionForegroundColor: AppColors.info,
+          onTap: _openVolunteerRegistrationRequests,
+        ),
+        _HomeActivityCard(
+          icon: Icons.event_available_rounded,
+          iconBackground: AppColors.info.withValues(alpha: 0.1),
+          iconColor: AppColors.info,
+          title: 'Availability requests',
+          subtitle: availabilityCount == null
+              ? 'Checking availability requests…'
+              : '$availabilityCount pending ${availabilityCount == 1 ? 'request' : 'requests'}',
+          actionLabel: 'Review',
+          actionBackgroundColor: AppColors.info.withValues(alpha: 0.12),
+          actionForegroundColor: AppColors.info,
+          onTap: _openAvailabilityRequestsAdmin,
+        ),
+      ],
+      if (_canViewPatientEnquiries(auth))
+        _HomeActivityCard(
+          icon: Icons.mark_email_unread_outlined,
+          iconBackground: ModulePalettes.patients.iconBackground,
+          iconColor: ModulePalettes.patients.primary,
+          title: 'Patient enquiries',
+          subtitle: patientEnquiryCount == null
+              ? 'Checking pending enquiries…'
+              : '$patientEnquiryCount pending ${patientEnquiryCount == 1 ? 'enquiry' : 'enquiries'}',
+          actionLabel: 'Review',
+          actionBackgroundColor: ModulePalettes.patients.iconBackground,
+          actionForegroundColor: ModulePalettes.patients.primary,
+          onTap: _openPatientEnquiries,
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildHomeSectionHeader(context, title: 'Needs your attention'),
+        _buildHomeSectionHeader(context, title: 'New requests'),
         const SizedBox(height: AppSpacing.sm),
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.xs),
+          cards[i],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdminAttentionSection(BuildContext context, AuthService auth) {
+    final registrationCount = _importantRequestsLoading
+        ? null
+        : _pendingVolunteerRegistrationCount;
+    final availabilityCount = _importantRequestsLoading
+        ? null
+        : _pendingAvailabilityRequestCount;
+    final patientEnquiryCount = _patientEnquiriesLoading
+        ? null
+        : _pendingPatientEnquiryCount;
+    final equipmentCount = _activeSuppliesLoading
+        ? null
+        : _activeSupplies.length;
+    final cards = <Widget>[
+      if (auth.canManageVolunteerRequests) ...[
         _HomeActivityCard(
           icon: Icons.person_outline_rounded,
           iconBackground: ModulePalettes.volunteers.iconBackground,
@@ -4571,7 +4990,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionForegroundColor: ModulePalettes.volunteers.primary,
           onTap: _openVolunteerRegistrationRequests,
         ),
-        const SizedBox(height: AppSpacing.xs),
         _HomeActivityCard(
           icon: Icons.calendar_month_outlined,
           iconBackground: ModulePalettes.volunteers.iconBackground,
@@ -4585,32 +5003,44 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionForegroundColor: ModulePalettes.volunteers.primary,
           onTap: _openAvailabilityRequestsAdmin,
         ),
+      ],
+      if (_canViewPatientEnquiries(auth))
         _HomeActivityCard(
           icon: Icons.mark_email_unread_outlined,
           iconBackground: ModulePalettes.patients.iconBackground,
           iconColor: ModulePalettes.patients.primary,
           title: 'Patient enquiries',
-          subtitle:
-              'Volunteer and public patient submissions awaiting WhatsApp verification',
+          subtitle: patientEnquiryCount == null
+              ? 'Checking pending enquiries…'
+              : '$patientEnquiryCount pending ${patientEnquiryCount == 1 ? 'enquiry' : 'enquiries'}',
           actionLabel: 'Review',
           actionBackgroundColor: ModulePalettes.patients.iconBackground,
           actionForegroundColor: ModulePalettes.patients.primary,
           onTap: _openPatientEnquiries,
         ),
-        const SizedBox(height: AppSpacing.xs),
-        _HomeActivityCard(
-          icon: Icons.medical_services_outlined,
-          iconBackground: ModulePalettes.equipmentSupply.iconBackground,
-          iconColor: ModulePalettes.equipmentSupply.primary,
-          title: 'Equipment distributed',
-          subtitle: equipmentCount == null
-              ? 'Checking equipment…'
-              : '$equipmentCount ${equipmentCount == 1 ? 'item' : 'items'} currently out',
-          actionLabel: 'View',
-          actionBackgroundColor: ModulePalettes.equipmentSupply.iconBackground,
-          actionForegroundColor: ModulePalettes.equipmentSupply.primary,
-          onTap: _openEquipmentSupply,
-        ),
+      _HomeActivityCard(
+        icon: Icons.medical_services_outlined,
+        iconBackground: ModulePalettes.equipmentSupply.iconBackground,
+        iconColor: ModulePalettes.equipmentSupply.primary,
+        title: 'Equipment distributed',
+        subtitle: equipmentCount == null
+            ? 'Checking equipment…'
+            : '$equipmentCount ${equipmentCount == 1 ? 'item' : 'items'} currently out',
+        actionLabel: 'View',
+        actionBackgroundColor: ModulePalettes.equipmentSupply.iconBackground,
+        actionForegroundColor: ModulePalettes.equipmentSupply.primary,
+        onTap: _openEquipmentSupply,
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHomeSectionHeader(context, title: 'Needs your attention'),
+        const SizedBox(height: AppSpacing.sm),
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.xs),
+          cards[i],
+        ],
       ],
     );
   }
@@ -4834,15 +5264,37 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return value < 10 ? value.toString().padLeft(2, '0') : value.toString();
   }
 
-  String _nextHomeVisitLabel() {
-    final next = _nextHomeVisitDate;
-    if (next == null) return 'No upcoming visits';
+  String _formatHomeVisitDate(DateTime date) {
     final now = DateTime.now();
-    final isToday =
-        next.year == now.year && next.month == now.month && next.day == now.day;
-    return isToday
-        ? 'Next: today${DateFormat('h:mm a').format(next) == '12:00 AM' ? '' : ', ${DateFormat('h:mm a').format(next)}'}'
-        : 'Next: ${DateFormat('EEE, d MMM').format(next)}';
+    return date.year == now.year
+        ? DateFormat('d MMM').format(date)
+        : DateFormat('d MMM yyyy').format(date);
+  }
+
+  String _homeVisitMetricValue() {
+    if (!_homeVisitsLoaded) {
+      return _formatMetric(null);
+    }
+    if (_todayHomeVisitCount > 0) {
+      return _formatMetric(_todayHomeVisitCount);
+    }
+    if (_latestHomeVisitDate != null) {
+      return _formatMetric(_latestHomeVisitCount);
+    }
+    return _formatMetric(0);
+  }
+
+  String _homeVisitMetricSubtitle() {
+    if (!_homeVisitsLoaded) {
+      return '—';
+    }
+    if (_todayHomeVisitCount > 0) {
+      return 'Today';
+    }
+    if (_latestHomeVisitDate != null) {
+      return 'Latest: ${_formatHomeVisitDate(_latestHomeVisitDate!)}';
+    }
+    return 'No visits';
   }
 
   VolunteerAvailabilityRequest? _latestFutureAvailabilityRequest() {
@@ -5004,10 +5456,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
 
   void _openPatientEnquiries() {
-    _openPage(const PatientEnquiryListPage());
+    _openPage(
+      const PatientEnquiryListPage(),
+      after: _loadPatientEnquiryCount,
+    );
   }
 
-  void _openVolunteerPatientRegister() {
+  void _openVolunteerPatientRegister({int initialTabIndex = 0}) {
     final auth = context.read<AuthService>();
     if (!auth.canSubmitPatientEnquiry &&
         (auth.isVolunteer || auth.isPublicUser)) {
@@ -5023,7 +5478,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ModuleTheme(
         palette: ModulePalettes.patients,
         child: VolunteerPatientRegistrationPage(
-          showRegistrationHistory: !auth.isPublicUser,
+          showRegistrationHistory: true,
+          initialTabIndex: initialTabIndex,
         ),
       ),
     );
@@ -5127,7 +5583,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildDashboardHeader(context, auth, isCompact: isCompact),
-                  if (auth.isVolunteer && !auth.isEmailVerified) ...[
+                  if (auth.isVolunteer &&
+                      !auth.isEmailVerified &&
+                      !_dismissedEmailVerificationBanner) ...[
                     const SizedBox(height: AppSpacing.md),
                     _buildEmailVerificationCard(auth),
                   ],
@@ -6179,6 +6637,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         : MediaQuery.sizeOf(context).width * 0.88;
     final hasMoreTools =
         auth.isAdmin ||
+        auth.canManageVolunteerRequests ||
         auth.canAccessPatients ||
         auth.canAccessHomeVisits ||
         auth.canAccessNHC ||
@@ -6579,22 +7038,28 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.isAdmin)
+                  if (auth.canManageVolunteerRequests)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.how_to_reg_outlined,
+                      title: 'Volunteer registrations',
+                      color: ModulePalettes.volunteers.primary,
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _openVolunteerRegistrationRequests();
+                      },
+                    ),
+                  if (auth.canManageVolunteerRequests)
                     _buildDrawerItem(
                       context,
                       icon: Icons.event_available_outlined,
-                      title: 'Volunteer Requests',
+                      title: 'Availability requests',
                       color: AppColors.success,
                       compact: true,
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const VolunteerAvailabilityRequestsAdminPage(),
-                          ),
-                        );
+                        _openAvailabilityRequestsAdmin();
                       },
                     ),
                   // Setup

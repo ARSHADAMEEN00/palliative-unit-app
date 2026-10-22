@@ -37,33 +37,27 @@ void main() {
       }
     });
 
-    test(
-      'volunteers are a required module for members, volunteers, and staff',
-      () {
-        expect(
-          FeatureAccessPolicy.isRequiredForRole(
-            'member',
-            AppFeature.volunteers,
-          ),
-          isTrue,
-        );
-        expect(
-          FeatureAccessPolicy.isRequiredForRole(
-            'volunteer',
-            AppFeature.volunteers,
-          ),
-          isTrue,
-        );
-        expect(
-          FeatureAccessPolicy.isRequiredForRole('staff', AppFeature.volunteers),
-          isTrue,
-        );
-        expect(
-          FeatureAccessPolicy.isRequiredForRole('member', AppFeature.patients),
-          isFalse,
-        );
-      },
-    );
+    test('volunteers are required only for volunteer accounts', () {
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('member', AppFeature.volunteers),
+        isFalse,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole(
+          'volunteer',
+          AppFeature.volunteers,
+        ),
+        isTrue,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('staff', AppFeature.volunteers),
+        isFalse,
+      );
+      expect(
+        FeatureAccessPolicy.isRequiredForRole('member', AppFeature.patients),
+        isFalse,
+      );
+    });
 
     test('volunteers default to core care modules only', () {
       for (final featureId in [

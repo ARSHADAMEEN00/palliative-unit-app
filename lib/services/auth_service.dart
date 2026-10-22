@@ -129,6 +129,10 @@ class AuthService with ChangeNotifier {
   bool get canAccessPatients => hasFeature(AppFeature.patients);
   bool get canAccessHomeVisits => hasFeature(AppFeature.homeVisits);
   bool get canAccessVolunteers => hasFeature(AppFeature.volunteers);
+  bool get canManageVolunteerRequests =>
+      (isAdmin || isStaff || isMember) && canAccessVolunteers;
+  bool get canManagePatientEnquiries =>
+      (isAdmin || isStaff) && canAccessPatients;
   bool get canAccessSocialSupport => hasFeature(AppFeature.socialSupport);
   bool get canAccessEquipment => hasFeature(AppFeature.equipment);
   bool get canAccessEquipmentDistribution =>

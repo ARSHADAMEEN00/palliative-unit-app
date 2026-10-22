@@ -12,6 +12,8 @@ class PatientEnquiry {
   final String? ward;
   final String? caregiverName;
   final String? caregiverPhone;
+  final String? referredByName;
+  final String? referredByPhone;
   final String? submittedByVolunteerId;
   final String? submittedByVolunteerName;
   final String status;
@@ -31,6 +33,8 @@ class PatientEnquiry {
     this.ward,
     this.caregiverName,
     this.caregiverPhone,
+    this.referredByName,
+    this.referredByPhone,
     this.submittedByVolunteerId,
     this.submittedByVolunteerName,
     this.status = 'pending',
@@ -43,7 +47,31 @@ class PatientEnquiry {
   bool get isVerified => status.toLowerCase() == 'verified';
   bool get isRejected => status.toLowerCase() == 'rejected';
 
+  /// Helper getter for referrer name with backwards compatibility
+  String? get displayReferredByName {
+    if (referredByName != null && referredByName!.trim().isNotEmpty) {
+      return referredByName!.trim();
+    }
+    if (caregiverName != null && caregiverName!.trim().isNotEmpty) {
+      return caregiverName!.trim();
+    }
+    return null;
+  }
+
+  /// Helper getter for referrer phone with backwards compatibility
+  String? get displayReferredByPhone {
+    if (referredByPhone != null && referredByPhone!.trim().isNotEmpty) {
+      return referredByPhone!.trim();
+    }
+    if (caregiverPhone != null && caregiverPhone!.trim().isNotEmpty) {
+      return caregiverPhone!.trim();
+    }
+    return null;
+  }
+
   factory PatientEnquiry.fromJson(Map<String, dynamic> json) {
+    final refName = json['referredByName']?.toString() ?? json['caregiverName']?.toString();
+    final refPhone = json['referredByPhone']?.toString() ?? json['caregiverPhone']?.toString();
     return PatientEnquiry(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       unitId: json['unitId']?.toString() ?? '',
@@ -56,8 +84,10 @@ class PatientEnquiry {
       phone2: json['phone2']?.toString(),
       village: json['village']?.toString() ?? '',
       ward: json['ward']?.toString(),
-      caregiverName: json['caregiverName']?.toString(),
-      caregiverPhone: json['caregiverPhone']?.toString(),
+      caregiverName: json['caregiverName']?.toString() ?? refName,
+      caregiverPhone: json['caregiverPhone']?.toString() ?? refPhone,
+      referredByName: refName,
+      referredByPhone: refPhone,
       submittedByVolunteerId: json['submittedByVolunteerId']?.toString(),
       submittedByVolunteerName: json['submittedByVolunteerName']?.toString(),
       status: json['status']?.toString() ?? 'pending',
@@ -72,6 +102,8 @@ class PatientEnquiry {
   }
 
   Map<String, dynamic> toJson() {
+    final refName = displayReferredByName;
+    final refPhone = displayReferredByPhone;
     return {
       'name': name,
       if (age != null) 'age': age,
@@ -80,10 +112,14 @@ class PatientEnquiry {
       if (phone2 != null && phone2!.isNotEmpty) 'phone2': phone2,
       'village': village,
       if (ward != null && ward!.isNotEmpty) 'ward': ward,
-      if (caregiverName != null && caregiverName!.isNotEmpty)
-        'caregiverName': caregiverName,
-      if (caregiverPhone != null && caregiverPhone!.isNotEmpty)
-        'caregiverPhone': caregiverPhone,
+      if (refName != null && refName.isNotEmpty) ...{
+        'caregiverName': refName,
+        'referredByName': refName,
+      },
+      if (refPhone != null && refPhone.isNotEmpty) ...{
+        'caregiverPhone': refPhone,
+        'referredByPhone': refPhone,
+      },
       if (submittedByVolunteerId != null)
         'submittedByVolunteerId': submittedByVolunteerId,
       if (submittedByVolunteerName != null)
@@ -116,11 +152,13 @@ class PatientEnquiry {
     if (ward != null && ward!.trim().isNotEmpty) {
       buffer.writeln('🏢 *Ward:* ${ward!.trim()}');
     }
-    if (caregiverName != null && caregiverName!.trim().isNotEmpty) {
-      buffer.writeln('🤝 *Caregiver Name:* ${caregiverName!.trim()}');
+    final refName = displayReferredByName;
+    final refPhone = displayReferredByPhone;
+    if (refName != null) {
+      buffer.writeln('🤝 *Referred By:* $refName');
     }
-    if (caregiverPhone != null && caregiverPhone!.trim().isNotEmpty) {
-      buffer.writeln('📲 *Caregiver Phone:* ${caregiverPhone!.trim()}');
+    if (refPhone != null) {
+      buffer.writeln('📲 *Referred By Phone:* $refPhone');
     }
     if (submittedByVolunteerName != null &&
         submittedByVolunteerName!.trim().isNotEmpty) {

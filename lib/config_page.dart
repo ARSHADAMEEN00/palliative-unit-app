@@ -1111,7 +1111,7 @@ class _ConfigPageState extends State<ConfigPage>
                               style: const TextStyle(
                                 color: _inkColor,
                                 fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w400,
                               ),
                               decoration: _fieldDecoration(
                                 labelText: 'Role',
@@ -1482,7 +1482,7 @@ class _ConfigPageState extends State<ConfigPage>
                           style: const TextStyle(
                             color: _inkColor,
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w400,
                           ),
                           decoration: _fieldDecoration(
                             labelText: 'Role',
@@ -2594,7 +2594,7 @@ class _ConfigPageState extends State<ConfigPage>
               style: const TextStyle(
                 color: _inkColor,
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w400,
               ),
               decoration: _fieldDecoration(
                 labelText: 'Role',

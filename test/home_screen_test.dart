@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_theme.dart';
 import 'package:oruma_app/homscreen.dart';
 import 'package:oruma_app/loginscreen.dart';
 import 'package:oruma_app/models/about_us.dart';
+import 'package:oruma_app/models/home_visit.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
@@ -17,6 +19,8 @@ class _HomePreviewAuthService extends AuthService {
     this.canAccessMedicineSupplyOverride,
     this.canAccessMedicineMasterOverride,
     this.canAccessNHCOverride,
+    this.canAccessVolunteersOverride,
+    this.canAccessPatientsOverride,
     this.previewUsername,
     this.emailVerified = true,
   });
@@ -29,6 +33,8 @@ class _HomePreviewAuthService extends AuthService {
   final bool? canAccessMedicineSupplyOverride;
   final bool? canAccessMedicineMasterOverride;
   final bool? canAccessNHCOverride;
+  final bool? canAccessVolunteersOverride;
+  final bool? canAccessPatientsOverride;
   final String? previewUsername;
   final bool emailVerified;
 
@@ -65,13 +71,13 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get canCreate => !isVolunteer;
   @override
-  bool get canAccessPatients => true;
+  bool get canAccessPatients => canAccessPatientsOverride ?? true;
   @override
   bool get canAccessHomeVisits => true;
   @override
   bool get canAccessSocialSupport => true;
   @override
-  bool get canAccessVolunteers => true;
+  bool get canAccessVolunteers => canAccessVolunteersOverride ?? true;
   @override
   bool get canAccessEquipment =>
       canAccessEquipmentOverride ?? (!isMember && !isVolunteer);
@@ -98,6 +104,8 @@ class _HomePreviewAuthService extends AuthService {
   bool get canAccessReports => true;
   @override
   String? get username => previewUsername;
+  @override
+  String? get userEmail => 'preview@example.com';
   @override
   String get unitName => 'Compassion Care';
   @override
@@ -152,8 +160,17 @@ Future<void> _pumpHome(
   bool? canAccessMedicineSupply,
   bool? canAccessMedicineMaster,
   bool? canAccessNHC,
+  bool? canAccessVolunteers,
+  bool? canAccessPatients,
   String? username,
   bool emailVerified = true,
+  int? pendingVolunteerRegistrationCount,
+  int? pendingAvailabilityRequestCount,
+  int? pendingPatientEnquiryCount,
+  int? todayHomeVisitCount,
+  DateTime? latestHomeVisitDate,
+  int? latestHomeVisitCount,
+  Future<List<HomeVisit>> Function()? homeVisitsLoader,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -168,6 +185,8 @@ Future<void> _pumpHome(
         canAccessMedicineSupplyOverride: canAccessMedicineSupply,
         canAccessMedicineMasterOverride: canAccessMedicineMaster,
         canAccessNHCOverride: canAccessNHC,
+        canAccessVolunteersOverride: canAccessVolunteers,
+        canAccessPatientsOverride: canAccessPatients,
         previewUsername: username,
         emailVerified: emailVerified,
       ),
@@ -175,6 +194,15 @@ Future<void> _pumpHome(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         home: Homescreen(
+          initialPendingVolunteerRegistrationCount:
+              pendingVolunteerRegistrationCount ?? 2,
+          initialPendingAvailabilityRequestCount:
+              pendingAvailabilityRequestCount ?? 1,
+          initialPendingPatientEnquiryCount: pendingPatientEnquiryCount ?? 2,
+          initialTodayHomeVisitCount: todayHomeVisitCount,
+          initialLatestHomeVisitDate: latestHomeVisitDate,
+          initialLatestHomeVisitCount: latestHomeVisitCount,
+          homeVisitsLoader: homeVisitsLoader,
           aboutUsLoader: ({bool refresh = false}) async => storyAvailable
               ? const AboutUsData(
                   hasAboutUs: true,
@@ -202,6 +230,25 @@ Future<void> _pumpHome(
 }
 
 void main() {
+  test('staff approval capabilities follow module permissions', () {
+    final staff = _HomePreviewAuthService('staff');
+    final staffWithoutPatients = _HomePreviewAuthService(
+      'staff',
+      canAccessPatientsOverride: false,
+    );
+    final staffWithoutVolunteers = _HomePreviewAuthService(
+      'staff',
+      canAccessVolunteersOverride: false,
+    );
+    final member = _HomePreviewAuthService('member');
+
+    expect(staff.canManagePatientEnquiries, isTrue);
+    expect(staff.canManageVolunteerRequests, isTrue);
+    expect(staffWithoutPatients.canManagePatientEnquiries, isFalse);
+    expect(staffWithoutVolunteers.canManageVolunteerRequests, isFalse);
+    expect(member.canManagePatientEnquiries, isFalse);
+  });
+
   testWidgets('login identifies the account by email or username', (
     tester,
   ) async {
@@ -263,6 +310,50 @@ void main() {
       findsOneWidget,
     );
     expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'verification reminder can be dismissed and reopened from profile',
+    (tester) async {
+      await _pumpHome(tester, 'staff', emailVerified: false);
+
+      expect(find.text('Complete your verification'), findsOneWidget);
+      final dismissButton = find.byTooltip('Dismiss verification reminder');
+      expect(dismissButton, findsOneWidget);
+      await tester.tap(dismissButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Complete your verification'), findsNothing);
+
+      await tester.tap(find.byTooltip('Open profile'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Verify email'));
+      expect(
+        find.text('Complete verification for preview@example.com'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Verify email'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Complete your verification'), findsOneWidget);
+      expect(find.text('Check your email'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('opening verification reminder clears it from home', (
+    tester,
+  ) async {
+    await _pumpHome(tester, 'staff', emailVerified: false);
+
+    await tester.tap(find.text('Complete your verification'));
+    await tester.pumpAndSettle();
+    expect(find.text('Check your email'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Complete your verification'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -427,34 +518,181 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('staff home shows priority work and latest notifications', (
+  testWidgets('staff home shows pending request banners and new requests', (
     tester,
   ) async {
     await _pumpHome(tester, 'staff');
 
     expect(find.text('Compassion Care'), findsOneWidget);
     expect(find.text('Visit\nAssessment'), findsOneWidget);
-    expect(find.text('Latest notifications'), findsOneWidget);
+    expect(find.text('New volunteer requests'), findsOneWidget);
+    expect(find.text('New patient enquiries'), findsOneWidget);
+    expect(find.text('New requests'), findsOneWidget);
+    expect(find.text('Volunteer registrations'), findsOneWidget);
+    expect(find.text('Availability requests'), findsOneWidget);
+    expect(find.text('Patient enquiries'), findsNWidgets(2));
+    expect(find.text('Latest notifications'), findsNothing);
     expect(find.text('Medicine'), findsWidgets);
     expect(find.text('Visits'), findsOneWidget);
     expect(find.text('NHC'), findsOneWidget);
+
+    final bannerTop = tester.getTopLeft(find.text('New volunteer requests')).dy;
+    final patientBannerTop = tester
+        .getTopLeft(find.text('New patient enquiries'))
+        .dy;
+    final quickActionsTop = tester.getTopLeft(find.text('Quick actions')).dy;
+    expect(bannerTop, lessThan(quickActionsTop));
+    expect(patientBannerTop, lessThan(quickActionsTop));
+
+    final requestsTop = tester.getTopLeft(find.text('New requests')).dy;
+    final registrationTop = tester
+        .getTopLeft(find.text('Volunteer registrations'))
+        .dy;
+    final availabilityTop = tester
+        .getTopLeft(find.text('Availability requests'))
+        .dy;
+    final patientEnquiriesTop = tester
+        .getTopLeft(find.text('Patient enquiries').last)
+        .dy;
+    expect(requestsTop, lessThan(registrationTop));
+    expect(registrationTop, lessThan(availabilityTop));
+    expect(availabilityTop, lessThan(patientEnquiriesTop));
+
+    final dismissButton = find.byTooltip('Dismiss new volunteer requests');
+    expect(dismissButton, findsOneWidget);
+    await tester.tap(dismissButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('New volunteer requests'), findsNothing);
+    expect(find.text('New patient enquiries'), findsOneWidget);
+    expect(find.text('New requests'), findsOneWidget);
+    expect(find.text('Volunteer registrations'), findsOneWidget);
+    expect(find.text('Availability requests'), findsOneWidget);
+    expect(find.text('Patient enquiries'), findsNWidgets(2));
+    expect(find.text('Latest notifications'), findsNothing);
+
+    final patientDismissButton = find.byTooltip(
+      'Dismiss new patient enquiries',
+    );
+    expect(patientDismissButton, findsOneWidget);
+    await tester.tap(patientDismissButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('New patient enquiries'), findsNothing);
+    expect(find.text('Patient enquiries'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('member home hides an empty notification section', (
+  testWidgets(
+    'member home shows volunteer requests immediately above notifications',
+    (tester) async {
+      await _pumpHome(tester, 'member');
+
+      expect(find.text('Compassion Care'), findsOneWidget);
+      expect(find.text('Home visits'), findsOneWidget);
+      expect(find.text('Social support'), findsOneWidget);
+      expect(find.text('New volunteer requests'), findsOneWidget);
+      expect(find.text('New patient enquiries'), findsOneWidget);
+      expect(find.text('New requests'), findsOneWidget);
+      expect(find.text('Volunteer registrations'), findsOneWidget);
+      expect(find.text('Availability requests'), findsOneWidget);
+      expect(find.text('Patient enquiries'), findsNWidgets(2));
+      expect(find.text('Latest notifications'), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Patients'), findsWidgets);
+      expect(find.text('Visits'), findsOneWidget);
+      expect(find.text('Medicine'), findsNothing);
+      expect(find.text('NHC'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final role in const ['staff', 'member']) {
+    testWidgets(
+      '$role hides volunteer requests without volunteer module permission',
+      (tester) async {
+        await _pumpHome(tester, role, canAccessVolunteers: false);
+
+        expect(find.text('Volunteers'), findsNothing);
+        expect(find.text('New volunteer requests'), findsNothing);
+        expect(find.text('New patient enquiries'), findsOneWidget);
+        expect(find.text('New requests'), findsOneWidget);
+        expect(find.text('Volunteer registrations'), findsNothing);
+        expect(find.text('Availability requests'), findsNothing);
+        expect(find.text('Patient enquiries'), findsNWidgets(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'staff home keeps volunteer request shortcuts visible when counts are zero',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'staff',
+        pendingVolunteerRegistrationCount: 0,
+        pendingAvailabilityRequestCount: 0,
+      );
+
+      expect(find.text('New volunteer requests'), findsNothing);
+      expect(find.text('New patient enquiries'), findsOneWidget);
+      expect(find.text('New requests'), findsOneWidget);
+      expect(find.text('Volunteer registrations'), findsOneWidget);
+      expect(find.text('Availability requests'), findsOneWidget);
+      expect(find.text('Patient enquiries'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'member hides patient enquiry requests without patient permission',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'member',
+        canAccessPatients: false,
+      );
+
+      expect(find.text('New patient enquiries'), findsNothing);
+      expect(find.text('Patient enquiries'), findsNothing);
+      expect(find.text('New requests'), findsOneWidget);
+      expect(find.text('Volunteer registrations'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'patient enquiry banner hides at zero while its request shortcut remains',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'staff',
+        pendingPatientEnquiryCount: 0,
+      );
+
+      expect(find.text('New patient enquiries'), findsNothing);
+      expect(find.text('New requests'), findsOneWidget);
+      expect(find.text('Patient enquiries'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('opening patient enquiry notification clears it from home', (
     tester,
   ) async {
-    await _pumpHome(tester, 'member');
+    await _pumpHome(tester, 'staff', pendingPatientEnquiryCount: 1);
 
-    expect(find.text('Compassion Care'), findsOneWidget);
-    expect(find.text('Home visits'), findsOneWidget);
-    expect(find.text('Social support'), findsOneWidget);
-    expect(find.text('Latest notifications'), findsNothing);
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Patients'), findsWidgets);
-    expect(find.text('Visits'), findsOneWidget);
-    expect(find.text('Medicine'), findsNothing);
-    expect(find.text('NHC'), findsNothing);
+    await tester.tap(find.text('New patient enquiries'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Patient Enquiries'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('New patient enquiries'), findsNothing);
+    expect(find.text('Patient enquiries'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
 
@@ -594,4 +832,100 @@ void main() {
     expect(find.text('Patient Enquiries'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'member home visit card shows "Today" and today visit count when visits exist today',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'member',
+        todayHomeVisitCount: 2,
+      );
+
+      expect(find.text('Home visits'), findsOneWidget);
+      expect(find.text('02'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.textContaining('Next:'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'member home visit card shows latest date and latest count when no visits today',
+    (tester) async {
+      final latestDate = DateTime(2026, 10, 21);
+      final expectedDateLabel = 'Latest: ${DateFormat('d MMM').format(latestDate)}';
+
+      await _pumpHome(
+        tester,
+        'member',
+        todayHomeVisitCount: 0,
+        latestHomeVisitDate: latestDate,
+        latestHomeVisitCount: 3,
+      );
+
+      expect(find.text('Home visits'), findsOneWidget);
+      expect(find.text('03'), findsOneWidget);
+      expect(find.text(expectedDateLabel), findsOneWidget);
+      expect(find.text('Today'), findsNothing);
+      expect(find.textContaining('Next:'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'member home visit card computes today and latest visit metrics from homeVisitsLoader',
+    (tester) async {
+      final now = DateTime.now();
+      final todayIso = DateTime(now.year, now.month, now.day, 10, 30).toIso8601String();
+      final yesterdayIso = DateTime(now.year, now.month, now.day - 1, 14, 0).toIso8601String();
+
+      await _pumpHome(
+        tester,
+        'member',
+        homeVisitsLoader: () async => [
+          HomeVisit(patientName: 'P1', address: 'Addr 1', visitDate: todayIso),
+          HomeVisit(patientName: 'P2', address: 'Addr 2', visitDate: todayIso),
+          HomeVisit(patientName: 'P3', address: 'Addr 3', visitDate: yesterdayIso),
+        ],
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home visits'), findsOneWidget);
+      expect(find.text('02'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.textContaining('Next:'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'member home visit card computes latest date and count from loader when none today',
+    (tester) async {
+      final now = DateTime.now();
+      final yesterday = DateTime(now.year, now.month, now.day - 1, 14, 0);
+      final yesterdayIso = yesterday.toIso8601String();
+      final twoDaysAgoIso = DateTime(now.year, now.month, now.day - 2, 11, 0).toIso8601String();
+
+      await _pumpHome(
+        tester,
+        'member',
+        homeVisitsLoader: () async => [
+          HomeVisit(patientName: 'P1', address: 'Addr 1', visitDate: yesterdayIso),
+          HomeVisit(patientName: 'P2', address: 'Addr 2', visitDate: yesterdayIso),
+          HomeVisit(patientName: 'P3', address: 'Addr 3', visitDate: yesterdayIso),
+          HomeVisit(patientName: 'P4', address: 'Addr 4', visitDate: twoDaysAgoIso),
+        ],
+      );
+
+      await tester.pumpAndSettle();
+
+      final expectedDateLabel = 'Latest: ${DateFormat('d MMM').format(yesterday)}';
+      expect(find.text('Home visits'), findsOneWidget);
+      expect(find.text('03'), findsOneWidget);
+      expect(find.text(expectedDateLabel), findsOneWidget);
+      expect(find.text('Today'), findsNothing);
+      expect(find.textContaining('Next:'), findsNothing);
+    },
+  );
 }

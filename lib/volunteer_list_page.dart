@@ -252,7 +252,8 @@ class _VolunteerListPageState extends State<VolunteerListPage>
           ],
         ),
         floatingActionButton:
-            auth.canCreate && (!auth.isAdmin || _tabController.index == 0)
+            auth.canCreate &&
+                (!auth.canManageVolunteerRequests || _tabController.index == 0)
             ? RevealActionFab(
                 onPressed: () => _openForm(),
                 backgroundColor: _volunteerPrimary,
@@ -264,7 +265,8 @@ class _VolunteerListPageState extends State<VolunteerListPage>
         contentMaxWidth: 820,
         body: Column(
           children: [
-            if (auth.isAdmin) _buildTabs(totalApproved, totalPending),
+            if (auth.canManageVolunteerRequests)
+              _buildTabs(totalApproved, totalPending),
             _buildFilters(),
             Expanded(child: _buildBody(auth)),
           ],
@@ -471,7 +473,7 @@ class _VolunteerListPageState extends State<VolunteerListPage>
       return _errorState();
     }
 
-    if (!auth.isAdmin) {
+    if (!auth.canManageVolunteerRequests) {
       return _buildApprovedVolunteersList(auth);
     }
 

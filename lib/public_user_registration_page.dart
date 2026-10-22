@@ -153,6 +153,7 @@ class _PublicUserRegistrationPageState
                         DropdownButtonFormField<String>(
                           initialValue: _unitId,
                           isExpanded: true,
+                          style: AppTypography.dropdownTextStyle(context),
                           decoration: const InputDecoration(
                             labelText: 'Palliative care unit',
                             prefixIcon: Icon(Icons.apartment_rounded),

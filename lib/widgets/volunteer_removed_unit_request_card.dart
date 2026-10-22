@@ -259,6 +259,7 @@ class _VolunteerRemovedUnitRequestCardState
                     : DropdownButtonFormField<String>(
                         initialValue: _selectedUnitId,
                         isExpanded: true,
+                        style: AppTypography.dropdownTextStyle(context),
                         decoration: InputDecoration(
                           hintText: 'Choose a care unit',
                           prefixIcon: const Icon(

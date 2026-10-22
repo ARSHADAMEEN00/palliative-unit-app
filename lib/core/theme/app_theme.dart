@@ -250,7 +250,7 @@ class AppTheme {
           borderRadius: AppRadius.md,
           side: BorderSide(color: border),
         ),
-        textStyle: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        textStyle: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
       ),
       extensions: <ThemeExtension<dynamic>>[
         AppSurfaceTokens(

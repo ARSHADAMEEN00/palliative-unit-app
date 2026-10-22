@@ -82,10 +82,7 @@ class FeatureAccessPolicy {
   static bool isRequiredForRole(String? role, String featureId) {
     final normalized = role?.trim().toLowerCase();
     return ((normalized == 'public' && featureId == AppFeature.patients) ||
-        (normalized == 'member' ||
-                normalized == 'volunteer' ||
-                normalized == 'staff') &&
-            featureId == AppFeature.volunteers);
+        normalized == 'volunteer' && featureId == AppFeature.volunteers);
   }
 }
 
