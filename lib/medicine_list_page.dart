@@ -1135,6 +1135,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
       'bottle' => 'Bottle',
       'gel' => 'Gel',
       'piece' => 'Piece',
+      'pair' => 'Pair',
       null || '' => 'units',
       _ => value!.trim(),
     };
@@ -1247,6 +1248,7 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
   List<Medicine> _existingMedicines = [];
   List<MedicineBatch> _batches = [];
   List<String> _photos = [];
+  String? _qtyUnit;
 
   bool get _editing => widget.medicine != null;
   bool get _hasDuplicateCode {
@@ -1290,6 +1292,7 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
     _category = medicine?.category ?? 'other';
     _formulation = medicine?.formulation;
     _strengthUnit = medicine?.strengthUnit ?? 'mg';
+    _qtyUnit = medicine?.qtyUnit ?? 'piece';
     _isActive = medicine?.isActive ?? true;
     _showMore = false;
     _codeController.addListener(_refreshDuplicateHints);
@@ -1363,6 +1366,7 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
       brandNames: _splitValues(_brandController.text, RegExp(r'[,;\n]')),
       category: _category,
       formulation: _formulation,
+      qtyUnit: _qtyUnit,
       description: _emptyToNull(_descriptionController.text),
       photos: _photos,
       isActive: _isActive,
@@ -1746,9 +1750,18 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
     final batchId = batch.id;
     if (batchId == null) return;
 
+    final batchNumberController = TextEditingController(
+      text: batch.batchNumber ?? '',
+    );
     final quantityController = TextEditingController(
       text: _number(batch.quantity),
     );
+    String selectedUnit = (batch.qtyUnit?.trim().isNotEmpty == true)
+        ? batch.qtyUnit!.trim().toLowerCase()
+        : 'piece';
+    if (!['tab', 'bottle', 'gel', 'piece', 'pair'].contains(selectedUnit)) {
+      selectedUnit = 'piece';
+    }
     DateTime? expiryDate = batch.expiryDate;
     var saving = false;
 
@@ -1779,6 +1792,7 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
                 final quantity = double.tryParse(
                   quantityController.text.trim(),
                 );
+                final batchNumber = batchNumberController.text.trim();
                 final selectedExpiry = expiryDate;
                 final messenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
@@ -1810,6 +1824,8 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
                     batchId,
                     quantity: quantity,
                     expiryDate: selectedExpiry,
+                    batchNumber: batchNumber.isEmpty ? null : batchNumber,
+                    qtyUnit: selectedUnit,
                   );
                   final medicineId = widget.medicine?.id;
                   if (medicineId != null) {
@@ -1881,26 +1897,59 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _displayValue(batch.batchNumber),
-                      style: const TextStyle(
-                        color: _medicineDarkGreen,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: batchNumberController,
+                      enabled: !saving,
+                      decoration: _inputDecoration(
+                        'Batch number',
+                        Icons.qr_code_outlined,
+                        hint: 'e.g. BATCH-001',
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: quantityController,
-                      enabled: !saving,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: _inputDecoration(
-                        'Available quantity',
-                        Icons.inventory_2_outlined,
-                        hint: '0',
-                      ).copyWith(suffixText: _stockUnitLabel(batch.qtyUnit)),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: quantityController,
+                            enabled: !saving,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: _inputDecoration(
+                              'Available quantity',
+                              Icons.inventory_2_outlined,
+                              hint: '0',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedUnit,
+                            decoration: _inputDecoration(
+                              'Unit',
+                              Icons.straighten_outlined,
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 'tab', child: Text('Tab')),
+                              DropdownMenuItem(value: 'bottle', child: Text('Bottle')),
+                              DropdownMenuItem(value: 'gel', child: Text('Gel')),
+                              DropdownMenuItem(value: 'piece', child: Text('Piece')),
+                              DropdownMenuItem(value: 'pair', child: Text('Pair')),
+                            ],
+                            onChanged: saving
+                                ? null
+                                : (val) => setModalState(
+                                      () => selectedUnit = val ?? 'piece',
+                                    ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     InkWell(
@@ -1941,6 +1990,7 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
         },
       );
     } finally {
+      batchNumberController.dispose();
       quantityController.dispose();
     }
   }
@@ -2036,6 +2086,12 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
                   'Net Content',
                   hint: 'e.g. 250 ml or 250 g',
                   icon: Icons.local_drink_outlined,
+                ),
+                _dropdown(
+                  label: 'Stock Unit',
+                  value: _qtyUnit,
+                  values: const ['tab', 'bottle', 'gel', 'piece', 'pair'],
+                  onChanged: (value) => setState(() => _qtyUnit = value),
                 ),
               ],
             ),
@@ -2417,6 +2473,7 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
       'bottle' => 'Bottle',
       'gel' => 'Gel',
       'piece' => 'Piece',
+      'pair' => 'Pair',
       null || '' => 'units',
       _ => value!.trim(),
     };

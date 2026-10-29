@@ -82,6 +82,19 @@ class NotificationService {
     throw Exception(result.error ?? 'Failed to mark notification as read');
   }
 
+  static Future<void> markAllRead() async {
+    final result = await ApiService.put<Map<String, dynamic>>(
+      '${ApiConfig.notificationsEndpoint}/read-all',
+      body: {},
+    );
+    AppCache.invalidatePrefix(_prefix);
+    if (!result.isSuccess) {
+      throw Exception(
+        result.error ?? 'Failed to mark all notifications as read',
+      );
+    }
+  }
+
   static Future<List<AppNotification>?> _fetchBillingNotifications() async {
     return AppCache.get<List<AppNotification>?>(
       _keyBilling,
@@ -90,7 +103,8 @@ class NotificationService {
     );
   }
 
-  static Future<List<AppNotification>?> _loadBillingNotificationsFromApi() async {
+  static Future<List<AppNotification>?>
+  _loadBillingNotificationsFromApi() async {
     final result = await ApiService.get<BillingPortal>(
       ApiConfig.billingPortalEndpoint,
       fromJson: (json) => BillingPortal.fromJson(json as Map<String, dynamic>),
@@ -102,66 +116,106 @@ class NotificationService {
     final unit = portal.unit;
     final notifications = <AppNotification>[];
 
-    notifications.addAll(
-      portal.pendingMaintenanceEntries.map((entry) {
-        final amount = _formatCurrency(entry.amount);
-        final dueText = entry.dueDate == null
-            ? ''
-            : ' due on ${_formatDate(entry.dueDate!)}';
+    PaymentSubmission? activeSubmission;
+    PaymentSubmission? latestRejected;
+    for (final submission in portal.paymentSubmissions) {
+      if (activeSubmission == null && submission.isPending) {
+        activeSubmission = submission;
+      }
+      if (latestRejected == null && submission.isRejected) {
+        latestRejected = submission;
+      }
+    }
 
-        return AppNotification(
+    if (activeSubmission != null) {
+      final amount = _formatCurrency(activeSubmission.expectedAmount);
+      notifications.add(
+        AppNotification(
           unitId: unit.id,
-          type: 'maintenance_due',
-          title: 'Maintenance payment due',
+          type: 'payment_proof_submitted',
+          title: 'Payment verification pending',
           message:
-              '${entry.label} of $amount$dueText is pending for ${unit.name}.',
+              'Your proof for $amount is under review. The balance will update after superadmin verification.',
           status: 'active',
           severity: 'info',
-          entityType: 'maintenance_history',
-          entityId: entry.id ?? entry.periodKey,
-          triggeredAt: entry.dueDate ?? DateTime.now(),
+          entityType: 'payment_submission',
+          entityId: activeSubmission.id,
+          triggeredAt: activeSubmission.submittedAt ?? DateTime.now(),
           metadata: {
-            'periodKey': entry.periodKey,
-            'label': entry.label,
-            'amount': entry.amount,
-            'dueDate': entry.dueDate?.toIso8601String(),
-            'unitName': unit.name,
+            'submissionId': activeSubmission.id,
+            'submissionNumber': activeSubmission.submissionNumber,
+            'amount': activeSubmission.expectedAmount,
+            'transactionReference': activeSubmission.transactionReference,
           },
-        );
-      }),
-    );
+        ),
+      );
+    } else if (latestRejected != null) {
+      final amount = _formatCurrency(latestRejected.expectedAmount);
+      notifications.add(
+        AppNotification(
+          unitId: unit.id,
+          type: 'payment_rejected',
+          title: 'Payment proof needs attention',
+          message: latestRejected.rejectionReason == null
+              ? 'Your proof for $amount was rejected. Please submit a new screenshot.'
+              : 'Your proof for $amount was rejected: ${latestRejected.rejectionReason}',
+          status: 'active',
+          severity: 'danger',
+          entityType: 'payment_submission',
+          entityId: latestRejected.id,
+          triggeredAt:
+              latestRejected.reviewedAt ??
+              latestRejected.submittedAt ??
+              DateTime.now(),
+          metadata: {
+            'submissionId': latestRejected.id,
+            'submissionNumber': latestRejected.submissionNumber,
+            'amount': latestRejected.expectedAmount,
+            'rejectionReason': latestRejected.rejectionReason,
+          },
+        ),
+      );
+    }
 
-    final openBills = portal.paymentRows.where((row) {
-      return !row.isPayment && !row.isPaid && row.displayAmount > 0;
-    });
+    final openBills =
+        portal.paymentRows.where((row) => row.canSubmitProof).toList()
+          ..sort((a, b) {
+            final aTime = a.dueDate?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.dueDate?.millisecondsSinceEpoch ?? 0;
+            return aTime.compareTo(bTime);
+          });
 
-    notifications.addAll(
-      openBills.map((row) {
-        final amount = _formatCurrency(row.displayAmount);
-        final dueText = row.dueDate == null
-            ? ''
-            : ' due on ${_formatDate(row.dueDate!)}';
-
-        return AppNotification(
+    if (openBills.isNotEmpty) {
+      final amount = openBills.fold<double>(
+        0,
+        (sum, row) => sum + row.displayAmount,
+      );
+      final earliestDue = openBills.first.dueDate;
+      final dueText = earliestDue == null
+          ? ''
+          : ' Earliest due date: ${_formatDate(earliestDue)}.';
+      notifications.add(
+        AppNotification(
           unitId: unit.id,
           type: 'billing_due',
           title: 'Payment due',
-          message: '${row.label} payment of $amount$dueText is pending.',
+          message:
+              '${_formatCurrency(amount)} is pending across ${openBills.length} ${openBills.length == 1 ? 'invoice' : 'invoices'}.$dueText',
           status: 'active',
           severity: 'warning',
-          entityType: 'billing_invoice',
-          entityId: row.periodKey,
-          triggeredAt: row.dueDate ?? DateTime.now(),
+          entityType: 'billing_account',
+          entityId: unit.id,
+          triggeredAt: earliestDue ?? DateTime.now(),
           metadata: {
-            'periodKey': row.periodKey,
-            'label': row.label,
-            'amount': row.displayAmount,
-            'dueDate': row.dueDate?.toIso8601String(),
+            'periodKey': 'account-balance',
+            'amount': amount,
+            'invoiceCount': openBills.length,
+            'dueDate': earliestDue?.toIso8601String(),
             'unitName': unit.name,
           },
-        );
-      }),
-    );
+        ),
+      );
+    }
 
     notifications.sort((a, b) {
       final aTime = a.triggeredAt?.millisecondsSinceEpoch ?? 0;
@@ -198,7 +252,10 @@ class NotificationService {
   }
 
   static bool _isBillingFallbackType(String type) {
-    return type == 'maintenance_due' || type == 'billing_due';
+    return type == 'maintenance_due' ||
+        type == 'billing_due' ||
+        type == 'payment_proof_submitted' ||
+        type == 'payment_rejected';
   }
 
   static String _billingKey(AppNotification notification) {

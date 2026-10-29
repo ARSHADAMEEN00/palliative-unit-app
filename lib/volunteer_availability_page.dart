@@ -50,10 +50,20 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
       if (!mounted) return;
       final config = results[0] as Config;
       final requests = results[1] as List<VolunteerAvailabilityRequest>;
+      final cutoff24h = DateTime.now().subtract(const Duration(hours: 24));
+      final filteredRequests = requests.where((req) {
+        if (req.status == 'declined') {
+          final time = req.reviewedAt ?? req.requestedAt;
+          if (time != null && time.isBefore(cutoff24h)) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
       setState(() {
         _workingDays = [...config.workingDays]..sort();
         _availabilityTime = config.volunteerAvailabilityTimeWindow;
-        _requests = requests;
+        _requests = filteredRequests;
         _selectedDate = _firstAvailableDate(config.workingDays);
         _loading = false;
       });
@@ -407,86 +417,6 @@ class _VolunteerAvailabilityPageState extends State<VolunteerAvailabilityPage> {
                                 !_alreadyRequested(date),
                             onDateChanged: _selectDate,
                           ),
-                          if (_selectedDate != null) ...[
-                            const Divider(height: AppSpacing.lg),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(AppSpacing.sm),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight,
-                                borderRadius: AppRadius.sm,
-                                border: Border.all(
-                                  color: AppColors.primary
-                                      .withValues(alpha: 0.25),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary
-                                          .withValues(alpha: 0.12),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.event_available_rounded,
-                                      color: AppColors.primary,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: AppSpacing.sm),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          DateFormat('EEEE, d MMMM yyyy')
-                                              .format(_selectedDate!),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 14,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.access_time_rounded,
-                                              size: 14,
-                                              color: AppColors.primary,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'Time: $_availabilityTime',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.primary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 8,
-                                      ),
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    onPressed: () => _selectDate(_selectedDate!),
-                                    child: const Text('Confirm'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),

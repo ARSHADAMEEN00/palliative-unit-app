@@ -1195,6 +1195,7 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
       'bottle' => 'Bottle',
       'gel' => 'Gel',
       'piece' => 'Piece',
+      'pair' => 'Pair',
       null || '' => 'units',
       _ => value!.trim(),
     };

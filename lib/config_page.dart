@@ -69,6 +69,9 @@ class _ConfigPageState extends State<ConfigPage>
   Set<String> _subscribedModuleIds = {..._staffModuleIds};
   String _selectedStaffSection = 'staff';
   String _selectedPermissionRole = 'staff';
+  String _staffRoleFilter = 'all';
+  String _staffSearchQuery = '';
+  final TextEditingController _staffSearchController = TextEditingController();
   final Set<String> _updatingStaffIds = <String>{};
   final Set<String> _expandedStaffModuleCardIds = <String>{};
 
@@ -180,6 +183,7 @@ class _ConfigPageState extends State<ConfigPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _staffSearchController.dispose();
     _villageController.dispose();
     _diseaseController.dispose();
     _planController.dispose();
@@ -908,13 +912,16 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
-  Future<void> _showAddStaffSheet() async {
+  Future<void> _showAddStaffSheet([String? initialRole]) async {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    var selectedRole = 'staff';
-    var selectedModules = <String>{..._modulesForRole('staff')};
+    final defaultRole = (initialRole != null && _roles.contains(initialRole))
+        ? initialRole
+        : 'staff';
+    var selectedRole = defaultRole;
+    var selectedModules = <String>{..._modulesForRole(defaultRole)};
     var obscurePassword = true;
     var isSubmitting = false;
     var modulesExpanded = false;
@@ -956,7 +963,7 @@ class _ConfigPageState extends State<ConfigPage>
                   navigator.pop();
                   messenger.showSnackBar(
                     SnackBar(
-                      content: Text('${staff.name} added to staff'),
+                      content: Text('${staff.name} added as ${_roleLabel(staff.role)}'),
                       backgroundColor: AppColors.success,
                     ),
                   );
@@ -1016,7 +1023,7 @@ class _ConfigPageState extends State<ConfigPage>
                                 const SizedBox(width: AppSpacing.sm),
                                 Expanded(
                                   child: Text(
-                                    'Add Staff',
+                                    'Add ${_roleLabel(selectedRole)}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleSmall
@@ -1288,8 +1295,10 @@ class _ConfigPageState extends State<ConfigPage>
                             ],
                             const SizedBox(height: AppSpacing.lg),
                             AppPrimaryButton(
-                              label: 'Add Staff',
-                              icon: Icons.person_add_alt_1,
+                              label: 'Add ${_roleLabel(selectedRole)}',
+                              icon: selectedRole == 'volunteer'
+                                  ? Icons.volunteer_activism_outlined
+                                  : Icons.person_add_alt_1,
                               fullWidth: true,
                               loading: isSubmitting,
                               onPressed: isSubmitting ? null : submit,
@@ -1794,11 +1803,23 @@ class _ConfigPageState extends State<ConfigPage>
                   ? (_isLoadingConfig || _config == null || _isSavingConfig
                         ? null
                         : _saveConfig)
-                  : (_isLoadingStaff ? null : _showAddStaffSheet),
+                  : (_isLoadingStaff
+                        ? null
+                        : () => _showAddStaffSheet(
+                              _staffRoleFilter == 'all' ? null : _staffRoleFilter,
+                            )),
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              icon: activeIndex == 0 ? Icons.save_outlined : Icons.person_add,
-              label: activeIndex == 0 ? 'Save Changes' : 'Add Staff',
+              icon: activeIndex == 0
+                  ? Icons.save_outlined
+                  : (_staffRoleFilter == 'volunteer'
+                      ? Icons.volunteer_activism_outlined
+                      : Icons.person_add),
+              label: activeIndex == 0
+                  ? 'Save Changes'
+                  : (_staffRoleFilter != 'all'
+                      ? 'Add ${_roleLabel(_staffRoleFilter)}'
+                      : 'Add User'),
             )
           : null,
     );
@@ -2324,6 +2345,20 @@ class _ConfigPageState extends State<ConfigPage>
         role: _staff.where((staff) => staff.role == role).length,
     };
 
+    final filteredStaff = _staff.where((staff) {
+      if (_staffRoleFilter != 'all' && staff.role != _staffRoleFilter) {
+        return false;
+      }
+      if (_staffSearchQuery.isNotEmpty) {
+        final query = _staffSearchQuery.toLowerCase();
+        final matchesName = staff.name.toLowerCase().contains(query);
+        final matchesEmail = staff.email.toLowerCase().contains(query);
+        final matchesRole = _roleLabel(staff.role).toLowerCase().contains(query);
+        if (!matchesName && !matchesEmail && !matchesRole) return false;
+      }
+      return true;
+    }).toList();
+
     return RefreshIndicator(
       onRefresh: _fetchStaff,
       child: ListView(
@@ -2367,23 +2402,94 @@ class _ConfigPageState extends State<ConfigPage>
                         label: 'Total',
                         value: _staff.length.toString(),
                         icon: Icons.badge_outlined,
+                        isSelected: _staffRoleFilter == 'all',
+                        onTap: () => setState(() => _staffRoleFilter = 'all'),
                       ),
                       for (final role in _roles)
                         _MetricPill(
                           label: _roleLabel(role),
-                          value: roleCounts[role].toString(),
+                          value: (roleCounts[role] ?? 0).toString(),
                           icon: _roleIcon(role),
+                          isSelected: _staffRoleFilter == role,
+                          onTap: () => setState(() => _staffRoleFilter = role),
                         ),
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextFormField(
+                    controller: _staffSearchController,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, email, or role...',
+                      hintStyle: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textMuted,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        size: 18,
+                        color: AppColors.textMuted,
+                      ),
+                      suffixIcon: _staffSearchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 16),
+                              onPressed: () {
+                                _staffSearchController.clear();
+                                setState(() => _staffSearchQuery = '');
+                              },
+                            )
+                          : null,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      filled: true,
+                      fillColor: _ConfigPageState._fieldFillColor,
+                      border: const OutlineInputBorder(
+                        borderRadius: AppRadius.sm,
+                        borderSide: BorderSide(
+                          color: _ConfigPageState._lineColor,
+                        ),
+                      ),
+                      enabledBorder: const OutlineInputBorder(
+                        borderRadius: AppRadius.sm,
+                        borderSide: BorderSide(
+                          color: _ConfigPageState._lineColor,
+                        ),
+                      ),
+                      focusedBorder: const OutlineInputBorder(
+                        borderRadius: AppRadius.sm,
+                        borderSide: BorderSide(
+                          color: _primaryColor,
+                          width: 1.4,
+                        ),
+                      ),
+                    ),
+                    onChanged: (val) =>
+                        setState(() => _staffSearchQuery = val.trim()),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            if (_staff.isEmpty)
-              const _EmptyStaffState()
+            if (filteredStaff.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                child: Center(
+                  child: Text(
+                    _staff.isEmpty
+                        ? 'No staff members found'
+                        : 'No results matching your filter',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              )
             else
-              ..._staff.map(_buildStaffCard),
+              ...filteredStaff.map(_buildStaffCard),
           ],
         ],
       ),
@@ -3007,44 +3113,68 @@ class _MetricPill extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.isSelected = false,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: _ConfigPageState._fieldFillColor,
+    final theme = Theme.of(context);
+    final primary = _ConfigPageState._primaryColor;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: AppRadius.sm,
-        border: Border.all(color: _ConfigPageState._lineColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: _ConfigPageState._mutedInkColor),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: _ConfigPageState._primaryColor,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? primary.withValues(alpha: 0.12)
+                : _ConfigPageState._fieldFillColor,
+            borderRadius: AppRadius.sm,
+            border: Border.all(
+              color: isSelected ? primary : _ConfigPageState._lineColor,
+              width: isSelected ? 1.5 : 1.0,
             ),
           ),
-          const SizedBox(width: AppSpacing.xxs),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: _ConfigPageState._mutedInkColor,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? primary : _ConfigPageState._mutedInkColor,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                value,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? primary : _ConfigPageState._primaryColor,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xxs),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isSelected ? primary : _ConfigPageState._mutedInkColor,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -3075,34 +3205,6 @@ class _EmptyInlineState extends StatelessWidget {
   }
 }
 
-class _EmptyStaffState extends StatelessWidget {
-  const _EmptyStaffState();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        children: [
-          const _IconBadge(
-            icon: Icons.group_add_outlined,
-            color: _ConfigPageState._primaryColor,
-            size: 58,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text('No Staff Added', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Staff accounts will appear here.',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});

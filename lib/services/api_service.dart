@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'credential_store.dart';
@@ -172,6 +173,22 @@ class ApiService {
       return jsonData['error']?.toString() ?? 'Unknown error';
     } catch (e) {
       return body.isNotEmpty ? body : 'Unknown error';
+    }
+  }
+
+  /// Download raw bytes (e.g. for PDFs)
+  static Future<Uint8List?> getBytes(String url) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await _client
+          .get(Uri.parse(url), headers: headers)
+          .timeout(ApiConfig.timeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 }

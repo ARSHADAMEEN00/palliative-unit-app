@@ -20,7 +20,7 @@ class MedicineStockEntryPage extends StatefulWidget {
 }
 
 class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
-  static const _stockUnits = ['tab', 'bottle', 'gel', 'piece'];
+  static const _stockUnits = ['tab', 'bottle', 'gel', 'piece', 'pair'];
   static const _tableHorizontalPadding = 12.0;
   static const _tableGap = 10.0;
   static const _numberWidth = 42.0;
@@ -961,6 +961,7 @@ class _MedicineStockEntryPageState extends State<MedicineStockEntryPage> {
       'bottle' => 'Bottle',
       'gel' => 'Gel',
       'piece' => 'Piece',
+      'pair' => 'Pair',
       '' => 'units',
       _ => value.trim(),
     };

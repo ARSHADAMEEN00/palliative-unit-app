@@ -80,4 +80,13 @@ class VolunteerAvailabilityRequestService {
     }
     throw Exception(result.error ?? 'Failed to cancel availability request');
   }
+
+  static Future<void> clearAll() async {
+    final result = await ApiService.delete(
+      '${ApiConfig.volunteerAvailabilityRequestsEndpoint}/clear-all',
+    );
+    if (!result.isSuccess) {
+      throw Exception(result.error ?? 'Failed to clear availability requests');
+    }
+  }
 }

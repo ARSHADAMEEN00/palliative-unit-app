@@ -18,6 +18,7 @@ class AdaptiveAppScaffold extends StatelessWidget {
     this.backgroundColor,
     this.drawer,
     this.bottomNavigationBar,
+    this.bottomAccessory,
     this.bottomSheet,
     this.floatingActionButton,
     this.floatingActionButtonLocation,
@@ -36,6 +37,7 @@ class AdaptiveAppScaffold extends StatelessWidget {
   final Color? backgroundColor;
   final Widget? drawer;
   final Widget? bottomNavigationBar;
+  final Widget? bottomAccessory;
   final Widget? bottomSheet;
   final Widget? floatingActionButton;
   final FloatingActionButtonLocation? floatingActionButtonLocation;
@@ -59,6 +61,13 @@ class AdaptiveAppScaffold extends StatelessWidget {
                 enabled: isTablet && centerBodyOnTablet,
                 maxWidth: contentMaxWidth,
                 child: bottomNavigationBar!,
+              );
+        final customBottomAccessory = bottomAccessory == null
+            ? null
+            : _TabletWidthFrame(
+                enabled: isTablet && centerBodyOnTablet,
+                maxWidth: contentMaxWidth,
+                child: bottomAccessory!,
               );
         final customBottomSheet = bottomSheet == null
             ? null
@@ -96,11 +105,21 @@ class AdaptiveAppScaffold extends StatelessWidget {
           resizeToAvoidBottomInset: resizeToAvoidBottomInset,
           bottomNavigationBar: usesRail
               ? null
-              : currentSection == null
-              ? customBottomBar
-              : CompactAppBottomBar(
-                  current: currentSection!,
-                  onSelected: onNavigationSelected ?? (_) {},
+              : customBottomAccessory == null
+              ? currentSection == null
+                    ? customBottomBar
+                    : CompactAppBottomBar(
+                        current: currentSection!,
+                        onSelected: onNavigationSelected ?? (_) {},
+                      )
+              : _BottomArea(
+                  accessory: customBottomAccessory,
+                  navigation: currentSection == null
+                      ? customBottomBar
+                      : CompactAppBottomBar(
+                          current: currentSection!,
+                          onSelected: onNavigationSelected ?? (_) {},
+                        ),
                 ),
           body: usesRail
               ? Row(
@@ -116,11 +135,24 @@ class AdaptiveAppScaffold extends StatelessWidget {
                       color: AppColors.border,
                     ),
                     Expanded(
-                      child: _TabletBodyFrame(
-                        enabled: centerBodyOnTablet,
-                        maxWidth: contentMaxWidth,
-                        child: body,
-                      ),
+                      child: customBottomAccessory == null
+                          ? _TabletBodyFrame(
+                              enabled: centerBodyOnTablet,
+                              maxWidth: contentMaxWidth,
+                              child: body,
+                            )
+                          : Column(
+                              children: [
+                                Expanded(
+                                  child: _TabletBodyFrame(
+                                    enabled: centerBodyOnTablet,
+                                    maxWidth: contentMaxWidth,
+                                    child: body,
+                                  ),
+                                ),
+                                customBottomAccessory,
+                              ],
+                            ),
                     ),
                   ],
                 )
@@ -131,6 +163,24 @@ class AdaptiveAppScaffold extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+}
+
+class _BottomArea extends StatelessWidget {
+  const _BottomArea({this.accessory, this.navigation});
+
+  final Widget? accessory;
+  final Widget? navigation;
+
+  @override
+  Widget build(BuildContext context) {
+    if (accessory == null) return navigation ?? const SizedBox.shrink();
+    if (navigation == null) return accessory!;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [accessory!, navigation!],
     );
   }
 }

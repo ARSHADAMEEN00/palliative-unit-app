@@ -31,7 +31,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Convert short nursing notes from speech to text.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Select clinical photos for the patient visit assessment.</string>
+	<string>Select clinical photos or a payment screenshot to upload in the app.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Convert short nursing notes from speech to text.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/billing.dart';
+import 'package:oruma_app/manual_payment_screen.dart';
 import 'package:oruma_app/services/billing_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
@@ -72,6 +73,17 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _openManualPayment() async {
+    final portal = _portal;
+    if (portal == null) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => ManualPaymentScreen(portal: portal),
+      ),
+    );
+    if (mounted) await _loadBilling();
   }
 
   InputDecoration _inputDecoration({
@@ -328,6 +340,12 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
             date: _formatDate,
             onOpenPlanPage: _showExternalBillingActions ? _openPlanPage : null,
           ),
+          const SizedBox(height: AppSpacing.sm),
+          _ManualPaymentActionCard(
+            portal: portal,
+            currency: _money,
+            onOpen: _openManualPayment,
+          ),
           if (portal.pendingMaintenanceEntries.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             _MaintenanceDueBanner(
@@ -416,6 +434,8 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
       badge: row.status,
       details: [
         _BillingDetail('Type', isPayment ? 'Payment' : 'Invoice'),
+        if ((row.invoiceNumber ?? '').isNotEmpty)
+          _BillingDetail('Invoice number', row.invoiceNumber!),
         _BillingDetail('Amount', _money(row.amount)),
         if (!isPayment) _BillingDetail('Paid amount', _money(row.paidAmount)),
         if (!isPayment) _BillingDetail('Remaining', _money(row.displayAmount)),
@@ -620,6 +640,112 @@ class _CurrentPlanCard extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManualPaymentActionCard extends StatelessWidget {
+  const _ManualPaymentActionCard({
+    required this.portal,
+    required this.currency,
+    required this.onOpen,
+  });
+
+  final BillingPortal portal;
+  final String Function(double value) currency;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    PaymentSubmission? activeSubmission;
+    for (final submission in portal.paymentSubmissions) {
+      if (submission.isPending) {
+        activeSubmission = submission;
+        break;
+      }
+    }
+    final hasDue = portal.summary.outstandingAmount > 0;
+    final isPending =
+        activeSubmission != null || portal.summary.hasVerificationPending;
+    final color = isPending
+        ? AppColors.info
+        : hasDue
+        ? AppColors.warning
+        : AppColors.success;
+    final title = isPending
+        ? 'Payment verification pending'
+        : hasDue
+        ? '${currency(portal.summary.outstandingAmount)} due'
+        : 'No due payments — fully paid';
+    final message = isPending
+        ? 'Your proof is under review. The balance will update after superadmin approval.'
+        : hasDue
+        ? 'Pay using the configured bank or UPI details and upload the screenshot.'
+        : 'All current invoices have been paid.';
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: AppRadius.card,
+        border: Border.all(color: color.withValues(alpha: 0.26)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: AppRadius.md,
+            ),
+            child: Icon(
+              isPending
+                  ? Icons.hourglass_top_rounded
+                  : hasDue
+                  ? Icons.payments_outlined
+                  : Icons.verified_rounded,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                if (hasDue || isPending) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  AppPrimaryButton(
+                    label: isPending
+                        ? 'View submission'
+                        : 'View payment instructions',
+                    icon: isPending
+                        ? Icons.receipt_long_outlined
+                        : Icons.arrow_forward_rounded,
+                    height: 42,
+                    onPressed: onOpen,
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1075,7 +1201,11 @@ class _PaymentSection extends StatelessWidget {
                   title: row.label,
                   subtitle: _openBillSubtitle(row),
                   trailing: currency(row.displayAmount),
-                  badge: row.paidAmount > 0 ? 'partial due' : row.status,
+                  badge: row.isVerificationPending
+                      ? 'verification pending'
+                      : row.paidAmount > 0
+                      ? 'partial due'
+                      : row.status,
                   onTap: () => onRowTap(row),
                 );
               }),
@@ -1141,7 +1271,7 @@ class _BillingSummarySection extends StatelessWidget {
           const _SectionTitle(
             title: 'Billing summary',
             subtitle:
-                'Outstanding balance reduces when invoices are marked paid or manual payments are recorded.',
+                'The outstanding balance changes only after payment proof is approved.',
           ),
           const SizedBox(height: AppSpacing.md),
           _DetailRow(
@@ -1153,6 +1283,11 @@ class _BillingSummarySection extends StatelessWidget {
             label: 'Outstanding amount',
             value: currency(summary.outstandingAmount),
           ),
+          if (summary.verificationPendingAmount > 0)
+            _DetailRow(
+              label: 'Awaiting verification',
+              value: currency(summary.verificationPendingAmount),
+            ),
           _DetailRow(
             label: 'Upcoming payment',
             value:

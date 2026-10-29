@@ -91,7 +91,9 @@ directs otherwise.
 Complete every card under **Policy and programs > App content**:
 
 - Privacy policy: enter the public HTTPS policy URL.
-- Ads: select **No** unless advertising is added later.
+- Ads: select **Yes**. Native ads are shown on the Android Home screen for
+  volunteer/public accounts and for staff-side accounts without an active paid
+  unit subscription.
 - App access: select that all or some functionality is restricted and provide
   the demo email, password, and simple English navigation instructions.
 - Target audience: this staff tool should normally target adults only; verify
@@ -124,9 +126,15 @@ tools, and all contracts before submitting the form:
 - Audio: Palliative App does not retain microphone recordings, but the device's
   installed speech-recognition provider may process audio. Verify whether that
   provider changes the disclosure required for the intended devices.
-- Sharing: the app has no ads or analytics SDK. Determine whether any hosting,
-  support, backup or other recipients count as service providers or sharing
-  under Google's definitions.
+- Advertising data: the Google Mobile Ads SDK may process device or advertising
+  identifiers, IP address, approximate location, ad interactions, and
+  diagnostics for ad delivery, measurement, consent, and fraud prevention.
+  Confirm the exact current Google Play Data safety declarations from the SDK
+  documentation before each release. Patient and clinical data must not be
+  used for advertising.
+- Sharing: determine whether Google Mobile Ads and any hosting, support, backup,
+  or other recipients count as service providers or sharing under Google's
+  current definitions.
 - Deletion: answer only after the organisation has a working request path and
   documented health-record retention rules.
 

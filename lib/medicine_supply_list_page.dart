@@ -82,6 +82,11 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         forceRefresh: forceRefresh,
       );
       if (!mounted) return;
+      list.sort((a, b) {
+        final aDate = a.updatedAt ?? a.createdAt ?? a.givenAt;
+        final bDate = b.updatedAt ?? b.createdAt ?? b.givenAt;
+        return bDate.compareTo(aDate);
+      });
       setState(() {
         _supplies = list;
         _error = null;
@@ -102,7 +107,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       context,
       MaterialPageRoute(builder: (context) => const MedicineSupplyPage()),
     ).then((result) {
-      if (result == true) _loadData();
+      if (result == true) _loadData(forceRefresh: true);
     });
   }
 

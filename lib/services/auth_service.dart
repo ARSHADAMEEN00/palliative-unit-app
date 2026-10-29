@@ -6,6 +6,7 @@ import 'package:oruma_app/services/api_config.dart';
 import 'package:oruma_app/services/app_cache.dart';
 import 'package:oruma_app/services/credential_store.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
+import 'package:oruma_app/services/ad_eligibility.dart';
 
 class PasswordChangeResult {
   const PasswordChangeResult._({
@@ -454,6 +455,12 @@ class AuthService with ChangeNotifier {
   )?.toLowerCase();
   bool get isTrialUnit =>
       unitStatus == 'trial' || unitSubscriptionStatus == 'trial';
+  bool get shouldShowAds => AdEligibility.shouldShowAds(
+    isAuthenticated: isAuthenticated,
+    isAccessBlocked: isAccessBlocked,
+    role: role,
+    subscriptionStatus: unitSubscriptionStatus ?? unitStatus,
+  );
 
   String? get unitSupportName =>
       _cleanString(_supportValue('name')) ?? unitName;

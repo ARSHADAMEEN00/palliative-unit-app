@@ -672,17 +672,20 @@ class _VolunteerListPageState extends State<VolunteerListPage>
                     ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _reviewApplication(volunteer, 'approved'),
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('Accept'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.success,
+                if (context.read<AuthService>().isAdmin) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          _reviewApplication(volunteer, 'approved'),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Accept'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
         ],

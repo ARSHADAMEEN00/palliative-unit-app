@@ -411,6 +411,7 @@ class _MedicineStockHistoryPageState extends State<MedicineStockHistoryPage> {
       'bottle' => 'Bottle',
       'gel' => 'Gel',
       'piece' => 'Piece',
+      'pair' => 'Pair',
       '' => 'units',
       _ => value.trim(),
     };

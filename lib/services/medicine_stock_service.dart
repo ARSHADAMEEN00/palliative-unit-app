@@ -85,10 +85,17 @@ class MedicineStockService {
     String id, {
     required double quantity,
     required DateTime expiryDate,
+    String? batchNumber,
+    String? qtyUnit,
   }) async {
     final result = await ApiService.patch<Map<String, dynamic>>(
       '${ApiConfig.v2MedicineStockEntriesEndpoint}/$id',
-      body: {'quantity': quantity, 'expiryDate': expiryDate.toIso8601String()},
+      body: {
+        'quantity': quantity,
+        'expiryDate': expiryDate.toIso8601String(),
+        if (batchNumber != null) 'batchNumber': batchNumber,
+        if (qtyUnit != null) 'qtyUnit': qtyUnit,
+      },
     );
 
     if (result.isSuccess && result.data != null) {

@@ -19,7 +19,7 @@ class _VolunteerAvailabilityRequestsAdminPageState
   List<VolunteerAvailabilityRequest> _requests = const [];
   final Set<String> _busyIds = {};
   bool _loading = true;
-  bool _showHistory = false;
+  int _tabIndex = 0;
   String? _error;
 
   @override
@@ -34,12 +34,20 @@ class _VolunteerAvailabilityRequestsAdminPageState
       _error = null;
     });
     try {
-      final requests = await VolunteerAvailabilityRequestService.getRequests(
-        status: _showHistory ? null : 'pending',
-      );
+      final requests = await VolunteerAvailabilityRequestService.getRequests();
       if (!mounted) return;
+      final cutoff24h = DateTime.now().subtract(const Duration(hours: 24));
+      final filtered = requests.where((req) {
+        if (req.status == 'declined') {
+          final time = req.reviewedAt ?? req.requestedAt;
+          if (time != null && time.isBefore(cutoff24h)) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
       setState(() {
-        _requests = requests;
+        _requests = filtered;
         _loading = false;
       });
     } catch (error) {
@@ -48,6 +56,54 @@ class _VolunteerAvailabilityRequestsAdminPageState
         _error = _friendlyError(error);
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _confirmClearAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Clear all requests?'),
+        content: const Text(
+          'This will permanently clear all volunteer availability requests. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _loading = true);
+    try {
+      await VolunteerAvailabilityRequestService.clearAll();
+      if (!mounted) return;
+      setState(() => _requests = []);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All availability requests cleared.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_friendlyError(e)),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) _load();
     }
   }
 
@@ -80,11 +136,11 @@ class _VolunteerAvailabilityRequestsAdminPageState
       );
       if (!mounted) return;
       setState(() {
-        if (_showHistory) {
-          final index = _requests.indexWhere((item) => item.id == request.id);
-          if (index != -1) _requests[index] = updated;
+        final index = _requests.indexWhere((item) => item.id == request.id);
+        if (index != -1) {
+          _requests[index] = updated;
         } else {
-          _requests = _requests.where((item) => item.id != request.id).toList();
+          _requests = [updated, ..._requests];
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,8 +217,67 @@ class _VolunteerAvailabilityRequestsAdminPageState
     return date == null ? value : DateFormat('EEEE, d MMMM yyyy').format(date);
   }
 
+  Widget _buildTabButton({
+    required int index,
+    required String label,
+    required int count,
+  }) {
+    final isSelected = _tabIndex == index;
+    return InkWell(
+      onTap: () => setState(() => _tabIndex = index),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.25)
+                      : AppColors.borderStrong,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : AppColors.text,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pendingRequests =
+        _requests.where((r) => r.status == 'pending').toList();
+    final historyRequests =
+        _requests.where((r) => r.status != 'pending').toList();
+    final displayedRequests =
+        _tabIndex == 0 ? pendingRequests : historyRequests;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -170,6 +285,12 @@ class _VolunteerAvailabilityRequestsAdminPageState
         backgroundColor: AppColors.background,
         scrolledUnderElevation: 0,
         actions: [
+          IconButton(
+            tooltip: 'Clear all requests',
+            icon: const Icon(Icons.delete_sweep_outlined),
+            color: AppColors.danger,
+            onPressed: _requests.isEmpty || _loading ? null : _confirmClearAll,
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed: _loading ? null : _load,
@@ -186,27 +307,33 @@ class _VolunteerAvailabilityRequestsAdminPageState
               AppInsets.screenHorizontal(context),
               AppSpacing.sm,
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _showHistory
-                        ? 'All availability requests'
-                        : '${_requests.length} waiting for review',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              padding: const EdgeInsets.all(4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildTabButton(
+                      index: 0,
+                      label: 'Pending',
+                      count: pendingRequests.length,
                     ),
                   ),
-                ),
-                FilterChip(
-                  selected: _showHistory,
-                  label: const Text('Show history'),
-                  onSelected: (value) {
-                    setState(() => _showHistory = value);
-                    _load();
-                  },
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: _buildTabButton(
+                      index: 1,
+                      label: 'History',
+                      count: historyRequests.length,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -223,17 +350,22 @@ class _VolunteerAvailabilityRequestsAdminPageState
                       label: const Text('Try again'),
                     ),
                   )
-                : _requests.isEmpty
+                : displayedRequests.isEmpty
                 ? RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
-                      children: const [
-                        SizedBox(height: 120),
+                      children: [
+                        const SizedBox(height: 120),
                         AppEmptyState(
-                          icon: Icons.how_to_reg_outlined,
-                          title: 'No volunteer requests',
-                          message:
-                              'New availability requests will appear here.',
+                          icon: _tabIndex == 0
+                              ? Icons.how_to_reg_outlined
+                              : Icons.history_rounded,
+                          title: _tabIndex == 0
+                              ? 'No pending requests'
+                              : 'No request history',
+                          message: _tabIndex == 0
+                              ? 'New volunteer availability requests will appear here.'
+                              : 'Accepted requests and recent requests will appear here.',
                         ),
                       ],
                     ),
@@ -246,11 +378,11 @@ class _VolunteerAvailabilityRequestsAdminPageState
                         top: 0,
                         bottom: AppSpacing.xxl,
                       ),
-                      itemCount: _requests.length,
+                      itemCount: displayedRequests.length,
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: AppSpacing.sm),
                       itemBuilder: (context, index) =>
-                          _buildRequestCard(_requests[index]),
+                          _buildRequestCard(displayedRequests[index]),
                     ),
                   ),
           ),

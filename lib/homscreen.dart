@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:oruma_app/billing_plan_screen.dart';
+import 'package:oruma_app/invoices_screen.dart';
+import 'package:oruma_app/manual_payment_screen.dart';
 import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/equipment_list_page.dart';
 import 'package:oruma_app/equipment_supply_list_page.dart';
@@ -54,6 +56,7 @@ import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/app_bottom_nav_router.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/feature_permission_gate.dart';
+import 'package:oruma_app/widgets/home_native_ad_dock.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/unit_brand_avatar.dart';
 import 'package:intl/intl.dart';
@@ -126,6 +129,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _patientEnquiriesLoading = false;
   int? _patientCount;
   int _newPatientCountThisWeek = 0;
+  int _newPatientCountThisMonth = 0;
   int _todayHomeVisitCount = 0;
   DateTime? _latestHomeVisitDate;
   int _latestHomeVisitCount = 0;
@@ -140,8 +144,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         widget.initialPendingVolunteerRegistrationCount ?? 0;
     _pendingAvailabilityRequestCount =
         widget.initialPendingAvailabilityRequestCount ?? 0;
-    _pendingPatientEnquiryCount =
-        widget.initialPendingPatientEnquiryCount ?? 0;
+    _pendingPatientEnquiryCount = widget.initialPendingPatientEnquiryCount ?? 0;
     if (widget.initialTodayHomeVisitCount != null ||
         widget.initialLatestHomeVisitDate != null ||
         widget.initialLatestHomeVisitCount != null) {
@@ -398,7 +401,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         PatientService.getPatientsList(filter: 'alive')
             .then((response) {
               if (!mounted) return;
-              final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+              final now = DateTime.now();
+              final weekAgo = now.subtract(const Duration(days: 7));
+              final startOfMonth = DateTime(now.year, now.month, 1);
               setState(() {
                 _patientCount = response.counts.aliveCount;
                 _newPatientCountThisWeek = response.patients
@@ -408,12 +413,18 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                           patient.createdAt!.isAfter(weekAgo),
                     )
                     .length;
+                _newPatientCountThisMonth = response.patients
+                    .where(
+                      (patient) =>
+                          patient.createdAt != null &&
+                          !patient.createdAt!.isBefore(startOfMonth),
+                    )
+                    .length;
               });
             })
             .catchError((_) {}),
       );
     }
-
 
     if (auth.canAccessHomeVisits) {
       final visitsFuture = widget.homeVisitsLoader != null
@@ -443,16 +454,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
               if (visitCountsByDate.isNotEmpty) {
                 final allDates = visitCountsByDate.keys.toList()..sort();
-                final pastDates =
-                    allDates.where((d) => d.isBefore(startOfToday)).toList();
+                final pastDates = allDates
+                    .where((d) => d.isBefore(startOfToday))
+                    .toList();
                 if (pastDates.isNotEmpty) {
                   latestDate = pastDates.last;
                   latestCount = visitCountsByDate[latestDate] ?? 0;
                 } else {
-                  final otherDates =
-                      allDates
-                          .where((d) => !d.isAtSameMomentAs(startOfToday))
-                          .toList();
+                  final otherDates = allDates
+                      .where((d) => !d.isAtSameMomentAs(startOfToday))
+                      .toList();
                   if (otherDates.isNotEmpty) {
                     latestDate = otherDates.first;
                     latestCount = visitCountsByDate[latestDate] ?? 0;
@@ -622,11 +633,41 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      _ShellStatusPill(
-                        label: '$_notificationCount Active',
-                        icon: Icons.bolt_rounded,
-                        color: AppColors.warning,
-                      ),
+                      if (notifications.isNotEmpty)
+                        TextButton.icon(
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            Navigator.pop(context);
+                            try {
+                              await NotificationService.markAllRead();
+                              if (mounted) {
+                                await _loadNotifications(refresh: true);
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'All notifications marked as read',
+                                    ),
+                                    backgroundColor: AppColors.success,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            } catch (_) {}
+                          },
+                          icon: const Icon(Icons.done_all_rounded, size: 16),
+                          label: const Text('Mark all as read'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        )
+                      else
+                        _ShellStatusPill(
+                          label: '$_notificationCount Active',
+                          icon: Icons.bolt_rounded,
+                          color: AppColors.warning,
+                        ),
                     ],
                   ),
                 ),
@@ -749,11 +790,48 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: AppSpacing.sm),
-                                      const Icon(
-                                        Icons.chevron_right_rounded,
-                                        color: AppColors.textMuted,
-                                      ),
+                                      const SizedBox(width: AppSpacing.xs),
+                                      if (notification.id != null)
+                                        IconButton(
+                                          tooltip: 'Mark as read',
+                                          icon: const Icon(
+                                            Icons.check_circle_outline_rounded,
+                                            size: 20,
+                                            color: AppColors.textMuted,
+                                          ),
+                                          onPressed: () async {
+                                            final messenger =
+                                                ScaffoldMessenger.of(context);
+                                            Navigator.pop(context);
+                                            try {
+                                              await NotificationService.markRead(
+                                                notification.id!,
+                                              );
+                                              if (mounted) {
+                                                await _loadNotifications(
+                                                  refresh: true,
+                                                );
+                                                messenger.showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Notification marked as read',
+                                                    ),
+                                                    backgroundColor:
+                                                        AppColors.success,
+                                                    duration: Duration(
+                                                      seconds: 1,
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            } catch (_) {}
+                                          },
+                                        )
+                                      else
+                                        const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: AppColors.textMuted,
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -803,7 +881,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ).then((_) => _loadNotifications(refresh: true)).catchError((_) {});
     }
 
-    if (notification.type == 'volunteer_availability_request') {
+    final notifType = notification.type.toLowerCase();
+    final notifTitle = notification.title.toLowerCase();
+    final notifMsg = notification.message.toLowerCase();
+
+    if (notifType == 'volunteer_availability_request' ||
+        notifTitle.contains('availability') ||
+        notifMsg.contains('availability request')) {
       if (!context.read<AuthService>().canManageVolunteerRequests) return;
       Navigator.push(
         context,
@@ -814,7 +898,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       return;
     }
 
-    if (notification.type == 'volunteer_availability_update') {
+    if (notifType == 'volunteer_availability_update') {
       if (!context.read<AuthService>().isVolunteer) return;
       Navigator.push(
         context,
@@ -825,7 +909,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       return;
     }
 
-    if (notification.type == 'volunteer_assignment') {
+    if (notifType == 'volunteer_assignment') {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -838,14 +922,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       return;
     }
 
-    if (notification.type == 'volunteer_registration') {
-      if (!context.read<AuthService>().canManageVolunteerRequests) return;
+    if (notifType == 'volunteer_registration' ||
+        notifType == 'volunteer_request' ||
+        notifType == 'volunteer_application' ||
+        notifTitle.contains('volunteer registration') ||
+        notifTitle.contains('volunteer request') ||
+        notifMsg.contains('volunteer registration') ||
+        notifMsg.contains('volunteer request')) {
+      if (!context.read<AuthService>().canAccessVolunteers) return;
+      final isAdmin = context.read<AuthService>().isAdmin;
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const ModuleTheme(
+          builder: (context) => ModuleTheme(
             palette: ModulePalettes.volunteers,
-            child: VolunteerListPage(),
+            child: VolunteerListPage(showPendingRegistrations: isAdmin),
           ),
         ),
       );
@@ -1319,12 +1410,27 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               _buildProfileMenuItem(
                                 icon: Icons.receipt_long_outlined,
                                 title: 'Billing & Plan',
+                                subtitle: _billingProfileSubtitle(),
                                 onTap: () {
                                   Navigator.pop(sheetContext);
                                   Navigator.of(pageContext).push(
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const BillingPlanScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildProfileMenuItem(
+                                icon: Icons.description_outlined,
+                                title: 'Invoices',
+                                subtitle: 'View and download billing invoices',
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  Navigator.of(pageContext).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const InvoicesScreen(),
                                     ),
                                   );
                                 },
@@ -2346,8 +2452,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     if (!auth.canManageVolunteerRequests || (!auth.isStaff && !auth.isMember)) {
       return const SizedBox.shrink();
     }
-    final pendingCount =
-        _pendingVolunteerRegistrationCount + _pendingAvailabilityRequestCount;
+    final pendingCount = _pendingAvailabilityRequestCount;
     if (_importantRequestsLoading && pendingCount == 0) {
       return const SizedBox.shrink();
     }
@@ -2363,56 +2468,67 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       surfaceLevel: AppSurfaceLevel.elevated,
       borderColor: AppColors.info.withValues(alpha: 0.28),
       backgroundColor: AppColors.info.withValues(alpha: 0.07),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.14),
-              borderRadius: AppRadius.sm,
+      child: InkWell(
+        borderRadius: AppRadius.card,
+        onTap: _openAvailabilityRequestsAdmin,
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.14),
+                borderRadius: AppRadius.sm,
+              ),
+              child: const Icon(
+                Icons.event_available_rounded,
+                color: AppColors.info,
+                size: 20,
+              ),
             ),
-            child: const Icon(
-              Icons.info_outline_rounded,
-              color: AppColors.info,
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'New availability requests',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    '$_pendingAvailabilityRequestCount availability ${_pendingAvailabilityRequestCount == 1 ? 'request' : 'requests'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textMuted,
               size: 20,
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'New volunteer requests',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.text,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  '$_pendingVolunteerRegistrationCount ${_pendingVolunteerRegistrationCount == 1 ? 'registration' : 'registrations'} · '
-                  '$_pendingAvailabilityRequestCount availability ${_pendingAvailabilityRequestCount == 1 ? 'request' : 'requests'}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.textSecondary, height: 1.2),
-                ),
-              ],
+            const SizedBox(width: AppSpacing.xxs),
+            IconButton(
+              tooltip: 'Dismiss new availability requests',
+              icon: const Icon(Icons.close_rounded, size: 18),
+              color: AppColors.textMuted,
+              splashRadius: 18,
+              visualDensity: VisualDensity.compact,
+              onPressed: _dismissVolunteerRequestsBanner,
             ),
-          ),
-          const SizedBox(width: AppSpacing.xxs),
-          IconButton(
-            tooltip: 'Dismiss new volunteer requests',
-            icon: const Icon(Icons.close_rounded, size: 18),
-            color: AppColors.textMuted,
-            splashRadius: 18,
-            visualDensity: VisualDensity.compact,
-            onPressed: _dismissVolunteerRequestsBanner,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2425,12 +2541,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     BuildContext context,
     AuthService auth,
   ) {
-    if (!_canViewPatientEnquiries(auth) ||
-        (!auth.isStaff && !auth.isMember)) {
+    if (!_canViewPatientEnquiries(auth) || (!auth.isStaff && !auth.isMember)) {
       return const SizedBox.shrink();
     }
-    if (_pendingPatientEnquiryCount == 0 ||
-        _dismissedPatientEnquiriesBanner) {
+    if (_pendingPatientEnquiryCount == 0 || _dismissedPatientEnquiriesBanner) {
       return const SizedBox.shrink();
     }
 
@@ -2479,8 +2593,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   '$_pendingPatientEnquiryCount pending ${_pendingPatientEnquiryCount == 1 ? 'enquiry' : 'enquiries'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.textSecondary, height: 1.2),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.2,
+                  ),
                 ),
               ],
             ),
@@ -4189,6 +4305,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       child: AdaptiveAppScaffold(
         backgroundColor: _homeBackground,
         contentMaxWidth: 760,
+        bottomAccessory: auth.shouldShowAds
+            ? const HomeNativeAdDock(includeBottomSafeArea: true)
+            : null,
         body: SafeArea(
           child: RefreshIndicator(
             onRefresh: () => _bootstrapAccess(force: true),
@@ -4411,10 +4530,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         auth.isAdmin ||
         auth.isVolunteer ||
         (auth.isStaff
-            ? (auth.canManageVolunteerRequests || _canViewPatientEnquiries(auth))
+            ? (auth.canManageVolunteerRequests ||
+                  _canViewPatientEnquiries(auth))
             : (auth.canManageVolunteerRequests ||
-                _canViewPatientEnquiries(auth) ||
-                (auth.isMember && _notifications.isNotEmpty)));
+                  _canViewPatientEnquiries(auth) ||
+                  (auth.isMember && _notifications.isNotEmpty)));
     final screenWidth = MediaQuery.sizeOf(context).width;
     final horizontalPadding = screenWidth < AppBreakpoints.tablet
         ? AppSpacing.md
@@ -4429,6 +4549,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         contentMaxWidth: 1040,
         currentSection: AppBottomSection.home,
         onNavigationSelected: _handleBottomNavigation,
+        bottomAccessory: auth.shouldShowAds ? const HomeNativeAdDock() : null,
         body: SafeArea(
           bottom: false,
           child: RefreshIndicator(
@@ -4456,9 +4577,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   ],
                   if ((auth.isStaff || auth.isMember) &&
                       auth.canManageVolunteerRequests &&
-                      _pendingVolunteerRegistrationCount +
-                              _pendingAvailabilityRequestCount >
-                          0 &&
+                      _pendingAvailabilityRequestCount > 0 &&
                       !_dismissedVolunteerRequestsBanner) ...[
                     const SizedBox(height: AppSpacing.sm),
                     _buildVolunteerRequestsInfoBanner(context, auth),
@@ -4514,10 +4633,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   List<_HomeMetricAction> _priorityActions(AuthService auth) {
+    final monthStr = DateFormat('MMM').format(DateTime.now());
     final patientSubtitle = auth.isMember
         ? 'Your family'
         : auth.isVolunteer
         ? 'Assigned to you'
+        : auth.isAdmin
+        ? '$_newPatientCountThisMonth New $monthStr'
         : auth.isStaff && _todayHomeVisitCount > 0
         ? '$_todayHomeVisitCount visits today'
         : _newPatientCountThisWeek > 0
@@ -4652,10 +4774,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFEBF3FF),
-                Color(0xFFD4E5FF),
-              ],
+              colors: [Color(0xFFEBF3FF), Color(0xFFD4E5FF)],
             ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -4698,11 +4817,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     border: Border.all(color: Colors.white, width: 1.2),
                   ),
                   child: const Center(
-                    child: Icon(
-                      Icons.check,
-                      size: 7,
-                      color: Colors.white,
-                    ),
+                    child: Icon(Icons.check, size: 7, color: Colors.white),
                   ),
                 ),
               ),
@@ -4905,7 +5020,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         ? null
         : _pendingPatientEnquiryCount;
     final cards = <Widget>[
-      if (auth.canManageVolunteerRequests) ...[
+      if (auth.isAdmin && auth.canManageVolunteerRequests) ...[
         _HomeActivityCard(
           icon: Icons.how_to_reg_rounded,
           iconBackground: AppColors.info.withValues(alpha: 0.1),
@@ -4917,8 +5032,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionLabel: 'Review',
           actionBackgroundColor: AppColors.info.withValues(alpha: 0.12),
           actionForegroundColor: AppColors.info,
+          badgeCount: registrationCount,
           onTap: _openVolunteerRegistrationRequests,
         ),
+      ],
+      if (auth.canManageVolunteerRequests) ...[
         _HomeActivityCard(
           icon: Icons.event_available_rounded,
           iconBackground: AppColors.info.withValues(alpha: 0.1),
@@ -4930,6 +5048,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionLabel: 'Review',
           actionBackgroundColor: AppColors.info.withValues(alpha: 0.12),
           actionForegroundColor: AppColors.info,
+          badgeCount: availabilityCount,
           onTap: _openAvailabilityRequestsAdmin,
         ),
       ],
@@ -4945,6 +5064,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionLabel: 'Review',
           actionBackgroundColor: ModulePalettes.patients.iconBackground,
           actionForegroundColor: ModulePalettes.patients.primary,
+          badgeCount: patientEnquiryCount,
           onTap: _openPatientEnquiries,
         ),
     ];
@@ -4976,7 +5096,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         ? null
         : _activeSupplies.length;
     final cards = <Widget>[
-      if (auth.canManageVolunteerRequests) ...[
+      if (auth.isAdmin && auth.canManageVolunteerRequests) ...[
         _HomeActivityCard(
           icon: Icons.person_outline_rounded,
           iconBackground: ModulePalettes.volunteers.iconBackground,
@@ -4988,8 +5108,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionLabel: 'Review',
           actionBackgroundColor: ModulePalettes.volunteers.iconBackground,
           actionForegroundColor: ModulePalettes.volunteers.primary,
+          badgeCount: registrationCount,
           onTap: _openVolunteerRegistrationRequests,
         ),
+      ],
+      if (auth.canManageVolunteerRequests) ...[
         _HomeActivityCard(
           icon: Icons.calendar_month_outlined,
           iconBackground: ModulePalettes.volunteers.iconBackground,
@@ -5001,6 +5124,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionLabel: 'Review',
           actionBackgroundColor: ModulePalettes.volunteers.iconBackground,
           actionForegroundColor: ModulePalettes.volunteers.primary,
+          badgeCount: availabilityCount,
           onTap: _openAvailabilityRequestsAdmin,
         ),
       ],
@@ -5016,6 +5140,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           actionLabel: 'Review',
           actionBackgroundColor: ModulePalettes.patients.iconBackground,
           actionForegroundColor: ModulePalettes.patients.primary,
+          badgeCount: patientEnquiryCount,
           onTap: _openPatientEnquiries,
         ),
       _HomeActivityCard(
@@ -5223,12 +5348,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     required String title,
     String? actionLabel,
     VoidCallback? onAction,
+    Widget? trailing,
   }) {
     return Row(
       children: [
-        Expanded(
-          child: Text(title, style: _homeCompactSectionTitleStyle(context)),
-        ),
+        Text(title, style: _homeCompactSectionTitleStyle(context)),
+        if (trailing != null) ...[
+          const SizedBox(width: AppSpacing.xs),
+          trailing,
+        ],
+        const Spacer(),
         if (actionLabel != null && onAction != null)
           TextButton(
             onPressed: onAction,
@@ -5418,7 +5547,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-
   void _openEquipmentSupply() {
     _openPage(
       const ModuleTheme(
@@ -5428,7 +5556,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       after: _loadActiveSupplies,
     );
   }
-
 
   void _openMedicineSupply() {
     _openPage(
@@ -5454,12 +5581,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-
   void _openPatientEnquiries() {
-    _openPage(
-      const PatientEnquiryListPage(),
-      after: _loadPatientEnquiryCount,
-    );
+    _openPage(const PatientEnquiryListPage(), after: _loadPatientEnquiryCount);
   }
 
   void _openVolunteerPatientRegister({int initialTabIndex = 0}) {
@@ -5535,9 +5658,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final isPendingApproval =
         auth.isRemovedFromUnit ||
         (auth.isVolunteer && !auth.isVolunteerApproved);
-    final maintenanceNotification = !auth.isAdmin || auth.isTrialUnit
+    final billingNotification = !auth.isAdmin || auth.isTrialUnit
         ? null
-        : _visibleMaintenanceDueNotification();
+        : _visibleBillingBannerNotification();
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isCompact = screenWidth < AppBreakpoints.tablet;
     final horizontalPadding = isCompact ? AppSpacing.md : AppSpacing.lg;
@@ -5567,6 +5690,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             ? null
             : _handleBottomNavigation,
         contentMaxWidth: 1040,
+        bottomAccessory: auth.shouldShowAds
+            ? HomeNativeAdDock(includeBottomSafeArea: isPendingApproval)
+            : null,
         body: SafeArea(
           bottom: false,
           child: RefreshIndicator(
@@ -5598,12 +5724,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       _buildPendingVolunteerStoryCard(),
                     ],
                   ] else ...[
-                    if (maintenanceNotification != null) ...[
+                    if (billingNotification != null) ...[
                       const SizedBox(height: AppSpacing.md),
-                      _buildMaintenanceDueBanner(
-                        context,
-                        maintenanceNotification,
-                      ),
+                      _buildBillingStatusBanner(context, billingNotification),
                     ],
                     if (auth.isVolunteer) ...[
                       const SizedBox(height: AppSpacing.md),
@@ -5825,9 +5948,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  AppNotification? _visibleMaintenanceDueNotification() {
-    for (final notification in _notifications) {
-      if (notification.type != 'maintenance_due') continue;
+  AppNotification? _billingIndicatorNotification() {
+    const priority = [
+      'payment_rejected',
+      'payment_proof_submitted',
+      'billing_due',
+      'maintenance_due',
+    ];
+    for (final type in priority) {
+      for (final notification in _notifications) {
+        if (notification.type == type) return notification;
+      }
+    }
+    return null;
+  }
+
+  AppNotification? _visibleBillingBannerNotification() {
+    final candidates = <AppNotification>[];
+    const priority = [
+      'payment_rejected',
+      'payment_proof_submitted',
+      'billing_due',
+      'maintenance_due',
+    ];
+    for (final type in priority) {
+      candidates.addAll(
+        _notifications.where((notification) => notification.type == type),
+      );
+    }
+    for (final notification in candidates) {
       if (_dismissedMaintenanceBannerKeys.contains(
         _maintenanceNotificationKey(notification),
       )) {
@@ -5838,6 +5987,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return null;
   }
 
+  String _billingProfileSubtitle() {
+    final notification = _billingIndicatorNotification();
+    if (notification == null) {
+      return _notificationsLoading
+          ? 'Checking payment status…'
+          : 'No due payments • Fully paid';
+    }
+    return switch (notification.type) {
+      'payment_rejected' => 'Payment proof rejected • Action required',
+      'payment_proof_submitted' => 'Payment verification pending',
+      _ => notification.message,
+    };
+  }
+
   String _maintenanceNotificationKey(AppNotification notification) {
     return notification.id ??
         notification.entityId ??
@@ -5845,18 +6008,28 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         notification.message;
   }
 
-  Widget _buildMaintenanceDueBanner(
+  Widget _buildBillingStatusBanner(
     BuildContext context,
     AppNotification notification,
   ) {
     final textTheme = Theme.of(context).textTheme;
+    final color = notification.type == 'payment_rejected'
+        ? AppColors.danger
+        : notification.type == 'payment_proof_submitted'
+        ? AppColors.info
+        : AppColors.warning;
+    final icon = notification.type == 'payment_rejected'
+        ? Icons.error_outline_rounded
+        : notification.type == 'payment_proof_submitted'
+        ? Icons.hourglass_top_rounded
+        : Icons.info_outline_rounded;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: AppRadius.card,
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.28)),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5865,13 +6038,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.16),
+              color: color.withValues(alpha: 0.16),
               borderRadius: AppRadius.md,
             ),
-            child: const Icon(
-              Icons.info_outline_rounded,
-              color: AppColors.warning,
-            ),
+            child: Icon(icon, color: color),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -5896,7 +6066,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 const SizedBox(height: AppSpacing.sm),
                 TextButton.icon(
                   style: TextButton.styleFrom(
-                    foregroundColor: AppColors.warning,
+                    foregroundColor: color,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 4,
@@ -5909,15 +6079,35 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const BillingPlanScreen(),
-                      ),
-                    );
+                    if (notification.type == 'payment_proof_submitted') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const InvoicesScreen(),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ManualPaymentScreen(),
+                        ),
+                      );
+                    }
                   },
-                  icon: const Icon(Icons.receipt_long_outlined, size: 14),
-                  label: const Text('View Billing & Plan'),
+                  icon: Icon(
+                    notification.type == 'payment_proof_submitted'
+                        ? Icons.receipt_long_outlined
+                        : Icons.payments_outlined,
+                    size: 14,
+                  ),
+                  label: Text(
+                    notification.type == 'payment_rejected'
+                        ? 'Submit new proof'
+                        : notification.type == 'payment_proof_submitted'
+                        ? 'View invoices & status'
+                        : 'View payment instructions',
+                  ),
                 ),
               ],
             ),
@@ -5971,6 +6161,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     final achievementColor = achievementTier == null
         ? null
         : _achievementColor(achievementTier);
+    final billingIndicator = auth.isAdmin && !auth.isTrialUnit
+        ? _billingIndicatorNotification()
+        : null;
 
     return AppCard(
       surfaceLevel: AppSurfaceLevel.elevated,
@@ -5995,6 +6188,38 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 compact: compactHeader,
               ),
               const Spacer(),
+              if (billingIndicator != null && !isPendingApproval) ...[
+                _buildShellIconButton(
+                  tooltip: billingIndicator.type == 'payment_proof_submitted'
+                      ? 'Payment verification pending'
+                      : billingIndicator.type == 'payment_rejected'
+                      ? 'Payment proof needs attention'
+                      : 'Payment due',
+                  icon: billingIndicator.type == 'payment_proof_submitted'
+                      ? Icons.hourglass_top_rounded
+                      : Icons.payments_outlined,
+                  badgeLabel: '!',
+                  onTap: () {
+                    if (billingIndicator.type == 'payment_proof_submitted') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const InvoicesScreen(),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ManualPaymentScreen(),
+                        ),
+                      );
+                    }
+                  },
+                  compact: compactHeader,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
               if (auth.unitSupportQr != null && !isPendingApproval) ...[
                 _buildShellIconButton(
                   tooltip: 'Show QR',
@@ -6555,6 +6780,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         return Icons.home_repair_service_outlined;
       case 'billing_due':
         return Icons.receipt_long_outlined;
+      case 'payment_proof_submitted':
+        return Icons.hourglass_top_rounded;
+      case 'payment_verified':
+        return Icons.verified_rounded;
+      case 'payment_rejected':
+        return Icons.error_outline_rounded;
       case 'volunteer_availability_request':
         return Icons.how_to_reg_outlined;
       case 'volunteer_assignment':
@@ -6571,6 +6802,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _isBillingNotification(AppNotification notification) {
     return notification.type == 'maintenance_due' ||
         notification.type == 'billing_due' ||
+        notification.type == 'payment_proof_submitted' ||
+        notification.type == 'payment_verified' ||
+        notification.type == 'payment_rejected' ||
         notification.type == 'subscription_renewal' ||
         notification.type == 'subscription_paid';
   }
@@ -6664,9 +6898,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 AppSpacing.sm,
                 AppSpacing.lg,
               ),
-              decoration: const BoxDecoration(
-                color: _homeBackground,
-              ),
+              decoration: const BoxDecoration(color: _homeBackground),
               child: Row(
                 children: [
                   UnitBrandAvatar(
@@ -6892,7 +7124,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     _buildDrawerItem(
                       context,
                       icon: Icons.mark_email_unread_outlined,
-                      title: "Patient Enquiries",
+                      title: "Patient Registration Requests",
                       color: ModulePalettes.patients.primary,
                       compact: true,
                       onTap: () {
@@ -7038,11 +7270,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.canManageVolunteerRequests)
+                  if (auth.isAdmin && auth.canManageVolunteerRequests)
                     _buildDrawerItem(
                       context,
                       icon: Icons.how_to_reg_outlined,
-                      title: 'Volunteer registrations',
+                      title: 'Volunteer Registration Requests',
                       color: ModulePalettes.volunteers.primary,
                       compact: true,
                       onTap: () {
@@ -7054,7 +7286,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     _buildDrawerItem(
                       context,
                       icon: Icons.event_available_outlined,
-                      title: 'Availability requests',
+                      title: 'Volunteer Availability Requests',
                       color: AppColors.success,
                       compact: true,
                       onTap: () {
@@ -7534,6 +7766,7 @@ class _HomeActivityCard extends StatelessWidget {
     this.actionTone = _HomeActionTone.neutral,
     this.actionBackgroundColor,
     this.actionForegroundColor,
+    this.badgeCount,
     this.loading = false,
     this.onTap,
   });
@@ -7547,6 +7780,7 @@ class _HomeActivityCard extends StatelessWidget {
   final _HomeActionTone actionTone;
   final Color? actionBackgroundColor;
   final Color? actionForegroundColor;
+  final int? badgeCount;
   final bool loading;
   final VoidCallback? onTap;
 
@@ -7639,34 +7873,69 @@ class _HomeActivityCard extends StatelessWidget {
                 ),
                 if (actionLabel != null) ...[
                   const SizedBox(width: AppSpacing.xs),
-                  Container(
-                    constraints: const BoxConstraints(minWidth: 62),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _actionBackground,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    alignment: Alignment.center,
-                    child: loading
-                        ? SizedBox.square(
-                            dimension: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: _actionForeground,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 62),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _actionBackground,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        alignment: Alignment.center,
+                        child: loading
+                            ? SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: _actionForeground,
+                                ),
+                              )
+                            : Text(
+                                actionLabel!,
+                                style: TextStyle(
+                                  color: _actionForeground,
+                                  fontSize: 13,
+                                  height: 1,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                      if (badgeCount != null && badgeCount! > 0)
+                        Positioned(
+                          right: -4,
+                          top: -5,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 19,
+                              minHeight: 19,
                             ),
-                          )
-                        : Text(
-                            actionLabel!,
-                            style: TextStyle(
-                              color: _actionForeground,
-                              fontSize: 13,
-                              height: 1,
-                              fontWeight: FontWeight.w600,
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              badgeCount! > 99 ? '99+' : badgeCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
                             ),
                           ),
+                        ),
+                    ],
                   ),
                 ],
               ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
+import 'package:oruma_app/services/mobile_ads_service.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key, this.supportEmail, this.supportPhone});
@@ -33,7 +34,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           ),
           children: [
             Text(
-              'Last updated 4 September 2026',
+              'Last updated 29 October 2026',
               style: Theme.of(
                 context,
               ).textTheme.labelMedium?.copyWith(color: AppColors.textMuted),
@@ -52,8 +53,14 @@ class PrivacyPolicyScreen extends StatelessWidget {
             const _PolicySection(
               title: 'Why data is used',
               body:
-                  'Data is used to authenticate authorised staff, maintain care records, coordinate home visits and services, manage medicines and equipment, create reports, administer access, and keep the service reliable and secure. The app does not include advertising or third-party analytics SDKs.',
+                  'Data is used to authenticate authorised staff, maintain care records, coordinate home visits and services, manage medicines and equipment, create reports, administer access, and keep the service reliable and secure.',
             ),
+            const _PolicySection(
+              title: 'Advertising',
+              body:
+                  'Eligible Android accounts may see advertisements supplied through the Google Mobile Ads SDK. Google may process device and advertising identifiers, IP address, approximate location, ad interactions and diagnostic information to deliver, measure and protect ads, subject to the choices and law that apply to the user. Palliative App does not send patient records, clinical notes or health information to Google for advertising or use that information to target ads. Paid staff and administration accounts do not see ads while their unit subscription is active; volunteer and public accounts remain ad-supported.',
+            ),
+            const _PrivacyChoicesButton(),
             const _PolicySection(
               title: 'Device permissions',
               body:
@@ -81,6 +88,48 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   : 'For privacy questions or data requests, contact your unit support team: ${contacts.join(' • ')}.',
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrivacyChoicesButton extends StatefulWidget {
+  const _PrivacyChoicesButton();
+
+  @override
+  State<_PrivacyChoicesButton> createState() => _PrivacyChoicesButtonState();
+}
+
+class _PrivacyChoicesButtonState extends State<_PrivacyChoicesButton> {
+  bool _required = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final required = await MobileAdsService.privacyOptionsRequired();
+    if (mounted) setState(() => _required = required);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_required) return const SizedBox.shrink();
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+        child: OutlinedButton.icon(
+          onPressed: () async {
+            await MobileAdsService.showPrivacyOptions();
+            await _refresh();
+          },
+          icon: const Icon(Icons.privacy_tip_outlined),
+          label: const Text('Ad privacy choices'),
         ),
       ),
     );

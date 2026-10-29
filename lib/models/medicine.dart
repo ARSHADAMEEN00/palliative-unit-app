@@ -198,6 +198,7 @@ class Medicine {
       'formulation': formulation,
       'strength': strength,
       'strengthUnit': strengthUnit,
+      'qtyUnit': qtyUnit,
       'netContent': netContent,
       'description': description,
       'photos': photos,

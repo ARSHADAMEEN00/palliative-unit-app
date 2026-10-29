@@ -5,6 +5,8 @@ class BillingPortal {
     required this.plans,
     required this.maintenanceHistory,
     required this.paymentRows,
+    this.paymentSettings = const PaymentSettings(),
+    this.paymentSubmissions = const [],
     this.subscription,
     this.currentPlan,
   });
@@ -16,6 +18,8 @@ class BillingPortal {
   final List<BillingPlan> plans;
   final List<MaintenanceHistoryEntry> maintenanceHistory;
   final List<PaymentHistoryRow> paymentRows;
+  final PaymentSettings paymentSettings;
+  final List<PaymentSubmission> paymentSubmissions;
 
   List<MaintenanceHistoryEntry> get pendingMaintenanceEntries {
     final entries = maintenanceHistory.where((entry) => entry.isDue).toList();
@@ -45,6 +49,12 @@ class BillingPortal {
       paymentRows: _asList(
         json['paymentRows'],
       ).map((item) => PaymentHistoryRow.fromJson(item)).toList(),
+      paymentSettings: PaymentSettings.fromJson(
+        _asMap(json['paymentSettings']),
+      ),
+      paymentSubmissions: _asList(
+        json['paymentSubmissions'],
+      ).map((item) => PaymentSubmission.fromJson(item)).toList(),
       summary: BillingSummary.fromJson(_asMap(json['summary'])),
     );
   }
@@ -100,7 +110,9 @@ class BillingUnit {
       district: _nullableString(json['district']),
       village: _nullableString(json['village']),
       contactEmail: _nullableString(json['contactEmail']),
-      contactPhones: (json['contactPhones'] as List?)?.map((e) => e.toString()).toList(),
+      contactPhones: (json['contactPhones'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
       subscriptionStartDate: _date(json['subscriptionStartDate']),
       trialEndDate: _date(json['trialEndDate']),
       renewalDate: _date(json['renewalDate']),
@@ -219,6 +231,8 @@ class BillingSummary {
     this.upcomingPaymentAmount = 0,
     this.totalPaid = 0,
     this.totalInvoiced = 0,
+    this.verificationPendingAmount = 0,
+    this.hasVerificationPending = false,
     this.upcomingPaymentLabel,
     this.upcomingPaymentDueDate,
   });
@@ -230,6 +244,8 @@ class BillingSummary {
   final double upcomingPaymentAmount;
   final double totalPaid;
   final double totalInvoiced;
+  final double verificationPendingAmount;
+  final bool hasVerificationPending;
   final String? upcomingPaymentLabel;
   final DateTime? upcomingPaymentDueDate;
 
@@ -245,6 +261,8 @@ class BillingSummary {
       upcomingPaymentAmount: _number(json['upcomingPaymentAmount']),
       totalPaid: _number(json['totalPaid']),
       totalInvoiced: _number(json['totalInvoiced']),
+      verificationPendingAmount: _number(json['verificationPendingAmount']),
+      hasVerificationPending: json['hasVerificationPending'] == true,
       upcomingPaymentLabel: _nullableString(json['upcomingPaymentLabel']),
       upcomingPaymentDueDate: _date(json['upcomingPaymentDueDate']),
     );
@@ -287,6 +305,9 @@ class MaintenanceHistoryEntry {
 
 class PaymentHistoryRow {
   const PaymentHistoryRow({
+    this.id,
+    this.invoiceNumber,
+    this.invoiceType,
     required this.periodKey,
     required this.label,
     required this.recordType,
@@ -297,8 +318,12 @@ class PaymentHistoryRow {
     this.paidAmount = 0,
     this.remainingAmount,
     this.method,
+    this.verificationStatus,
   });
 
+  final String? id;
+  final String? invoiceNumber;
+  final String? invoiceType;
   final String periodKey;
   final String label;
   final String recordType;
@@ -309,10 +334,22 @@ class PaymentHistoryRow {
   final String status;
   final DateTime? paidAt;
   final String? method;
+  final String? verificationStatus;
 
   bool get isPayment => recordType.toLowerCase() == 'payment';
 
   bool get isPaid => status.toLowerCase() == 'paid';
+
+  bool get isVerificationPending =>
+      status.toLowerCase() == 'verification_pending' ||
+      verificationStatus?.toLowerCase() == 'pending';
+
+  bool get canSubmitProof =>
+      !isPayment &&
+      !isPaid &&
+      !isVerificationPending &&
+      id != null &&
+      displayAmount > 0;
 
   double get displayAmount {
     if (isPayment || isPaid) return amount;
@@ -321,6 +358,9 @@ class PaymentHistoryRow {
 
   factory PaymentHistoryRow.fromJson(Map<String, dynamic> json) {
     return PaymentHistoryRow(
+      id: _nullableString(json['id'] ?? json['_id']),
+      invoiceNumber: _nullableString(json['invoiceNumber']),
+      invoiceType: _nullableString(json['invoiceType'] ?? json['type']),
       periodKey: _string(json['periodKey']),
       label: _string(json['label']),
       recordType: _string(json['recordType'], fallback: 'invoice'),
@@ -333,6 +373,149 @@ class PaymentHistoryRow {
       status: _string(json['status'], fallback: 'pending'),
       paidAt: _date(json['paidAt']),
       method: _nullableString(json['method']),
+      verificationStatus: _nullableString(json['verificationStatus']),
+    );
+  }
+}
+
+class PaymentSettings {
+  const PaymentSettings({
+    this.id,
+    this.accountHolderName = '',
+    this.bankName = '',
+    this.accountNumber = '',
+    this.ifscCode = '',
+    this.branchName = '',
+    this.upiId = '',
+    this.qrImage = '',
+    this.instructions = '',
+    this.supportContact = '',
+    this.enabledMethods = const [],
+    this.status = 'inactive',
+    this.version = 0,
+  });
+
+  final String? id;
+  final String accountHolderName;
+  final String bankName;
+  final String accountNumber;
+  final String ifscCode;
+  final String branchName;
+  final String upiId;
+  final String qrImage;
+  final String instructions;
+  final String supportContact;
+  final List<String> enabledMethods;
+  final String status;
+  final int version;
+
+  bool get isActive => status.toLowerCase() == 'active';
+  bool get hasBankTransfer =>
+      isActive && enabledMethods.contains('bank_transfer');
+  bool get hasUpiId => isActive && enabledMethods.contains('upi_id');
+  bool get hasUpiQr => isActive && enabledMethods.contains('upi_qr');
+  bool get hasPaymentMethod => hasBankTransfer || hasUpiId || hasUpiQr;
+
+  factory PaymentSettings.fromJson(Map<String, dynamic> json) {
+    return PaymentSettings(
+      id: _nullableString(json['id'] ?? json['_id']),
+      accountHolderName: _string(json['accountHolderName']),
+      bankName: _string(json['bankName']),
+      accountNumber: _string(json['accountNumber']),
+      ifscCode: _string(json['ifscCode']),
+      branchName: _string(json['branchName']),
+      upiId: _string(json['upiId']),
+      qrImage: _string(json['qrImage']),
+      instructions: _string(json['instructions']),
+      supportContact: _string(json['supportContact']),
+      enabledMethods: _stringList(json['enabledMethods']),
+      status: _string(json['status'], fallback: 'inactive'),
+      version: _integer(json['version']),
+    );
+  }
+}
+
+class PaymentSubmissionInvoice {
+  const PaymentSubmissionInvoice({
+    required this.invoiceId,
+    required this.label,
+    this.invoiceNumber = '',
+    this.amount = 0,
+  });
+
+  final String invoiceId;
+  final String invoiceNumber;
+  final String label;
+  final double amount;
+
+  factory PaymentSubmissionInvoice.fromJson(Map<String, dynamic> json) {
+    return PaymentSubmissionInvoice(
+      invoiceId: _string(json['invoiceId']),
+      invoiceNumber: _string(json['invoiceNumber']),
+      label: _string(json['label']),
+      amount: _number(json['amount']),
+    );
+  }
+}
+
+class PaymentSubmission {
+  const PaymentSubmission({
+    required this.id,
+    required this.status,
+    this.submissionNumber = '',
+    this.invoiceIds = const [],
+    this.invoices = const [],
+    this.expectedAmount = 0,
+    this.declaredPaidAmount = 0,
+    this.transactionReference = '',
+    this.paymentMethod = 'upi',
+    this.paidAt,
+    this.submittedAt,
+    this.reviewedAt,
+    this.rejectionReason,
+    this.reviewNote,
+  });
+
+  final String id;
+  final String submissionNumber;
+  final String status;
+  final List<String> invoiceIds;
+  final List<PaymentSubmissionInvoice> invoices;
+  final double expectedAmount;
+  final double declaredPaidAmount;
+  final String transactionReference;
+  final String paymentMethod;
+  final DateTime? paidAt;
+  final DateTime? submittedAt;
+  final DateTime? reviewedAt;
+  final String? rejectionReason;
+  final String? reviewNote;
+
+  bool get isPending =>
+      status == 'submitted' ||
+      status == 'under_review' ||
+      status == 'processing';
+  bool get isRejected => status == 'rejected';
+  bool get isApproved => status == 'approved';
+
+  factory PaymentSubmission.fromJson(Map<String, dynamic> json) {
+    return PaymentSubmission(
+      id: _string(json['id'] ?? json['_id']),
+      submissionNumber: _string(json['submissionNumber']),
+      status: _string(json['status'], fallback: 'submitted').toLowerCase(),
+      invoiceIds: _stringList(json['invoiceIds']),
+      invoices: _asList(
+        json['invoices'],
+      ).map(PaymentSubmissionInvoice.fromJson).toList(),
+      expectedAmount: _number(json['expectedAmount']),
+      declaredPaidAmount: _number(json['declaredPaidAmount']),
+      transactionReference: _string(json['transactionReference']),
+      paymentMethod: _string(json['paymentMethod'], fallback: 'upi'),
+      paidAt: _date(json['paidAt']),
+      submittedAt: _date(json['submittedAt']),
+      reviewedAt: _date(json['reviewedAt']),
+      rejectionReason: _nullableString(json['rejectionReason']),
+      reviewNote: _nullableString(json['reviewNote']),
     );
   }
 }
@@ -371,6 +554,12 @@ String? _nullableString(dynamic value) {
 double _number(dynamic value) {
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int _integer(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 DateTime? _date(dynamic value) {
