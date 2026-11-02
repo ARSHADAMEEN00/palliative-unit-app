@@ -1978,14 +1978,14 @@ class _ConfigPageState extends State<ConfigPage>
     final isConfigured = current != null && current.isNotEmpty;
 
     return _ConfigSection(
-      title: 'Unit working time (Home header)',
+      title: 'Unit working hours',
       icon: Icons.schedule_rounded,
-      badgeText: isConfigured ? current : 'Not configured',
+      badgeText: isConfigured ? 'Active' : 'Not set',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Set working hours for this unit to display on the top card of the home screen (e.g. Mon - Sat: 9:00am - 4:30pm). If left empty, no working hours will be shown.',
+            'Displayed on the home top card for this unit. Leave empty if you do not want working hours shown.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
@@ -3222,7 +3222,8 @@ class _ConfigSection extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              if (badgeText != null || count != null)
+              if (badgeText != null || count != null) ...[
+                const SizedBox(width: AppSpacing.xs),
                 Container(
                   constraints: const BoxConstraints(minWidth: 34),
                   padding: const EdgeInsets.symmetric(
@@ -3236,12 +3237,15 @@ class _ConfigSection extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     badgeText ?? count.toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: _ConfigPageState._primaryColor,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
+              ],
             ],
           ),
           const SizedBox(height: AppSpacing.md),
