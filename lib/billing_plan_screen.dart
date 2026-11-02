@@ -63,7 +63,7 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
   }
 
   Future<void> _openPlanPage() async {
-    final uri = Uri.parse('https://api-erp-palliative.osperb.com/plan');
+    final uri = Uri.parse('https://palliativecareapp.ziyaq.in/plan/');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1173,12 +1173,19 @@ class _PaymentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final openBills = rows
+    final paymentRows = rows
+        .where((row) =>
+            row.invoiceType?.toLowerCase() != 'maintenance' &&
+            !row.label.toLowerCase().contains('maintenance') &&
+            !row.label.toLowerCase().startsWith('server payment'))
+        .toList();
+    final openBills = paymentRows
         .where((row) => !row.isPayment && !row.isPaid && row.displayAmount > 0)
         .toList();
-    final paymentHistory = rows
-        .where((row) => row.isPayment || row.isPaid)
-        .toList()
+    final payments = paymentRows.where((row) => row.isPayment).toList();
+    final paymentHistory = (payments.isNotEmpty
+            ? payments
+            : paymentRows.where((row) => row.isPaid).toList())
         .reversed
         .toList();
 

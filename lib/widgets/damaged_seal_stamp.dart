@@ -47,22 +47,24 @@ class _DamagedSealPainter extends CustomPainter {
     final stampPaint = Paint()
       ..color = color.withValues(alpha: 0.78)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
+      ..strokeWidth = (size.width * 0.021).clamp(1.4, 2.6)
       ..strokeCap = StrokeCap.round;
 
     final thinPaint = Paint()
       ..color = color.withValues(alpha: 0.65)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = (size.width * 0.009).clamp(0.7, 1.2);
 
     // 1. Outer Distressed Ring
     _drawDistressedCircle(canvas, center, radius, stampPaint, seed: 1);
 
     // 2. Inner Concentric Ring
-    _drawDistressedCircle(canvas, center, radius - 4.5, thinPaint, seed: 2);
+    final ringGap1 = size.width * 0.04;
+    _drawDistressedCircle(canvas, center, radius - ringGap1, thinPaint, seed: 2);
 
     // 3. Innermost Ring
-    _drawDistressedCircle(canvas, center, radius - 17.5, thinPaint, seed: 3);
+    final ringGap2 = size.width * 0.155;
+    _drawDistressedCircle(canvas, center, radius - ringGap2, thinPaint, seed: 3);
 
     // 4. Center Banner for "DAMAGED"
     final bannerHeight = size.height * 0.28;
@@ -86,7 +88,9 @@ class _DamagedSealPainter extends CustomPainter {
     final bannerLinePaint = Paint()
       ..color = color.withValues(alpha: 0.82)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
+      ..strokeWidth = (size.width * 0.016).clamp(1.0, 2.0);
+
+    final lineInset = (size.height * 0.022).clamp(1.4, 2.5);
 
     _drawDistressedLine(
       canvas,
@@ -97,8 +101,8 @@ class _DamagedSealPainter extends CustomPainter {
     );
     _drawDistressedLine(
       canvas,
-      Offset(bannerRect.left + 2, bannerRect.top + 2.5),
-      Offset(bannerRect.right - 2, bannerRect.top + 2.5),
+      Offset(bannerRect.left + 2, bannerRect.top + lineInset),
+      Offset(bannerRect.right - 2, bannerRect.top + lineInset),
       thinPaint,
       seed: 5,
     );
@@ -111,8 +115,8 @@ class _DamagedSealPainter extends CustomPainter {
     );
     _drawDistressedLine(
       canvas,
-      Offset(bannerRect.left + 2, bannerRect.bottom - 2.5),
-      Offset(bannerRect.right - 2, bannerRect.bottom - 2.5),
+      Offset(bannerRect.left + 2, bannerRect.bottom - lineInset),
+      Offset(bannerRect.right - 2, bannerRect.bottom - lineInset),
       thinPaint,
       seed: 7,
     );
@@ -138,7 +142,7 @@ class _DamagedSealPainter extends CustomPainter {
           fontSize: size.width * 0.165,
           fontWeight: FontWeight.w900,
           fontFamily: 'serif',
-          letterSpacing: 2.2,
+          letterSpacing: (size.width * 0.018).clamp(1.0, 2.2),
         ),
       ),
       textDirection: ui.TextDirection.ltr,
@@ -151,19 +155,20 @@ class _DamagedSealPainter extends CustomPainter {
     );
 
     // 6. Top Arc Text
+    final arcRadius = radius - (size.width * 0.10);
     _drawArcText(
       canvas,
-      '★  EQUIPMENT  ★',
+      '★ EQUIPMENT ★',
       center,
-      radius - 11.5,
+      arcRadius,
       -pi / 2,
       isTop: true,
       textStyle: TextStyle(
         color: color.withValues(alpha: 0.75),
-        fontSize: size.width * 0.08,
+        fontSize: size.width * 0.078,
         fontWeight: FontWeight.w800,
         fontFamily: 'serif',
-        letterSpacing: 1.0,
+        letterSpacing: (size.width * 0.007).clamp(0.4, 1.0),
       ),
     );
 
@@ -171,21 +176,21 @@ class _DamagedSealPainter extends CustomPainter {
     final dateString = damagedAt != null
         ? DateFormat('d MMM yyyy').format(damagedAt!).toUpperCase()
         : 'INSPECTION';
-    final bottomText = '★  $dateString  ★';
+    final bottomText = '★ $dateString ★';
 
     _drawArcText(
       canvas,
       bottomText,
       center,
-      radius - 11.5,
+      arcRadius,
       pi / 2,
       isTop: false,
       textStyle: TextStyle(
         color: color.withValues(alpha: 0.75),
-        fontSize: size.width * 0.075,
+        fontSize: size.width * 0.072,
         fontWeight: FontWeight.w800,
         fontFamily: 'serif',
-        letterSpacing: 0.8,
+        letterSpacing: (size.width * 0.006).clamp(0.3, 0.8),
       ),
     );
 

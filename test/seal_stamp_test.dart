@@ -31,5 +31,22 @@ void main() {
     );
 
     expect(find.byType(DamagedSealStamp), findsOneWidget);
+
+    // Compact card size test (size 60)
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: DamagedSealStamp(
+              damagedAt: DateTime(2026, 4, 15),
+              size: 60,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(DamagedSealStamp), findsOneWidget);
+    expect(find.bySemanticsLabel('Damaged equipment'), findsOneWidget);
   });
 }

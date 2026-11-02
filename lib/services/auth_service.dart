@@ -447,6 +447,25 @@ class AuthService with ChangeNotifier {
   String? get unitContactEmail =>
       _cleanString(unit?['contactEmail'] ?? _supportValue('email'));
   String? get unitNotes => _cleanString(unit?['notes']);
+  String? get unitWorkingTime => _cleanString(
+    unit?['workingTime'] ?? unit?['working_time'] ?? _user?['workingTime'],
+  );
+
+  Future<void> updateUnitWorkingTime(String? workingTime) async {
+    final cleaned = _cleanString(workingTime);
+    _user ??= <String, dynamic>{'unit': <String, dynamic>{}};
+    if (_user!['unit'] is! Map) {
+      _user!['unit'] = <String, dynamic>{};
+    }
+    (_user!['unit'] as Map)['workingTime'] = cleaned;
+    (_user!['unit'] as Map)['working_time'] = cleaned;
+    _user!['workingTime'] = cleaned;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cachedUserKey, jsonEncode(_user));
+    } catch (_) {}
+    notifyListeners();
+  }
 
   String? get unitStatus =>
       _cleanString(unit?['status'] ?? _user?['status'])?.toLowerCase();

@@ -269,6 +269,9 @@ class _ConfigPageState extends State<ConfigPage>
         _config = updatedConfig;
         _ensureSelectedWardVillage(updatedConfig);
       });
+      final auth = Provider.of<AuthService>(context, listen: false);
+      await auth.updateUnitWorkingTime(updatedConfig.workingTime);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Configuration saved successfully'),
@@ -1862,6 +1865,7 @@ class _ConfigPageState extends State<ConfigPage>
         children: [
           _buildOverviewHeader(config),
           const SizedBox(height: AppSpacing.sm),
+          _buildUnitWorkingTimeSection(),
           _buildWorkingDaysSection(),
           _buildAvailabilityTimeSection(),
           _buildListSection(
@@ -1954,11 +1958,289 @@ class _ConfigPageState extends State<ConfigPage>
                 value: config.volunteerAvailabilityTimeWindow,
                 icon: Icons.schedule_outlined,
               ),
+              _MetricPill(
+                label: 'Working time',
+                value: config.workingTime?.trim().isNotEmpty == true
+                    ? config.workingTime!.trim()
+                    : 'Not set',
+                icon: Icons.schedule_rounded,
+                onTap: _openWorkingTimeEditorDialog,
+              ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildUnitWorkingTimeSection() {
+    final current = _config?.workingTime?.trim();
+    final isConfigured = current != null && current.isNotEmpty;
+
+    return _ConfigSection(
+      title: 'Unit working time (Home header)',
+      icon: Icons.schedule_rounded,
+      badgeText: isConfigured ? current : 'Not configured',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set working hours for this unit to display on the top card of the home screen (e.g. Mon - Sat: 9:00am - 4:30pm). If left empty, no working hours will be shown.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: isConfigured
+                  ? AppColors.primaryLight.withValues(alpha: 0.35)
+                  : AppColors.surface1,
+              borderRadius: AppRadius.sm,
+              border: Border.all(
+                color: isConfigured
+                    ? AppColors.primary.withValues(alpha: 0.35)
+                    : AppColors.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isConfigured
+                        ? AppColors.primary.withValues(alpha: 0.12)
+                        : AppColors.surface,
+                    borderRadius: AppRadius.sm,
+                  ),
+                  child: Icon(
+                    isConfigured
+                        ? Icons.schedule_rounded
+                        : Icons.timer_off_outlined,
+                    size: 20,
+                    color: isConfigured
+                        ? AppColors.primary
+                        : AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isConfigured ? 'Active Working Hours' : 'Status: Hidden',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isConfigured
+                            ? current
+                            : 'Not set for this unit. Top card will not display working hours.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              isConfigured ? FontWeight.w700 : FontWeight.w500,
+                          color: isConfigured
+                              ? AppColors.text
+                              : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                FilledButton.tonalIcon(
+                  onPressed: _openWorkingTimeEditorDialog,
+                  icon: Icon(
+                    isConfigured ? Icons.edit_rounded : Icons.add_rounded,
+                    size: 16,
+                  ),
+                  label: Text(isConfigured ? 'Edit' : 'Set time'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                ),
+                if (isConfigured) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Clear working time',
+                    icon: const Icon(
+                      Icons.clear_rounded,
+                      size: 18,
+                      color: AppColors.danger,
+                    ),
+                    onPressed: _clearUnitWorkingTime,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openWorkingTimeEditorDialog() async {
+    final current = _config?.workingTime?.trim() ?? '';
+    final controller = TextEditingController(text: current);
+    const presets = [
+      'Mon - Sat: 9:00am - 4:30pm',
+      'Monday to Saturday 9:00am to 4:30pm',
+      'Mon - Fri: 9:00am - 5:00pm',
+      'All Days: 9:00am - 5:00pm',
+    ];
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadius.dialog),
+          title: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: AppRadius.sm,
+                ),
+                child: const Icon(
+                  Icons.schedule_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const Expanded(
+                child: Text(
+                  'Set Unit Working Time',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This text will appear in the top dashboard card of the home screen for your unit.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: controller,
+                  decoration: _fieldDecoration(
+                    labelText: 'Working time text',
+                    hintText: 'e.g. Mon - Sat: 9:00am - 4:30pm',
+                    prefixIcon: Icons.schedule_rounded,
+                    suffixIcon: controller.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () {
+                              controller.clear();
+                              setDialogState(() {});
+                            },
+                          )
+                        : null,
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const Text(
+                  'Quick suggestions:',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: presets.map((preset) {
+                    final isSelected = controller.text.trim() == preset;
+                    return ActionChip(
+                      label: Text(
+                        preset,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? AppColors.primary : AppColors.text,
+                        ),
+                      ),
+                      backgroundColor: isSelected
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : AppColors.surface1,
+                      side: BorderSide(
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.border,
+                      ),
+                      onPressed: () {
+                        controller.text = preset;
+                        setDialogState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(null),
+              child: const Text('Cancel'),
+            ),
+            if (current.isNotEmpty)
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop('__CLEAR__'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text('Clear / Hide'),
+              ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogCtx).pop(controller.text.trim());
+              },
+              child: const Text('Save & Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    if (result == '__CLEAR__') {
+      await _clearUnitWorkingTime();
+    } else {
+      setState(() {
+        _config?.workingTime = result;
+      });
+      await _saveConfig();
+    }
+  }
+
+  Future<void> _clearUnitWorkingTime() async {
+    if (_config == null) return;
+    setState(() {
+      _config?.workingTime = '';
+    });
+    await _saveConfig();
   }
 
   Widget _buildWorkingDaysSection() {

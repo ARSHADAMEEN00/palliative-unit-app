@@ -416,68 +416,131 @@ class _EquipmentListPageState extends State<EquipmentListPage>
               ? AppSurfaceLevel.surface1
               : AppSurfaceLevel.elevated,
           borderColor: isDamaged ? AppColors.borderStrong : null,
+          clipBehavior: Clip.antiAlias,
           onTap: isDamaged ? null : () => _showEquipmentDetails(eq),
-          child: Opacity(
-            opacity: isDamaged ? 0.45 : 1.0,
-            child: ColorFiltered(
-              colorFilter: isDamaged
-                  ? const ColorFilter.matrix(<double>[
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0,
-                      0,
-                      0,
-                      1,
-                      0,
-                    ])
-                  : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-              child: Row(
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _equipmentAvatar(Icons.medical_services_outlined),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          eq.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text(
-                          eq.uniqueId,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: _equipmentStrong,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        if (eq.storagePlace?.trim().isNotEmpty == true) ...[
-                          const SizedBox(height: AppSpacing.xs),
-                          _inlineDetail(
-                            Icons.warehouse_outlined,
-                            eq.storagePlace!.trim(),
-                          ),
+                  Opacity(
+                    opacity: isDamaged ? 0.45 : 1.0,
+                    child: ColorFiltered(
+                      colorFilter: isDamaged
+                          ? const ColorFilter.matrix(<double>[
+                              0.2126,
+                              0.7152,
+                              0.0722,
+                              0,
+                              0,
+                              0.2126,
+                              0.7152,
+                              0.0722,
+                              0,
+                              0,
+                              0.2126,
+                              0.7152,
+                              0.0722,
+                              0,
+                              0,
+                              0,
+                              0,
+                              0,
+                              1,
+                              0,
+                            ])
+                          : const ColorFilter.mode(
+                              Colors.transparent,
+                              BlendMode.dst,
+                            ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _equipmentAvatar(Icons.medical_services_outlined),
+                          const SizedBox(width: AppSpacing.sm),
                         ],
-                      ],
+                      ),
                     ),
                   ),
+                  Expanded(
+                    child: Opacity(
+                      opacity: isDamaged ? 0.45 : 1.0,
+                      child: ColorFiltered(
+                        colorFilter: isDamaged
+                            ? const ColorFilter.matrix(<double>[
+                                0.2126,
+                                0.7152,
+                                0.0722,
+                                0,
+                                0,
+                                0.2126,
+                                0.7152,
+                                0.0722,
+                                0,
+                                0,
+                                0.2126,
+                                0.7152,
+                                0.0722,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                1,
+                                0,
+                              ])
+                            : const ColorFilter.mode(
+                                Colors.transparent,
+                                BlendMode.dst,
+                              ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              eq.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(
+                              eq.uniqueId,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: _equipmentStrong,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            if (eq.storagePlace?.trim().isNotEmpty == true) ...[
+                              const SizedBox(height: AppSpacing.xs),
+                              _inlineDetail(
+                                Icons.warehouse_outlined,
+                                eq.storagePlace!.trim(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (auth.canEdit && isDamaged) ...[
+                    Material(
+                      color: AppColors.surface,
+                      shape: const CircleBorder(),
+                      elevation: 1,
+                      child: IconButton(
+                        tooltip: 'Mark repaired',
+                        onPressed: () => _markEquipmentRepaired(eq),
+                        icon: const Icon(Icons.home_repair_service_outlined),
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
                   if (auth.canEdit || auth.canDelete)
                     PopupMenuButton<String>(
                       iconColor: AppColors.textSecondary,
@@ -553,60 +616,29 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                     const Icon(Icons.chevron_right, color: AppColors.textMuted),
                 ],
               ),
-            ),
+              if (isDamaged)
+                Positioned(
+                  right: auth.canEdit ? 84 : 44,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Transform.rotate(
+                      angle: -8.0 * (pi / 180),
+                      child: IgnorePointer(
+                        child: DamagedSealStamp(
+                          damagedAt: eq.damagedAt,
+                          size: 60,
+                          color: const Color(0xFFE57373),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
 
-        if (!isDamaged) {
-          return card;
-        }
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            card,
-            Positioned(
-              right: auth.canEdit
-                  ? 80
-                  : auth.canDelete
-                  ? 64
-                  : 20,
-              top: 0,
-              bottom: 0,
-              child: Center(
-                child: Transform.rotate(
-                  angle: -8.0 * (pi / 180),
-                  child: IgnorePointer(
-                    child: DamagedSealStamp(
-                      damagedAt: eq.damagedAt,
-                      size: 108,
-                      color: const Color(0xFFE57373),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (auth.canEdit)
-              Positioned(
-                right: 64,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Material(
-                    color: AppColors.surface,
-                    shape: const CircleBorder(),
-                    elevation: 1,
-                    child: IconButton(
-                      tooltip: 'Mark repaired',
-                      onPressed: () => _markEquipmentRepaired(eq),
-                      icon: const Icon(Icons.home_repair_service_outlined),
-                      color: AppColors.success,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
+        return card;
       },
     );
   }

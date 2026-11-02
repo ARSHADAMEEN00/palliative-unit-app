@@ -15,6 +15,7 @@ class AppCard extends StatelessWidget {
     this.onTap,
     this.borderColor,
     this.backgroundColor,
+    this.clipBehavior = Clip.none,
   });
 
   final Widget child;
@@ -24,6 +25,7 @@ class AppCard extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? borderColor;
   final Color? backgroundColor;
+  final Clip clipBehavior;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class AppCard extends StatelessWidget {
       curve: AppMotion.easeOutCubic,
       margin: margin,
       padding: padding,
+      clipBehavior: clipBehavior,
       decoration: BoxDecoration(
         color:
             backgroundColor ?? AppColors.surfaceFor(surfaceLevel, dark: dark),
@@ -56,6 +59,7 @@ class AppCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       borderRadius: radius,
+      clipBehavior: clipBehavior,
       child: InkWell(onTap: onTap, borderRadius: radius, child: card),
     );
   }

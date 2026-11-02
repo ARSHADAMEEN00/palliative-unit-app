@@ -32,6 +32,40 @@ class BillingPortal {
   }
 
   factory BillingPortal.fromJson(Map<String, dynamic> json) {
+    final parsedRows = _asList(
+      json['paymentRows'],
+    ).map((item) => PaymentHistoryRow.fromJson(item))
+     .where((item) =>
+        item.invoiceType?.toLowerCase() != 'maintenance' &&
+        !item.label.toLowerCase().contains('maintenance') &&
+        !item.label.toLowerCase().startsWith('server payment'))
+     .toList();
+
+    var parsedSummary = BillingSummary.fromJson(_asMap(json['summary']));
+    final nonMaintenanceInvoiced = parsedRows
+        .where((r) => !r.isPayment)
+        .fold<double>(0, (sum, r) => sum + r.amount);
+
+    if (nonMaintenanceInvoiced > 0 && parsedSummary.totalInvoiced > nonMaintenanceInvoiced) {
+      final hasPayments = parsedRows.any((r) => r.isPayment && r.isPaid);
+      final nonMaintenancePaid = hasPayments
+          ? parsedRows
+              .where((r) => r.isPayment && r.isPaid)
+              .fold<double>(0, (sum, r) => sum + r.amount)
+          : parsedRows.fold<double>(0, (sum, r) {
+              if (r.isPaid) return sum + r.amount;
+              return sum + r.paidAmount;
+            });
+      final outstanding = (nonMaintenanceInvoiced - nonMaintenancePaid)
+          .clamp(0, double.infinity)
+          .toDouble();
+      parsedSummary = parsedSummary.copyWith(
+        totalInvoiced: nonMaintenanceInvoiced,
+        totalPaid: nonMaintenancePaid,
+        outstandingAmount: outstanding,
+      );
+    }
+
     return BillingPortal(
       unit: BillingUnit.fromJson(_asMap(json['unit'])),
       subscription: json['subscription'] is Map<String, dynamic>
@@ -46,16 +80,14 @@ class BillingPortal {
       maintenanceHistory: _asList(
         json['maintenanceHistory'],
       ).map((item) => MaintenanceHistoryEntry.fromJson(item)).toList(),
-      paymentRows: _asList(
-        json['paymentRows'],
-      ).map((item) => PaymentHistoryRow.fromJson(item)).toList(),
+      paymentRows: parsedRows,
       paymentSettings: PaymentSettings.fromJson(
         _asMap(json['paymentSettings']),
       ),
       paymentSubmissions: _asList(
         json['paymentSubmissions'],
       ).map((item) => PaymentSubmission.fromJson(item)).toList(),
-      summary: BillingSummary.fromJson(_asMap(json['summary'])),
+      summary: parsedSummary,
     );
   }
 }
@@ -265,6 +297,37 @@ class BillingSummary {
       hasVerificationPending: json['hasVerificationPending'] == true,
       upcomingPaymentLabel: _nullableString(json['upcomingPaymentLabel']),
       upcomingPaymentDueDate: _date(json['upcomingPaymentDueDate']),
+    );
+  }
+
+  BillingSummary copyWith({
+    String? planName,
+    String? billingCycle,
+    String? subscriptionStatus,
+    double? outstandingAmount,
+    double? upcomingPaymentAmount,
+    double? totalPaid,
+    double? totalInvoiced,
+    double? verificationPendingAmount,
+    bool? hasVerificationPending,
+    String? upcomingPaymentLabel,
+    DateTime? upcomingPaymentDueDate,
+  }) {
+    return BillingSummary(
+      planName: planName ?? this.planName,
+      billingCycle: billingCycle ?? this.billingCycle,
+      subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+      outstandingAmount: outstandingAmount ?? this.outstandingAmount,
+      upcomingPaymentAmount: upcomingPaymentAmount ?? this.upcomingPaymentAmount,
+      totalPaid: totalPaid ?? this.totalPaid,
+      totalInvoiced: totalInvoiced ?? this.totalInvoiced,
+      verificationPendingAmount:
+          verificationPendingAmount ?? this.verificationPendingAmount,
+      hasVerificationPending:
+          hasVerificationPending ?? this.hasVerificationPending,
+      upcomingPaymentLabel: upcomingPaymentLabel ?? this.upcomingPaymentLabel,
+      upcomingPaymentDueDate:
+          upcomingPaymentDueDate ?? this.upcomingPaymentDueDate,
     );
   }
 }

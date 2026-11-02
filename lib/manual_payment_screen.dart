@@ -86,6 +86,9 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     if (widget.portal != null) {
       _portal = widget.portal;
       _initFromPortal(widget.portal!);
+      if (!widget.portal!.paymentSettings.hasPaymentMethod) {
+        _loadPortal();
+      }
     } else {
       _loadPortal();
     }
@@ -327,7 +330,9 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     }
 
     final settings = portal.paymentSettings;
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: _loadPortal,
+      child: ListView(
       padding: AppInsets.screen(
         context,
         top: AppSpacing.md,
@@ -526,8 +531,9 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
           ),
         ],
       ],
-    );
-  }
+    ),
+  );
+}
 
   Widget _statusView(PaymentSubmission submission) {
     final underReview =

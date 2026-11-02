@@ -28,6 +28,7 @@ import 'package:oruma_app/deceased_patient_list_page.dart';
 import 'package:oruma_app/email_verification_page.dart';
 import 'package:provider/provider.dart';
 import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/loginscreen.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
@@ -395,6 +396,19 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   Future<void> _loadHomeSummary(AuthService auth) async {
     final futures = <Future<void>>[];
+
+    if (auth.unitId != null && auth.unitId!.isNotEmpty) {
+      futures.add(
+        ConfigService.getConfig()
+            .then((config) {
+              final wt = config.workingTime?.trim();
+              if (wt != auth.unitWorkingTime) {
+                auth.updateUnitWorkingTime(wt);
+              }
+            })
+            .catchError((_) {}),
+      );
+    }
 
     if (auth.canAccessPatients) {
       futures.add(
@@ -6269,13 +6283,59 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             ],
           ),
           SizedBox(height: compactHeader ? AppSpacing.sm : AppSpacing.lg),
-          Text(
-            _getGreeting(auth),
-            style: textTheme.labelLarge?.copyWith(
-              fontSize: compactHeader ? 12 : null,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                _getGreeting(auth),
+                style: textTheme.labelLarge?.copyWith(
+                  fontSize: compactHeader ? 12 : null,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (auth.unitWorkingTime != null &&
+                  auth.unitWorkingTime!.trim().isNotEmpty)
+                Tooltip(
+                  message: 'Working time: ${auth.unitWorkingTime!.trim()}',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: compactHeader ? 10 : 11,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Working time',
+                            style: textTheme.labelSmall?.copyWith(
+                              fontSize: compactHeader ? 9.5 : 10,
+                              color: AppColors.textMuted,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        auth.unitWorkingTime!.trim(),
+                        style: textTheme.labelSmall?.copyWith(
+                          fontSize: compactHeader ? 9.5 : 10.5,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xs),
           InkWell(

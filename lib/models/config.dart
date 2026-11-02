@@ -109,6 +109,7 @@ class Config {
   final List<int> workingDays;
   String volunteerAvailabilityStartTime;
   String volunteerAvailabilityEndTime;
+  String? workingTime;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -121,6 +122,7 @@ class Config {
     required this.workingDays,
     this.volunteerAvailabilityStartTime = '09:30 AM',
     this.volunteerAvailabilityEndTime = '03:30 PM',
+    this.workingTime,
     this.createdAt,
     this.updatedAt,
   });
@@ -175,6 +177,8 @@ class Config {
                   true
               ? json['volunteerAvailabilityEndTime'].toString().trim()
               : '03:30 PM',
+      workingTime: json['workingTime']?.toString().trim() ??
+          json['working_time']?.toString().trim(),
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : null,
@@ -194,6 +198,7 @@ class Config {
       'workingDays': workingDays,
       'volunteerAvailabilityStartTime': volunteerAvailabilityStartTime,
       'volunteerAvailabilityEndTime': volunteerAvailabilityEndTime,
+      if (workingTime != null) 'workingTime': workingTime,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
