@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "oruma_app",
-      "version": "1.0.7+7",
+      "version": "1.0.8+8",
       "dependencies": [
         "cupertino_icons",
         "flutter",
@@ -322,7 +322,7 @@
     },
     {
       "name": "meta",
-      "version": "1.19.0",
+      "version": "1.17.0",
       "dependencies": []
     },
     {
@@ -343,7 +343,7 @@
     },
     {
       "name": "vector_math",
-      "version": "2.4.3",
+      "version": "2.2.0",
       "dependencies": []
     },
     {
@@ -368,7 +368,7 @@
     },
     {
       "name": "matcher",
-      "version": "0.12.20",
+      "version": "0.12.19",
       "dependencies": [
         "async",
         "meta",
@@ -379,7 +379,7 @@
     },
     {
       "name": "test_api",
-      "version": "0.7.12",
+      "version": "0.7.10",
       "dependencies": [
         "async",
         "boolean_selector",
@@ -450,7 +450,7 @@
     },
     {
       "name": "webview_flutter_wkwebview",
-      "version": "3.27.2",
+      "version": "3.25.1",
       "dependencies": [
         "flutter",
         "meta",
@@ -460,7 +460,7 @@
     },
     {
       "name": "webview_flutter_android",
-      "version": "4.14.1",
+      "version": "4.12.0",
       "dependencies": [
         "flutter",
         "meta",
