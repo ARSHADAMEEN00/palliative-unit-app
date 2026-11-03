@@ -32,10 +32,7 @@ class _BillingPlanScreenState extends State<BillingPlanScreen> {
   String? _error;
   bool _loading = true;
 
-  bool get _showExternalBillingActions =>
-      kIsWeb ||
-      !kReleaseMode ||
-      defaultTargetPlatform != TargetPlatform.android;
+  bool get _showExternalBillingActions => kIsWeb;
 
   @override
   void initState() {
