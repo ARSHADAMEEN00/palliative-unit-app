@@ -14,6 +14,7 @@ import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
 
 enum ConfigPageMode { combined, settings, staff }
+
 enum _DeleteStaffOption { removeFromUnit, deleteUser }
 
 class ConfigPage extends StatefulWidget {
@@ -484,7 +485,9 @@ class _ConfigPageState extends State<ConfigPage>
                           children: [
                             Text(
                               'Delete from unit',
-                              style: Theme.of(dialogContext).textTheme.labelLarge
+                              style: Theme.of(dialogContext)
+                                  .textTheme
+                                  .labelLarge
                                   ?.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.text,
@@ -509,10 +512,8 @@ class _ConfigPageState extends State<ConfigPage>
               const SizedBox(height: AppSpacing.sm),
               InkWell(
                 borderRadius: AppRadius.md,
-                onTap: () => Navigator.pop(
-                  dialogContext,
-                  _DeleteStaffOption.deleteUser,
-                ),
+                onTap: () =>
+                    Navigator.pop(dialogContext, _DeleteStaffOption.deleteUser),
                 child: Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
@@ -544,7 +545,9 @@ class _ConfigPageState extends State<ConfigPage>
                           children: [
                             Text(
                               'Delete user',
-                              style: Theme.of(dialogContext).textTheme.labelLarge
+                              style: Theme.of(dialogContext)
+                                  .textTheme
+                                  .labelLarge
                                   ?.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.danger,
@@ -655,10 +658,7 @@ class _ConfigPageState extends State<ConfigPage>
                         borderRadius: AppRadius.button,
                       ),
                     ),
-                    icon: const Icon(
-                      Icons.domain_disabled_rounded,
-                      size: 16,
-                    ),
+                    icon: const Icon(Icons.domain_disabled_rounded, size: 16),
                     label: const Text('Delete from unit'),
                     onPressed: () => Navigator.pop(
                       dialogContext,
@@ -966,7 +966,9 @@ class _ConfigPageState extends State<ConfigPage>
                   navigator.pop();
                   messenger.showSnackBar(
                     SnackBar(
-                      content: Text('${staff.name} added as ${_roleLabel(staff.role)}'),
+                      content: Text(
+                        '${staff.name} added as ${_roleLabel(staff.role)}',
+                      ),
                       backgroundColor: AppColors.success,
                     ),
                   );
@@ -1195,9 +1197,9 @@ class _ConfigPageState extends State<ConfigPage>
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                  horizontal: 7,
-                                                  vertical: 2,
-                                                ),
+                                                      horizontal: 7,
+                                                      vertical: 2,
+                                                    ),
                                                 decoration: BoxDecoration(
                                                   color: AppColors.primarySoft,
                                                   borderRadius:
@@ -1558,16 +1560,12 @@ class _ConfigPageState extends State<ConfigPage>
                                                 .labelLarge
                                                 ?.copyWith(
                                                   color: AppColors.text,
-                                                  fontWeight:
-                                                      FontWeight.w700,
+                                                  fontWeight: FontWeight.w700,
                                                 ),
                                           ),
-                                          const SizedBox(
-                                            width: AppSpacing.xs,
-                                          ),
+                                          const SizedBox(width: AppSpacing.xs),
                                           Container(
-                                            padding:
-                                                const EdgeInsets.symmetric(
+                                            padding: const EdgeInsets.symmetric(
                                               horizontal: 7,
                                               vertical: 2,
                                             ),
@@ -1664,7 +1662,8 @@ class _ConfigPageState extends State<ConfigPage>
                     Builder(
                       builder: (btnContext) {
                         final auth = btnContext.watch<AuthService>();
-                        final isSelf = staff.id == auth.userId ||
+                        final isSelf =
+                            staff.id == auth.userId ||
                             (auth.userEmail != null &&
                                 auth.userEmail!.isNotEmpty &&
                                 staff.email.toLowerCase() ==
@@ -1809,20 +1808,20 @@ class _ConfigPageState extends State<ConfigPage>
                   : (_isLoadingStaff
                         ? null
                         : () => _showAddStaffSheet(
-                              _staffRoleFilter == 'all' ? null : _staffRoleFilter,
-                            )),
+                            _staffRoleFilter == 'all' ? null : _staffRoleFilter,
+                          )),
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               icon: activeIndex == 0
                   ? Icons.save_outlined
                   : (_staffRoleFilter == 'volunteer'
-                      ? Icons.volunteer_activism_outlined
-                      : Icons.person_add),
+                        ? Icons.volunteer_activism_outlined
+                        : Icons.person_add),
               label: activeIndex == 0
                   ? 'Save Changes'
                   : (_staffRoleFilter != 'all'
-                      ? 'Add ${_roleLabel(_staffRoleFilter)}'
-                      : 'Add User'),
+                        ? 'Add ${_roleLabel(_staffRoleFilter)}'
+                        : 'Add User'),
             )
           : null,
     );
@@ -2031,7 +2030,9 @@ class _ConfigPageState extends State<ConfigPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isConfigured ? 'Active Working Hours' : 'Status: Hidden',
+                        isConfigured
+                            ? 'Active Working Hours'
+                            : 'Status: Hidden',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -2045,8 +2046,9 @@ class _ConfigPageState extends State<ConfigPage>
                             : 'Not set for this unit. Top card will not display working hours.',
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight:
-                              isConfigured ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: isConfigured
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: isConfigured
                               ? AppColors.text
                               : AppColors.textMuted,
@@ -2137,7 +2139,10 @@ class _ConfigPageState extends State<ConfigPage>
               children: [
                 const Text(
                   'This text will appear in the top dashboard card of the home screen for your unit.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
@@ -2178,9 +2183,12 @@ class _ConfigPageState extends State<ConfigPage>
                         preset,
                         style: TextStyle(
                           fontSize: 11,
-                          fontWeight:
-                              isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? AppColors.primary : AppColors.text,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.text,
                         ),
                       ),
                       backgroundColor: isSelected
@@ -2380,9 +2388,9 @@ class _ConfigPageState extends State<ConfigPage>
                   Text(
                     label,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                        ),
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                   Text(
                     value,
@@ -2409,15 +2417,13 @@ class _ConfigPageState extends State<ConfigPage>
     final currentStr = isStart
         ? _config!.volunteerAvailabilityStartTime
         : _config!.volunteerAvailabilityEndTime;
-    final initial = _parseTimeOfDay(currentStr) ??
+    final initial =
+        _parseTimeOfDay(currentStr) ??
         (isStart
             ? const TimeOfDay(hour: 9, minute: 30)
             : const TimeOfDay(hour: 15, minute: 30));
 
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: initial,
-    );
+    final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
 
     final formatted = _formatTimeOfDay(picked);
@@ -2635,7 +2641,9 @@ class _ConfigPageState extends State<ConfigPage>
         final query = _staffSearchQuery.toLowerCase();
         final matchesName = staff.name.toLowerCase().contains(query);
         final matchesEmail = staff.email.toLowerCase().contains(query);
-        final matchesRole = _roleLabel(staff.role).toLowerCase().contains(query);
+        final matchesRole = _roleLabel(
+          staff.role,
+        ).toLowerCase().contains(query);
         if (!matchesName && !matchesEmail && !matchesRole) return false;
       }
       return true;
@@ -2853,7 +2861,8 @@ class _ConfigPageState extends State<ConfigPage>
               Builder(
                 builder: (btnContext) {
                   final auth = btnContext.watch<AuthService>();
-                  final isSelf = staff.id == auth.userId ||
+                  final isSelf =
+                      staff.id == auth.userId ||
                       (auth.userEmail != null &&
                           auth.userEmail!.isNotEmpty &&
                           staff.email.toLowerCase() ==
@@ -2877,8 +2886,9 @@ class _ConfigPageState extends State<ConfigPage>
           final visibleModules = staff.hasExplicitModulePermissions
               ? staff.permittedModuleIds
               : _modulesForRole(staff.role);
-          final isModulesExpanded =
-              _expandedStaffModuleCardIds.contains(staff.id);
+          final isModulesExpanded = _expandedStaffModuleCardIds.contains(
+            staff.id,
+          );
 
           final permissions = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3374,7 +3384,7 @@ class _ConfigChip extends StatelessWidget {
 }
 
 class _IconBadge extends StatelessWidget {
-  const _IconBadge({required this.icon, required this.color, this.size = 40});
+  const _IconBadge({required this.icon, required this.color}) : size = 40;
 
   final IconData icon;
   final Color color;
@@ -3490,7 +3500,6 @@ class _EmptyInlineState extends StatelessWidget {
     );
   }
 }
-
 
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});

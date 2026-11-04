@@ -616,13 +616,15 @@ class AuthService with ChangeNotifier {
       data = {};
     }
 
-    if (response.statusCode == 403 && data['code'] == 'TRIAL_ENDED') {
-      // Billing access and authentication are separate. Preserve the saved
-      // session so a renewal can restore access without forcing another login.
+    if (response.statusCode == 403 &&
+        (data['code'] == 'TRIAL_ENDED' ||
+            data['code'] == 'SUBSCRIPTION_ENDED')) {
+      // Plan access and authentication are separate. Preserve the saved
+      // session so renewed access does not force another login.
       _isAccessBlocked = true;
       _accessBlockedMessage =
           data['error']?.toString() ??
-          'Trial period is ended. Contact support team to purchase a plan.';
+          'Your plan access has ended. Contact support team to renew.';
       final support = data['support'];
       _accessBlockedSupport = support is Map
           ? Map<String, dynamic>.from(support)

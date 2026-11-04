@@ -78,7 +78,9 @@ class _VolunteerAssignmentDetailPageState
       }
     }
     final encoded = Uri.encodeComponent(address.trim());
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$encoded',
+    );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -107,7 +109,10 @@ class _VolunteerAssignmentDetailPageState
       if (mounted) {
         setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(err.toString()), backgroundColor: AppColors.danger),
+          SnackBar(
+            content: Text(err.toString()),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     }
@@ -131,7 +136,10 @@ class _VolunteerAssignmentDetailPageState
             children: [
               Text(
                 '${_assignment?.typeLabel ?? "Assignment"} • ${_assignment?.patient.name ?? ""}',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -249,7 +257,7 @@ class _VolunteerAssignmentDetailPageState
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.12),
+                      color: AppColors.success.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -355,7 +363,10 @@ class _VolunteerAssignmentDetailPageState
         if (mounted) {
           setState(() => _submitting = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(err.toString()), backgroundColor: AppColors.danger),
+            SnackBar(
+              content: Text(err.toString()),
+              backgroundColor: AppColors.danger,
+            ),
           );
         }
       }
@@ -367,7 +378,9 @@ class _VolunteerAssignmentDetailPageState
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -377,7 +390,7 @@ class _VolunteerAssignmentDetailPageState
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.15),
+                    color: Colors.amber.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
@@ -393,7 +406,10 @@ class _VolunteerAssignmentDetailPageState
                 const Text(
                   'Assignment successfully marked as completed.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -408,7 +424,10 @@ class _VolunteerAssignmentDetailPageState
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Awesome!', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Awesome!',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -503,104 +522,81 @@ class _VolunteerAssignmentDetailPageState
               ),
           ],
         ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceFloating,
-          border: Border(top: BorderSide(color: AppColors.border)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            children: [
-              if (assignment.patient.phone != null &&
-                  assignment.patient.phone!.isNotEmpty) ...[
-                IconButton.filledTonal(
-                  onPressed: () => _callPhone(assignment.patient.phone!),
-                  icon: const Icon(Icons.call_rounded),
-                  tooltip: 'Call Patient',
-                ),
-                const SizedBox(width: AppSpacing.sm),
-              ],
-              if (assignment.patient.address.isNotEmpty ||
-                  assignment.patient.locationLink != null) ...[
-                IconButton.filledTonal(
-                  onPressed: () => _openMap(
-                    assignment.patient.address,
-                    assignment.patient.locationLink,
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceFloating,
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                if (assignment.patient.phone != null &&
+                    assignment.patient.phone!.isNotEmpty) ...[
+                  IconButton.filledTonal(
+                    onPressed: () => _callPhone(assignment.patient.phone!),
+                    icon: const Icon(Icons.call_rounded),
+                    tooltip: 'Call Patient',
                   ),
-                  icon: const Icon(Icons.directions_rounded),
-                  tooltip: 'Open in Maps',
-                ),
-                const SizedBox(width: AppSpacing.sm),
-              ],
-              Expanded(
-                child: assignment.status == 'assigned'
-                    ? ElevatedButton.icon(
-                        onPressed: _submitting ? null : _acceptAssignment,
-                        icon: const Icon(Icons.check_rounded),
-                        label: const Text('Accept Assignment'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                if (assignment.patient.address.isNotEmpty ||
+                    assignment.patient.locationLink != null) ...[
+                  IconButton.filledTonal(
+                    onPressed: () => _openMap(
+                      assignment.patient.address,
+                      assignment.patient.locationLink,
+                    ),
+                    icon: const Icon(Icons.directions_rounded),
+                    tooltip: 'Open in Maps',
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                Expanded(
+                  child: assignment.status == 'assigned'
+                      ? ElevatedButton.icon(
+                          onPressed: _submitting ? null : _acceptAssignment,
+                          icon: const Icon(Icons.check_rounded),
+                          label: const Text('Accept Assignment'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                        ),
-                      )
-                    : assignment.isAccepted
-                        ? Row(
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed:
-                                    _submitting ? null : _showCancelDialog,
-                                icon: const Icon(
-                                  Icons.cancel_outlined,
-                                  size: 18,
+                        )
+                      : assignment.isAccepted
+                      ? Row(
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _submitting ? null : _showCancelDialog,
+                              icon: const Icon(Icons.cancel_outlined, size: 18),
+                              label: const Text('Cancel'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.textSecondary,
+                                side: const BorderSide(
+                                  color: AppColors.borderStrong,
                                 ),
-                                label: const Text('Cancel'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.textSecondary,
-                                  side: const BorderSide(
-                                    color: AppColors.borderStrong,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed:
-                                      _submitting ? null : _showCompleteDialog,
-                                  icon: const Icon(Icons.task_alt_rounded),
-                                  label: const Text('Mark Completed'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.success,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : assignment.canComplete
-                            ? ElevatedButton.icon(
-                                onPressed:
-                                    _submitting ? null : _showCompleteDialog,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _submitting
+                                    ? null
+                                    : _showCompleteDialog,
                                 icon: const Icon(Icons.task_alt_rounded),
-                                label: const Text('Mark as Completed'),
+                                label: const Text('Mark Completed'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.success,
                                   foregroundColor: Colors.white,
@@ -611,493 +607,531 @@ class _VolunteerAssignmentDetailPageState
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                              )
-                            : Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      assignment.isCancelled
-                                          ? Icons.info_outline_rounded
-                                          : Icons.verified_rounded,
-                                      size: 18,
-                                      color: statusColor,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      assignment.statusLabel,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: statusColor,
-                                      ),
-                                    ),
-                                  ],
+                              ),
+                            ),
+                          ],
+                        )
+                      : assignment.canComplete
+                      ? ElevatedButton.icon(
+                          onPressed: _submitting ? null : _showCompleteDialog,
+                          icon: const Icon(Icons.task_alt_rounded),
+                          label: const Text('Mark as Completed'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                assignment.isCancelled
+                                    ? Icons.info_outline_rounded
+                                    : Icons.verified_rounded,
+                                size: 18,
+                                color: statusColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                assignment.statusLabel,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: statusColor,
                                 ),
                               ),
-              ),
-            ],
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadAssignment,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      color.withOpacity(0.15),
-                      color.withOpacity(0.04),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        body: RefreshIndicator(
+          onRefresh: _loadAssignment,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withValues(alpha: 0.15),
+                        color.withValues(alpha: 0.04),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color.withValues(alpha: 0.3)),
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: color.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: color.withOpacity(0.2),
-                            shape: BoxShape.circle,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, color: color, size: 24),
                           ),
-                          child: Icon(icon, color: color, size: 24),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  assignment.typeLabel,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  scheduledDate != null
+                                      ? DateFormat(
+                                          'EEEE, dd MMMM yyyy',
+                                        ).format(scheduledDate)
+                                      : assignment.scheduledDate,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (assignment.isCancelled)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface2,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: const Text(
+                                '0 pts',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            )
+                          else if (assignment.pointsAwarded > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.amber.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Text(
+                                assignment.pointsLabel,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              assignment.statusLabel,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: statusColor,
+                              ),
+                            ),
+                          ),
+                          if (assignment.isToday)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'TODAY',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          if (assignment.isOverdue)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.danger,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'OVERDUE',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (assignment.isCancelled) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceFloating,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                assignment.typeLabel,
-                                style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.text,
-                              ),
-                            ),
-                              const SizedBox(height: 2),
-                              Text(
-                                scheduledDate != null
-                                    ? DateFormat('EEEE, dd MMMM yyyy')
-                                        .format(scheduledDate)
-                                    : assignment.scheduledDate,
+                                VolunteerRequestMessages.getPositiveMessage(
+                                  taskType: assignment.taskType,
+                                  status: assignment.status,
+                                ),
                                 style: const TextStyle(
                                   fontSize: 13,
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.text,
+                                  height: 1.4,
                                 ),
                               ),
+                              if (assignment.cancelReason != null &&
+                                  assignment.cancelReason!
+                                      .trim()
+                                      .isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Reason: ${assignment.cancelReason!}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
-                        if (assignment.isCancelled)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface2,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: const Text(
-                              '0 pts',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          )
-                        else if (assignment.pointsAwarded > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.amber.withOpacity(0.4)),
-                            ),
-                            child: Text(
-                              assignment.pointsLabel,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFB45309),
-                              ),
-                            ),
-                          ),
                       ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Wrap(
-                      spacing: AppSpacing.xs,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            assignment.statusLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: statusColor,
-                            ),
-                          ),
-                        ),
-                        if (assignment.isToday)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              'TODAY',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        if (assignment.isOverdue)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              'OVERDUE',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (assignment.isCancelled) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceFloating,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              VolunteerRequestMessages.getPositiveMessage(
-                                taskType: assignment.taskType,
-                                status: assignment.status,
-                              ),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.text,
-                                height: 1.4,
-                              ),
-                            ),
-                            if (assignment.cancelReason != null &&
-                                assignment.cancelReason!.trim().isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Reason: ${assignment.cancelReason!}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              // Patient Card
-              _sectionCard(
-                title: 'Patient Details',
-                icon: Icons.person_rounded,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      assignment.patient.name,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (assignment.patient.age != null ||
-                        assignment.patient.gender != null)
-                      Text(
-                        [
-                          if (assignment.patient.age != null)
-                            '${assignment.patient.age} Yrs',
-                          if (assignment.patient.gender != null)
-                            assignment.patient.gender!,
-                        ].join(' • '),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    const Divider(height: 24, color: AppColors.border),
-                    InkWell(
-                      onTap: () => _openMap(
-                        assignment.patient.address,
-                        assignment.patient.locationLink,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              assignment.patient.address.isNotEmpty
-                                  ? assignment.patient.address
-                                  : 'Address not available',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.open_in_new_rounded,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (assignment.patient.phone != null &&
-                        assignment.patient.phone!.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: () => _callPhone(assignment.patient.phone!),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.phone_outlined,
-                              size: 18,
-                              color: AppColors.success,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              assignment.patient.phone!,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppColors.success,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.call_made_rounded,
-                              size: 16,
-                              color: AppColors.success,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              // Task Details Card
-              _sectionCard(
-                title: 'Task Details',
-                icon: Icons.notes_rounded,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (assignment.taskDetails.team != null &&
-                        assignment.taskDetails.team!.isNotEmpty) ...[
-                      _detailRow(
-                        'Care Team',
-                        assignment.taskDetails.team!,
-                        Icons.groups_outlined,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    if (assignment.taskDetails.nurseName != null &&
-                        assignment.taskDetails.nurseName!.isNotEmpty) ...[
-                      _detailRow(
-                        'Assigned Nurse',
-                        assignment.taskDetails.nurseName!,
-                        Icons.badge_outlined,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    if (assignment.taskDetails.supportTypes.isNotEmpty) ...[
-                      const Text(
-                        'Support Types',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: assignment.taskDetails.supportTypes.map((type) {
-                          return Chip(
-                            label: Text(type.replaceAll('_', ' ')),
-                            visualDensity: VisualDensity.compact,
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    if (assignment.taskDetails.notes != null &&
-                        assignment.taskDetails.notes!.isNotEmpty) ...[
-                      const Text(
-                        'Instructions / Notes',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface1,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Text(
-                          assignment.taskDetails.notes!,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                    if (assignment.notes != null &&
-                        assignment.notes!.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Volunteer Note',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface1,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Text(
-                          assignment.notes!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              // Co-volunteers Card
-              if (assignment.coVolunteers.isNotEmpty)
-                _sectionCard(
-                  title: 'Co-Volunteers (${assignment.coVolunteers.length})',
-                  icon: Icons.people_outline_rounded,
-                  child: Column(
-                    children: assignment.coVolunteers.map((v) {
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.primary.withOpacity(0.15),
-                          child: Text(
-                            v.name.isNotEmpty ? v.name[0].toUpperCase() : 'V',
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          v.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          [
-                            if (v.phone.isNotEmpty) v.phone,
-                            if (v.place != null && v.place!.isNotEmpty) v.place!,
-                          ].join(' • '),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: v.phone.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.call_outlined, color: AppColors.primary),
-                                onPressed: () => _callPhone(v.phone),
-                              )
-                            : null,
-                      );
-                    }).toList(),
                   ),
                 ),
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: AppSpacing.md),
+
+                // Patient Card
+                _sectionCard(
+                  title: 'Patient Details',
+                  icon: Icons.person_rounded,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        assignment.patient.name,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (assignment.patient.age != null ||
+                          assignment.patient.gender != null)
+                        Text(
+                          [
+                            if (assignment.patient.age != null)
+                              '${assignment.patient.age} Yrs',
+                            if (assignment.patient.gender != null)
+                              assignment.patient.gender!,
+                          ].join(' • '),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      const Divider(height: 24, color: AppColors.border),
+                      InkWell(
+                        onTap: () => _openMap(
+                          assignment.patient.address,
+                          assignment.patient.locationLink,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.location_on_outlined,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                assignment.patient.address.isNotEmpty
+                                    ? assignment.patient.address
+                                    : 'Address not available',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.open_in_new_rounded,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (assignment.patient.phone != null &&
+                          assignment.patient.phone!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () => _callPhone(assignment.patient.phone!),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.phone_outlined,
+                                size: 18,
+                                color: AppColors.success,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                assignment.patient.phone!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const Spacer(),
+                              const Icon(
+                                Icons.call_made_rounded,
+                                size: 16,
+                                color: AppColors.success,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Task Details Card
+                _sectionCard(
+                  title: 'Task Details',
+                  icon: Icons.notes_rounded,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (assignment.taskDetails.team != null &&
+                          assignment.taskDetails.team!.isNotEmpty) ...[
+                        _detailRow(
+                          'Care Team',
+                          assignment.taskDetails.team!,
+                          Icons.groups_outlined,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (assignment.taskDetails.nurseName != null &&
+                          assignment.taskDetails.nurseName!.isNotEmpty) ...[
+                        _detailRow(
+                          'Assigned Nurse',
+                          assignment.taskDetails.nurseName!,
+                          Icons.badge_outlined,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (assignment.taskDetails.supportTypes.isNotEmpty) ...[
+                        const Text(
+                          'Support Types',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: assignment.taskDetails.supportTypes.map((
+                            type,
+                          ) {
+                            return Chip(
+                              label: Text(type.replaceAll('_', ' ')),
+                              visualDensity: VisualDensity.compact,
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (assignment.taskDetails.notes != null &&
+                          assignment.taskDetails.notes!.isNotEmpty) ...[
+                        const Text(
+                          'Instructions / Notes',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface1,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Text(
+                            assignment.taskDetails.notes!,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                      if (assignment.notes != null &&
+                          assignment.notes!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Volunteer Note',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface1,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Text(
+                            assignment.notes!,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Co-volunteers Card
+                if (assignment.coVolunteers.isNotEmpty)
+                  _sectionCard(
+                    title: 'Co-Volunteers (${assignment.coVolunteers.length})',
+                    icon: Icons.people_outline_rounded,
+                    child: Column(
+                      children: assignment.coVolunteers.map((v) {
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.primary.withValues(
+                              alpha: 0.15,
+                            ),
+                            child: Text(
+                              v.name.isNotEmpty ? v.name[0].toUpperCase() : 'V',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            v.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            [
+                              if (v.phone.isNotEmpty) v.phone,
+                              if (v.place != null && v.place!.isNotEmpty)
+                                v.place!,
+                            ].join(' • '),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: v.phone.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.call_outlined,
+                                    color: AppColors.primary,
+                                  ),
+                                  onPressed: () => _callPhone(v.phone),
+                                )
+                              : null,
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _sectionCard({

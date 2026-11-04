@@ -904,7 +904,9 @@ class _PlansSection extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '${currency(plan.price)} / month • ${currency(plan.oneTimePrice)} one-time',
+                    (plan.yearlyPrice > 0 || plan.oneTimePrice > 0)
+                        ? '${currency(plan.price)} / month • ${currency(plan.yearlyPrice > 0 ? plan.yearlyPrice : plan.oneTimePrice)} / year'
+                        : '${currency(plan.price)} / month',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: _billingAccent,
@@ -961,8 +963,14 @@ class _PlansSection extends StatelessWidget {
       return plan.price > currentPlan.price;
     }
 
-    if (plan.oneTimePrice != currentPlan.oneTimePrice) {
-      return plan.oneTimePrice > currentPlan.oneTimePrice;
+    final planYearly = plan.yearlyPrice > 0
+        ? plan.yearlyPrice
+        : plan.oneTimePrice;
+    final currentYearly = (currentPlan.yearlyPrice ?? 0) > 0
+        ? currentPlan.yearlyPrice
+        : (currentPlan.oneTimePrice ?? 0);
+    if (planYearly != currentYearly) {
+      return planYearly > currentYearly;
     }
 
     return currentIndex != -1 && planIndex > currentIndex;
@@ -1171,20 +1179,23 @@ class _PaymentSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final paymentRows = rows
-        .where((row) =>
-            row.invoiceType?.toLowerCase() != 'maintenance' &&
-            !row.label.toLowerCase().contains('maintenance') &&
-            !row.label.toLowerCase().startsWith('server payment'))
+        .where(
+          (row) =>
+              row.invoiceType?.toLowerCase() != 'maintenance' &&
+              !row.label.toLowerCase().contains('maintenance') &&
+              !row.label.toLowerCase().startsWith('server payment'),
+        )
         .toList();
     final openBills = paymentRows
         .where((row) => !row.isPayment && !row.isPaid && row.displayAmount > 0)
         .toList();
     final payments = paymentRows.where((row) => row.isPayment).toList();
-    final paymentHistory = (payments.isNotEmpty
-            ? payments
-            : paymentRows.where((row) => row.isPaid).toList())
-        .reversed
-        .toList();
+    final paymentHistory =
+        (payments.isNotEmpty
+                ? payments
+                : paymentRows.where((row) => row.isPaid).toList())
+            .reversed
+            .toList();
 
     return _SectionCard(
       child: Column(
@@ -1716,8 +1727,7 @@ String _featureLabel(String featureId) {
 
 String _billingCycleLabel(String value) {
   final normalized = value.trim().toLowerCase();
-  if (normalized == 'one_time') return 'One Time';
-  if (normalized == 'yearly') return 'Yearly';
+  if (normalized == 'yearly' || normalized == 'one_time') return 'Yearly';
   if (normalized == 'monthly') return 'Monthly';
   if (normalized == 'custom') return 'Custom';
   return value.replaceAll('_', ' ');

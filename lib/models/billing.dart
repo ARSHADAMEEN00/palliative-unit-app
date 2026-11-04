@@ -199,6 +199,7 @@ class BillingPlan {
     required this.name,
     required this.featureIds,
     this.price = 0,
+    this.yearlyPrice = 0,
     this.oneTimePrice = 0,
     this.bestFor,
     this.included,
@@ -208,6 +209,7 @@ class BillingPlan {
   final String id;
   final String name;
   final double price;
+  final double yearlyPrice;
   final double oneTimePrice;
   final String? bestFor;
   final String? included;
@@ -215,11 +217,13 @@ class BillingPlan {
   final List<String> featureIds;
 
   factory BillingPlan.fromJson(Map<String, dynamic> json) {
+    final yearly = _number(json['yearlyPrice'] ?? json['oneTimePrice']);
     return BillingPlan(
       id: _string(json['id'], fallback: _string(json['slug'])),
       name: _string(json['name']),
       price: _number(json['price']),
-      oneTimePrice: _number(json['oneTimePrice']),
+      yearlyPrice: yearly,
+      oneTimePrice: yearly,
       bestFor: _nullableString(json['bestFor']),
       included: _nullableString(json['included']),
       notes: _nullableString(json['notes']),

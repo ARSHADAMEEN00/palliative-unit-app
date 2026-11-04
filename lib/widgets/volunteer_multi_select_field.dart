@@ -37,8 +37,9 @@ class _VolunteerMultiSelectFieldState extends State<VolunteerMultiSelectField> {
     setState(() => _loading = true);
     try {
       final list = await VolunteerService.getVolunteers();
-      final approved =
-          list.where((v) => v.applicationStatus == 'approved').toList();
+      final approved = list
+          .where((v) => v.applicationStatus == 'approved')
+          .toList();
       if (mounted) {
         setState(() {
           _allVolunteers = approved;
@@ -104,17 +105,17 @@ class _VolunteerMultiSelectFieldState extends State<VolunteerMultiSelectField> {
             Text(
               widget.label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+              ),
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(
               '(Optional)',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
             const Spacer(),
             if (selectedIds.isNotEmpty)
@@ -158,7 +159,9 @@ class _VolunteerMultiSelectFieldState extends State<VolunteerMultiSelectField> {
                         child: Text(
                           widget.hint,
                           style: TextStyle(
-                            color: AppColors.textSecondary.withOpacity(0.8),
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.8,
+                            ),
                             fontSize: 14,
                           ),
                         ),
@@ -175,12 +178,16 @@ class _VolunteerMultiSelectFieldState extends State<VolunteerMultiSelectField> {
                     children: selectedIds.map((id) {
                       final vol = _findVolunteer(id);
                       final name = vol?.name ?? 'Volunteer';
-                      final initial = name.isNotEmpty ? name[0].toUpperCase() : 'V';
+                      final initial = name.isNotEmpty
+                          ? name[0].toUpperCase()
+                          : 'V';
 
                       return Chip(
                         avatar: CircleAvatar(
                           radius: 12,
-                          backgroundColor: AppColors.primary.withOpacity(0.15),
+                          backgroundColor: AppColors.primary.withValues(
+                            alpha: 0.15,
+                          ),
                           child: Text(
                             initial,
                             style: const TextStyle(
@@ -192,7 +199,10 @@ class _VolunteerMultiSelectFieldState extends State<VolunteerMultiSelectField> {
                         ),
                         label: Text(
                           name,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         deleteIcon: const Icon(Icons.close_rounded, size: 16),
                         onDeleted: () => _removeVolunteer(id),
@@ -263,9 +273,7 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
     final media = MediaQuery.of(context);
 
     return Container(
-      constraints: BoxConstraints(
-        maxHeight: media.size.height * 0.82,
-      ),
+      constraints: BoxConstraints(maxHeight: media.size.height * 0.82),
       decoration: const BoxDecoration(
         color: AppColors.surfaceFloating,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -299,23 +307,24 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
                       children: [
                         Text(
                           'Assign Volunteers',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
                           'Only active volunteers of your unit',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -376,7 +385,10 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
                 children: [
                   TextButton.icon(
                     icon: const Icon(Icons.select_all_rounded, size: 16),
-                    label: const Text('Select All', style: TextStyle(fontSize: 13)),
+                    label: const Text(
+                      'Select All',
+                      style: TextStyle(fontSize: 13),
+                    ),
                     onPressed: () {
                       setState(() {
                         for (final v in filtered) {
@@ -385,7 +397,10 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
                       });
                     },
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -397,7 +412,10 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.danger,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                     ),
                   ),
                 ],
@@ -422,7 +440,7 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
                         vertical: AppSpacing.sm,
                       ),
                       itemCount: filtered.length,
-                      separatorBuilder: (_, __) =>
+                      separatorBuilder: (_, _) =>
                           const Divider(height: 1, color: AppColors.border),
                       itemBuilder: (context, index) {
                         final vol = filtered[index];
@@ -456,8 +474,9 @@ class _VolunteerPickerSheetState extends State<_VolunteerPickerSheet> {
                           title: Text(
                             vol.name,
                             style: TextStyle(
-                              fontWeight:
-                                  isChecked ? FontWeight.bold : FontWeight.w500,
+                              fontWeight: isChecked
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
                               color: AppColors.text,
                             ),
                           ),
