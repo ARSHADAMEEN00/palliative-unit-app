@@ -3,6 +3,7 @@ class EquipmentSupply {
   final String equipmentId;
   final String equipmentUniqueId;
   final String equipmentName;
+  final String? patientId;
   final String? patientName;
   final String? patientPhone;
   final String? patientAddress;
@@ -26,6 +27,7 @@ class EquipmentSupply {
     required this.equipmentId,
     required this.equipmentUniqueId,
     required this.equipmentName,
+    this.patientId,
     this.patientName,
     this.patientPhone,
     this.patientAddress,
@@ -51,6 +53,7 @@ class EquipmentSupply {
       equipmentId: json['equipmentId']?.toString() ?? '',
       equipmentUniqueId: json['equipmentUniqueId']?.toString() ?? '',
       equipmentName: json['equipmentName']?.toString() ?? '',
+      patientId: _idFromJson(json['patientId']),
       patientName: json['patientName']?.toString(),
       patientPhone: json['patientPhone']?.toString(),
       patientAddress: json['patientAddress']?.toString(),
@@ -86,6 +89,7 @@ class EquipmentSupply {
       'equipmentId': equipmentId,
       'equipmentUniqueId': equipmentUniqueId,
       'equipmentName': equipmentName,
+      'patientId': patientId,
       'patientName': patientName,
       'patientPhone': patientPhone,
       'patientAddress': patientAddress,
@@ -103,5 +107,14 @@ class EquipmentSupply {
       'returnNote': returnNote,
       'createdAt': createdAt?.toIso8601String(),
     };
+  }
+
+  static String? _idFromJson(dynamic value) {
+    if (value == null) return null;
+    if (value is Map) {
+      return value['_id']?.toString() ?? value['id']?.toString();
+    }
+    final id = value.toString().trim();
+    return id.isEmpty ? null : id;
   }
 }
