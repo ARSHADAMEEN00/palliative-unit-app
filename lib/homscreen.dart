@@ -1341,7 +1341,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
                                   Text(
-                                    '${_profileRoleLabel(auth.role)} · ${auth.unitName}',
+                                    '${_profileRoleLabel(auth, auth.role)} · ${auth.unitName}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
@@ -1550,17 +1550,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  String _profileRoleLabel(String? role) {
-    return switch (role?.toLowerCase()) {
-      'admin' => 'Administrator',
-      'staff' => 'Staff',
-      'member' => 'Member',
-      'volunteer' => 'Volunteer',
-      'public' => 'Public user',
-      'superadmin' => 'Super administrator',
-      _ => 'User',
-    };
-  }
+  String _profileRoleLabel(AuthService auth, String? role) =>
+      auth.roleLabel(role);
 
   Widget _buildProfileSectionTitle(BuildContext context, String title) {
     return Text(
@@ -2423,7 +2414,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   auth.isStaff
                       ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your staff account.'
                       : auth.isMember
-                      ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your member account.'
+                      ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your ${auth.roleLabel('member').toLowerCase()} account.'
                       : 'Verify ${auth.userEmail ?? 'your email address'} to secure your account and submit enquiries.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -7003,7 +6994,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         ),
                         const SizedBox(height: AppSpacing.xxs),
                         Text(
-                          '${_profileRoleLabel(auth.role)} · $userDetail',
+                          '${_profileRoleLabel(auth, auth.role)} · $userDetail',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.labelSmall

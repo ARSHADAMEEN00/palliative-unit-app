@@ -3068,19 +3068,8 @@ class _ConfigPageState extends State<ConfigPage>
     return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }
 
-  static String _roleLabel(String role) {
-    switch (role) {
-      case 'admin':
-        return 'Admin';
-      case 'staff':
-        return 'Staff';
-      case 'member':
-        return 'Member';
-      case 'volunteer':
-        return 'Volunteer';
-      default:
-        return 'Volunteer';
-    }
+  String _roleLabel(String role) {
+    return context.read<AuthService>().roleLabel(role);
   }
 
   static List<String> _defaultModulesForRole(String role) {

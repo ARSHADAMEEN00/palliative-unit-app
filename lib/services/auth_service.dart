@@ -444,6 +444,25 @@ class AuthService with ChangeNotifier {
   String? get unitVillage => _cleanString(unit?['village']);
   String? get unitDistrict => _cleanString(unit?['district']);
   String? get unitAddress => _cleanString(unit?['address']);
+  String roleLabel(String? role) {
+    final normalized = role?.trim().toLowerCase() ?? '';
+    final labels = unit?['roleLabels'];
+    if (labels is Map) {
+      final custom = _cleanString(labels[normalized]);
+      if (custom != null) return custom;
+    }
+
+    return switch (normalized) {
+      'admin' => 'Administrator',
+      'staff' => 'Staff',
+      'member' => 'Member',
+      'volunteer' => 'Volunteer',
+      'public' => 'Public user',
+      'superadmin' => 'Super administrator',
+      _ => 'User',
+    };
+  }
+
   String? get unitContactEmail =>
       _cleanString(unit?['contactEmail'] ?? _supportValue('email'));
   String? get unitNotes => _cleanString(unit?['notes']);
