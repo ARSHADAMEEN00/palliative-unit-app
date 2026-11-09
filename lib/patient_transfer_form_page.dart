@@ -231,12 +231,18 @@ class _PatientTransferFormPageState extends State<PatientTransferFormPage> {
   }
 
   Widget _buildForm() {
+    final dropdownStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          color: AppColors.text,
+        );
     return Column(
       children: [
         _patientHeader(),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<String>(
           initialValue: _destinationId,
+          style: dropdownStyle,
           decoration: const InputDecoration(
             labelText: 'Destination unit *',
             prefixIcon: Icon(Icons.local_hospital_outlined),
@@ -249,6 +255,7 @@ class _PatientTransferFormPageState extends State<PatientTransferFormPage> {
                     unit.code == null
                         ? unit.name
                         : '${unit.name} (${unit.code})',
+                    style: dropdownStyle,
                   ),
                 ),
               )

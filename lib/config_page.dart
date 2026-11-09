@@ -13,7 +13,7 @@ import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
 
-enum ConfigPageMode { combined, settings, staff }
+enum ConfigPageMode { combined, settings, staff, lsg }
 
 enum _DeleteStaffOption { removeFromUnit, deleteUser }
 
@@ -171,7 +171,10 @@ class _ConfigPageState extends State<ConfigPage>
         if (widget.mode != ConfigPageMode.staff) {
           _fetchConfig();
         }
-        if (widget.mode != ConfigPageMode.settings) _fetchStaff();
+        if (widget.mode != ConfigPageMode.settings &&
+            widget.mode != ConfigPageMode.lsg) {
+          _fetchStaff();
+        }
       } else {
         setState(() {
           _isLoadingConfig = false;
@@ -1724,12 +1727,14 @@ class _ConfigPageState extends State<ConfigPage>
     final auth = context.watch<AuthService>();
     final activeIndex = switch (widget.mode) {
       ConfigPageMode.settings => 0,
+      ConfigPageMode.lsg => 0,
       ConfigPageMode.staff => 1,
       ConfigPageMode.combined => _tabController.index,
     };
     final pageTitle = switch (widget.mode) {
       ConfigPageMode.settings => 'Settings',
       ConfigPageMode.staff => 'Staff Management',
+      ConfigPageMode.lsg => 'LSGs & Wards',
       ConfigPageMode.combined => 'System Config',
     };
 
@@ -1765,6 +1770,8 @@ class _ConfigPageState extends State<ConfigPage>
                   _buildConfigurationView()
                 else if (widget.mode == ConfigPageMode.staff)
                   _buildStaffView()
+                else if (widget.mode == ConfigPageMode.lsg)
+                  _buildLsgView()
                 else
                   TabBarView(
                     controller: _tabController,
@@ -1868,15 +1875,7 @@ class _ConfigPageState extends State<ConfigPage>
           _buildWorkingDaysSection(),
           _buildAvailabilityTimeSection(),
           _buildTransferSettingsSection(),
-          _buildListSection(
-            title: 'Villages',
-            icon: Icons.location_city_outlined,
-            listName: 'villages',
-            items: config.villages,
-            controller: _villageController,
-            hintText: 'Add village',
-          ),
-          _buildWardSection(),
+          _buildLsgNavigationCard(config),
           _buildListSection(
             title: 'Diseases',
             icon: Icons.medical_information_outlined,
@@ -1892,6 +1891,147 @@ class _ConfigPageState extends State<ConfigPage>
             items: config.plans,
             controller: _planController,
             hintText: 'Add care plan',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLsgNavigationCard(Config config) {
+    return _SectionCard(
+      child: InkWell(
+        borderRadius: AppRadius.card,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ConfigPage(mode: ConfigPageMode.lsg),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              const _IconBadge(
+                icon: Icons.holiday_village_outlined,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'LSGs & Wards',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${config.villages.length} villages / LSGs • ${config.wards.length} wards',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLsgView() {
+    if (_isLoadingConfig && _config == null) {
+      return _buildLoadingList();
+    }
+
+    if (_configErrorMessage != null && _config == null) {
+      return _ErrorState(message: _configErrorMessage!, onRetry: _fetchConfig);
+    }
+
+    final config = _config!;
+
+    return RefreshIndicator(
+      onRefresh: _fetchConfig,
+      child: ListView(
+        padding: AppInsets.screen(context, top: AppSpacing.md, bottom: 112),
+        children: [
+          _buildLsgOverviewHeader(config),
+          const SizedBox(height: AppSpacing.sm),
+          _buildListSection(
+            title: 'Villages',
+            icon: Icons.location_city_outlined,
+            listName: 'villages',
+            items: config.villages,
+            controller: _villageController,
+            hintText: 'Add village',
+          ),
+          _buildWardSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLsgOverviewHeader(Config config) {
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _IconBadge(
+                icon: Icons.holiday_village_outlined,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Local Bodies & Wards',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Manage villages / LSGs and assign wards to each local body',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _isLoadingConfig ? null : _fetchConfig,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetricPill(
+                label: 'Villages / LSGs',
+                value: config.villages.length.toString(),
+                icon: Icons.location_city_outlined,
+              ),
+              _MetricPill(
+                label: 'Total Wards',
+                value: config.wards.length.toString(),
+                icon: Icons.map_outlined,
+              ),
+            ],
           ),
         ],
       ),
@@ -1932,11 +2072,29 @@ class _ConfigPageState extends State<ConfigPage>
                 label: 'Villages',
                 value: config.villages.length.toString(),
                 icon: Icons.location_city_outlined,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const ConfigPage(mode: ConfigPageMode.lsg),
+                    ),
+                  );
+                },
               ),
               _MetricPill(
                 label: 'Wards',
                 value: config.wards.length.toString(),
                 icon: Icons.map_outlined,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const ConfigPage(mode: ConfigPageMode.lsg),
+                    ),
+                  );
+                },
               ),
               _MetricPill(
                 label: 'Diseases',

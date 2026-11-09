@@ -663,12 +663,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   _currentPatient.transferStatus != 'TRANSFER_PENDING')
                 const PopupMenuItem(
                   value: _PatientAction.markDeceased,
-                  child: Row(
-                    children: [
-                      DeceasedIcon(size: 20, color: AppColors.danger),
-                      SizedBox(width: 12),
-                      Text('Mark as passed away'),
-                    ],
+                  child: AppMenuActionLabel(
+                    leading: DeceasedIcon(size: 18, color: AppColors.warning),
+                    label: 'Mark as passed away',
+                    color: AppColors.warning,
                   ),
                 ),
               if (auth.canDelete &&

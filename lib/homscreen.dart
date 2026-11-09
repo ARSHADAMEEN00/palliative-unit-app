@@ -1422,6 +1422,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 },
                               ),
                               _buildProfileMenuItem(
+                                icon: Icons.holiday_village_outlined,
+                                title: 'LSGs & Wards',
+                                subtitle: 'Manage villages and ward numbers',
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  Navigator.of(pageContext).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const ConfigPage(
+                                        mode: ConfigPageMode.lsg,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildProfileMenuItem(
                                 icon: Icons.receipt_long_outlined,
                                 title: 'Billing & Plan',
                                 subtitle: _billingProfileSubtitle(),
@@ -7360,6 +7375,22 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     },
                   ),
                   if (auth.isAdmin) ...[
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.holiday_village_outlined,
+                      title: "LSGs & Wards",
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ConfigPage(mode: ConfigPageMode.lsg),
+                          ),
+                        );
+                      },
+                    ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.settings_outlined,

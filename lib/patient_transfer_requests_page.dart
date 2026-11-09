@@ -162,27 +162,54 @@ class _PatientTransferRequestsPageState
               AppSpacing.md,
               AppSpacing.sm,
             ),
-            child: DropdownButtonFormField<String>(
-              initialValue: _status,
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                prefixIcon: Icon(Icons.filter_list),
-                isDense: true,
-              ),
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All statuses')),
-                DropdownMenuItem(value: 'PENDING', child: Text('Pending')),
-                DropdownMenuItem(value: 'ACCEPTED', child: Text('Accepted')),
-                DropdownMenuItem(value: 'REJECTED', child: Text('Rejected')),
-                DropdownMenuItem(value: 'CANCELLED', child: Text('Cancelled')),
-                DropdownMenuItem(value: 'EXPIRED', child: Text('Expired')),
-              ],
-              onChanged: (value) {
-                if (value == null || value == _status) return;
-                setState(() => _status = value);
-                _loadAll();
-              },
-            ),
+            child: () {
+              final dropdownStyle =
+                  Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                        color: AppColors.text,
+                      );
+              return DropdownButtonFormField<String>(
+                initialValue: _status,
+                style: dropdownStyle,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  prefixIcon: Icon(Icons.filter_list),
+                  isDense: true,
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: 'all',
+                    child: Text('All statuses', style: dropdownStyle),
+                  ),
+                  DropdownMenuItem(
+                    value: 'PENDING',
+                    child: Text('Pending', style: dropdownStyle),
+                  ),
+                  DropdownMenuItem(
+                    value: 'ACCEPTED',
+                    child: Text('Accepted', style: dropdownStyle),
+                  ),
+                  DropdownMenuItem(
+                    value: 'REJECTED',
+                    child: Text('Rejected', style: dropdownStyle),
+                  ),
+                  DropdownMenuItem(
+                    value: 'CANCELLED',
+                    child: Text('Cancelled', style: dropdownStyle),
+                  ),
+                  DropdownMenuItem(
+                    value: 'EXPIRED',
+                    child: Text('Expired', style: dropdownStyle),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null || value == _status) return;
+                  setState(() => _status = value);
+                  _loadAll();
+                },
+              );
+            }(),
           ),
           Expanded(
             child: TabBarView(
