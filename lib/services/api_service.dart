@@ -77,12 +77,13 @@ class ApiService {
     String url, {
     required Map<String, dynamic> body,
     T Function(dynamic json)? fromJson,
+    Duration? timeout,
   }) async {
     try {
       final headers = await _getHeaders();
       final response = await _client
           .post(Uri.parse(url), headers: headers, body: json.encode(body))
-          .timeout(ApiConfig.timeout);
+          .timeout(timeout ?? ApiConfig.timeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final dynamic jsonData = json.decode(response.body);

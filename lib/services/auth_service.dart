@@ -109,6 +109,7 @@ class AuthService with ChangeNotifier {
   String? get userAddress => _cleanString(_user?['address']);
   String? get userId => _cleanString(_user?['id'] ?? _user?['_id']);
   String? get userEmail => _cleanString(_user?['email']);
+  String? get userDisplayName => _cleanString(_user?['name']);
   String? get username => _cleanString(_user?['username']);
 
   Set<String>? get permittedModuleIds {
@@ -121,6 +122,15 @@ class AuthService with ChangeNotifier {
       _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canEdit => _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canDelete => _role == 'admin';
+  bool get canViewPatientTransfers =>
+      _role == 'admin' ||
+      _role == 'staff' ||
+      _role == 'member' ||
+      _role == 'superadmin';
+  bool get canInitiatePatientTransfer =>
+      _role == 'admin' || _role == 'staff' || _role == 'superadmin';
+  bool get canReviewPatientTransfer =>
+      _role == 'admin' || _role == 'superadmin';
   bool get canCall => !isVolunteer && !isPublicUser;
   bool get canViewContactNumbers => !isVolunteer && !isPublicUser;
   bool get canViewPatientDetails =>

@@ -1,5 +1,31 @@
 import 'package:oruma_app/models/config.dart';
 
+class PatientUnitRegistration {
+  const PatientUnitRegistration({
+    required this.unitId,
+    required this.registerId,
+    this.activeFrom,
+    this.activeUntil,
+    this.transferRequestId,
+  });
+
+  final String unitId;
+  final String registerId;
+  final DateTime? activeFrom;
+  final DateTime? activeUntil;
+  final String? transferRequestId;
+
+  factory PatientUnitRegistration.fromJson(Map<String, dynamic> json) {
+    return PatientUnitRegistration(
+      unitId: json['unitId']?.toString() ?? '',
+      registerId: json['registerId']?.toString() ?? '',
+      activeFrom: DateTime.tryParse(json['activeFrom']?.toString() ?? ''),
+      activeUntil: DateTime.tryParse(json['activeUntil']?.toString() ?? ''),
+      transferRequestId: json['transferRequestId']?.toString(),
+    );
+  }
+}
+
 /// Patient model that matches the backend schema.
 class Patient {
   final String? id;
@@ -27,6 +53,11 @@ class Patient {
   final String? createdBy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String transferStatus;
+  final String? careJourneyId;
+  final String? previousUnitId;
+  final String? currentTransferRequestId;
+  final List<PatientUnitRegistration> unitRegistrationHistory;
 
   const Patient({
     this.id,
@@ -54,6 +85,11 @@ class Patient {
     this.createdBy,
     this.createdAt,
     this.updatedAt,
+    this.transferStatus = 'ACTIVE',
+    this.careJourneyId,
+    this.previousUnitId,
+    this.currentTransferRequestId,
+    this.unitRegistrationHistory = const [],
   });
 
   /// Create Patient from JSON (API response).
@@ -102,6 +138,20 @@ class Patient {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
+      transferStatus:
+          json['transferStatus']?.toString().toUpperCase() ?? 'ACTIVE',
+      careJourneyId: _getId(json['careJourneyId']),
+      previousUnitId: _getId(json['previousUnitId']),
+      currentTransferRequestId: _getId(json['currentTransferRequestId']),
+      unitRegistrationHistory:
+          (json['unitRegistrationHistory'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map(
+                (item) => PatientUnitRegistration.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList(),
     );
   }
 
@@ -156,6 +206,11 @@ class Patient {
     DateTime? registrationDate,
     bool? isDead,
     DateTime? dateOfDeath,
+    String? transferStatus,
+    String? careJourneyId,
+    String? previousUnitId,
+    String? currentTransferRequestId,
+    List<PatientUnitRegistration>? unitRegistrationHistory,
   }) {
     return Patient(
       id: id ?? this.id,
@@ -182,6 +237,13 @@ class Patient {
       dateOfDeath: dateOfDeath ?? this.dateOfDeath,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      transferStatus: transferStatus ?? this.transferStatus,
+      careJourneyId: careJourneyId ?? this.careJourneyId,
+      previousUnitId: previousUnitId ?? this.previousUnitId,
+      currentTransferRequestId:
+          currentTransferRequestId ?? this.currentTransferRequestId,
+      unitRegistrationHistory:
+          unitRegistrationHistory ?? this.unitRegistrationHistory,
     );
   }
 

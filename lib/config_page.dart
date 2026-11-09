@@ -1867,6 +1867,7 @@ class _ConfigPageState extends State<ConfigPage>
           _buildUnitWorkingTimeSection(),
           _buildWorkingDaysSection(),
           _buildAvailabilityTimeSection(),
+          _buildTransferSettingsSection(),
           _buildListSection(
             title: 'Villages',
             icon: Icons.location_city_outlined,
@@ -2249,6 +2250,88 @@ class _ConfigPageState extends State<ConfigPage>
       _config?.workingTime = '';
     });
     await _saveConfig();
+  }
+
+  Widget _buildTransferSettingsSection() {
+    final settings = _config!.transferSettings;
+    const checks = [
+      (key: 'identity_verified', label: 'Identity verified'),
+      (key: 'address_verified', label: 'Address verified'),
+      (key: 'consent_confirmed', label: 'Consent confirmed'),
+      (key: 'records_reviewed', label: 'Records reviewed'),
+    ];
+    final expiryOptions = <int>{
+      3,
+      7,
+      14,
+      30,
+      60,
+      90,
+      settings.expiryDays,
+    }.toList()..sort();
+    return _ConfigSection(
+      title: 'Patient transfer review',
+      icon: Icons.swap_horiz_rounded,
+      badgeText: '${settings.expiryDays} day expiry',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set when pending requests expire and which checks destination '
+            'administrators must complete before accepting.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<int>(
+            initialValue: settings.expiryDays,
+            decoration: const InputDecoration(
+              labelText: 'Pending request expiry',
+              prefixIcon: Icon(Icons.timer_outlined),
+            ),
+            items: expiryOptions
+                .map(
+                  (days) =>
+                      DropdownMenuItem(value: days, child: Text('$days days')),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => settings.expiryDays = value);
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Required acceptance checks',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: checks.map((check) {
+              final selected = settings.requiredChecks.contains(check.key);
+              return FilterChip(
+                selected: selected,
+                showCheckmark: true,
+                label: Text(check.label),
+                onSelected: (value) {
+                  setState(() {
+                    if (value) {
+                      settings.requiredChecks.add(check.key);
+                    } else {
+                      settings.requiredChecks.remove(check.key);
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildWorkingDaysSection() {

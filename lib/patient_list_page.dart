@@ -17,6 +17,9 @@ import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:oruma_app/volunteer_patient_registration_page.dart';
 import 'package:oruma_app/patient_enquiry_list_page.dart';
+import 'package:oruma_app/patient_transfer_requests_page.dart';
+import 'package:oruma_app/services/patient_transfer_service.dart';
+import 'package:oruma_app/transferred_patient_list_page.dart';
 
 class PatientListPage extends StatefulWidget {
   const PatientListPage({super.key});
@@ -44,6 +47,7 @@ class _PatientListPageState extends State<PatientListPage> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   String _searchQuery = '';
+  int _incomingTransferCount = 0;
 
   @override
   void initState() {
@@ -55,6 +59,14 @@ class _PatientListPageState extends State<PatientListPage> {
     });
     _loadConfig();
     _loadPatients();
+    _loadTransferCount();
+  }
+
+  Future<void> _loadTransferCount() async {
+    try {
+      final count = await PatientTransferService.incomingCount();
+      if (mounted) setState(() => _incomingTransferCount = count);
+    } catch (_) {}
   }
 
   Future<void> _loadConfig() async {
@@ -160,7 +172,11 @@ class _PatientListPageState extends State<PatientListPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline_rounded, size: 48, color: AppColors.danger),
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
                 SizedBox(height: AppSpacing.md),
                 Text(
                   'Access Denied',
@@ -223,6 +239,86 @@ class _PatientListPageState extends State<PatientListPage> {
                       ),
                     );
                   },
+                ),
+              ),
+            ),
+          if (!_isSearching && auth.canViewPatientTransfers)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Tooltip(
+                message: 'Patient Transfers',
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Material(
+                      color: AppColors.surface1,
+                      borderRadius: AppRadius.md,
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Patient transfer menu',
+                          icon: const Icon(Icons.swap_horiz_rounded),
+                          onSelected: (value) async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => value == 'archive'
+                                    ? const TransferredPatientListPage()
+                                    : const PatientTransferRequestsPage(),
+                              ),
+                            );
+                            _loadPatients();
+                            _loadTransferCount();
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'requests',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.move_to_inbox_outlined),
+                                title: Text('Transfer requests'),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'archive',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.archive_outlined),
+                                title: Text('Transferred patients'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_incomingTransferCount > 0)
+                      Positioned(
+                        right: -3,
+                        top: -5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: AppColors.background),
+                          ),
+                          child: Text(
+                            _incomingTransferCount > 99
+                                ? '99+'
+                                : '$_incomingTransferCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -314,12 +410,13 @@ class _PatientListPageState extends State<PatientListPage> {
                             onPressed: _navigateToCreatePatient,
                           )
                         : (auth.canVolunteerRegisterPatient
-                            ? AppPrimaryButton(
-                                label: 'Register Patient',
-                                icon: Icons.person_add_alt_1,
-                                onPressed: _navigateToVolunteerPatientRegister,
-                              )
-                            : null),
+                              ? AppPrimaryButton(
+                                  label: 'Register Patient',
+                                  icon: Icons.person_add_alt_1,
+                                  onPressed:
+                                      _navigateToVolunteerPatientRegister,
+                                )
+                              : null),
                   );
                 }
 
@@ -730,6 +827,13 @@ class _PatientListPageState extends State<PatientListPage> {
                         label: 'Passed away',
                         color: AppColors.danger,
                       ),
+                    ] else if (patient.transferStatus ==
+                        'TRANSFER_PENDING') ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      const _PatientStatusPill(
+                        label: 'Transfer pending',
+                        color: AppColors.warning,
+                      ),
                     ],
                   ],
                 ),
@@ -813,8 +917,10 @@ class _PatientListPageState extends State<PatientListPage> {
       ),
     );
 
-    final canEdit = authService.canEdit;
-    final canDelete = authService.canDelete;
+    final canEdit =
+        authService.canEdit && patient.transferStatus != 'TRANSFER_PENDING';
+    final canDelete =
+        authService.canDelete && patient.transferStatus != 'TRANSFER_PENDING';
 
     if (canEdit || canDelete) {
       final actions = <Widget>[];

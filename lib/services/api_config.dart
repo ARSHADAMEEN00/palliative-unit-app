@@ -49,6 +49,9 @@ class ApiConfig {
   static String get publicPatientEnquiriesEndpoint =>
       '$baseUrl/public/patient-enquiries';
   static String get patientEnquiriesEndpoint => '$baseUrl/patient-enquiries';
+  static String get patientTransfersEndpoint => '$baseUrl/transfers';
+  static String get transferredPatientsEndpoint =>
+      '$baseUrl/transferred-patients';
   static String get patientEnquiriesCountEndpoint =>
       '$baseUrl/patient-enquiries/count';
   static String patientEnquiryStatusEndpoint(String id) =>

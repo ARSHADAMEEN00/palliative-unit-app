@@ -21,6 +21,13 @@ class EquipmentSupply {
   final String? returnNote;
   final String? createdBy;
   final DateTime? createdAt;
+  final String? originUnitId;
+  final String? transferRequestId;
+  final String? externalCustodianUnitId;
+  final bool isExternalCustody;
+  final String? ownerUnitId;
+  final String? ownerUnitName;
+  final String? custodyStatus;
 
   const EquipmentSupply({
     this.id,
@@ -45,6 +52,13 @@ class EquipmentSupply {
     this.returnNote,
     this.createdBy,
     this.createdAt,
+    this.originUnitId,
+    this.transferRequestId,
+    this.externalCustodianUnitId,
+    this.isExternalCustody = false,
+    this.ownerUnitId,
+    this.ownerUnitName,
+    this.custodyStatus,
   });
 
   factory EquipmentSupply.fromJson(Map<String, dynamic> json) {
@@ -81,6 +95,13 @@ class EquipmentSupply {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
+      originUnitId: _idFromJson(json['originUnitId']),
+      transferRequestId: _idFromJson(json['transferRequestId']),
+      externalCustodianUnitId: _idFromJson(json['externalCustodianUnitId']),
+      isExternalCustody: json['isExternalCustody'] == true,
+      ownerUnitId: _idFromJson(json['ownerUnitId']),
+      ownerUnitName: json['ownerUnitName']?.toString(),
+      custodyStatus: json['custodyStatus']?.toString(),
     );
   }
 
@@ -106,6 +127,13 @@ class EquipmentSupply {
       'notes': notes,
       'returnNote': returnNote,
       'createdAt': createdAt?.toIso8601String(),
+      'originUnitId': originUnitId,
+      'transferRequestId': transferRequestId,
+      'externalCustodianUnitId': externalCustodianUnitId,
+      'isExternalCustody': isExternalCustody,
+      'ownerUnitId': ownerUnitId,
+      'ownerUnitName': ownerUnitName,
+      'custodyStatus': custodyStatus,
     };
   }
 
