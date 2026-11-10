@@ -400,6 +400,13 @@ class AuthService with ChangeNotifier {
 
   String? get unitId => _cleanString(_user?['unitId'] ?? unit?['id']);
 
+  bool get wardRestrictionEnabled {
+    final value =
+        unit?['wardRestrictionEnabled'] ?? unit?['ward_restriction_enabled'];
+    if (value is bool) return value;
+    return value?.toString().toLowerCase() == 'true';
+  }
+
   String get unitName => _firstText([
     unit?['name'],
     _user?['unitName'],

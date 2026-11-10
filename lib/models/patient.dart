@@ -1,4 +1,5 @@
 import 'package:oruma_app/models/config.dart';
+import 'package:oruma_app/models/ward.dart';
 
 class PatientUnitRegistration {
   const PatientUnitRegistration({
@@ -40,6 +41,8 @@ class Patient {
   final String place;
   final String village;
   final String? ward;
+  final String? currentWardId;
+  final Ward? currentWard;
   final List<String> disease;
   final String plan;
   final String? locationLink;
@@ -72,6 +75,8 @@ class Patient {
     required this.place,
     required this.village,
     this.ward,
+    this.currentWardId,
+    this.currentWard,
     this.disease = const [],
     required this.plan,
     this.locationLink,
@@ -111,6 +116,12 @@ class Patient {
       place: json['place']?.toString() ?? '',
       village: json['village']?.toString() ?? '',
       ward: normalizedWard.isEmpty ? null : normalizedWard,
+      currentWardId: _getId(json['currentWardId']),
+      currentWard: json['currentWard'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['currentWard']))
+          : json['currentWardId'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['currentWardId']))
+          : null,
       disease: json['disease'] is List
           ? List<String>.from(json['disease'])
           : json['disease'] != null
@@ -169,6 +180,7 @@ class Patient {
       'place': place,
       'village': village,
       'ward': ward == null ? null : normalizeWardNumberValue(ward),
+      'currentWardId': currentWardId,
       'disease': disease,
       'plan': plan,
       'locationLink': locationLink,
@@ -196,6 +208,8 @@ class Patient {
     String? place,
     String? village,
     String? ward,
+    String? currentWardId,
+    Ward? currentWard,
     List<String>? disease,
     String? plan,
     String? locationLink,
@@ -225,6 +239,8 @@ class Patient {
       place: place ?? this.place,
       village: village ?? this.village,
       ward: ward ?? this.ward,
+      currentWardId: currentWardId ?? this.currentWardId,
+      currentWard: currentWard ?? this.currentWard,
       disease: disease ?? this.disease,
       plan: plan ?? this.plan,
       locationLink: locationLink ?? this.locationLink,

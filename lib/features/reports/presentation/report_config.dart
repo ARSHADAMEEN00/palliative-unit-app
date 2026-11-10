@@ -366,6 +366,32 @@ const reportDefinitions = <ReportType, ReportDefinition>{
       ReportSortDefinition('supportTypesLabel', 'Support type'),
     ],
   ),
+  ReportType.patientWards: ReportDefinition(
+    type: ReportType.patientWards,
+    icon: Icons.local_hospital_outlined,
+    color: Color(0xFF2563EB),
+    summaryLabels: {
+      'wards': 'Wards',
+      'total': 'Patients',
+      'active': 'Active',
+      'deceased': 'Passed Away',
+      'unassigned': 'Unassigned',
+    },
+    columns: [
+      ReportColumn('currentWard', 'Care Ward'),
+      ReportColumn('wardCode', 'Ward Code'),
+      ReportColumn('total', 'Total', numeric: true),
+      ReportColumn('active', 'Active', numeric: true),
+      ReportColumn('deceased', 'Passed Away', numeric: true),
+    ],
+    filters: [],
+    sorts: [
+      ReportSortDefinition('currentWard', 'Care ward'),
+      ReportSortDefinition('total', 'Total patients'),
+      ReportSortDefinition('active', 'Active patients'),
+      ReportSortDefinition('deceased', 'Passed away patients'),
+    ],
+  ),
 };
 
 String formatReportValue(String key, dynamic value) {

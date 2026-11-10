@@ -5,6 +5,7 @@ enum ReportType {
   equipmentDamageHistory,
   equipmentSupplies,
   socialSupport,
+  patientWards,
 }
 
 extension ReportTypeDetails on ReportType {
@@ -15,6 +16,7 @@ extension ReportTypeDetails on ReportType {
     ReportType.equipmentDamageHistory => 'equipment-damage-history',
     ReportType.equipmentSupplies => 'equipment-supplies',
     ReportType.socialSupport => 'social-support',
+    ReportType.patientWards => 'patient-wards',
   };
 
   String get label => switch (this) {
@@ -24,6 +26,7 @@ extension ReportTypeDetails on ReportType {
     ReportType.equipmentDamageHistory => 'Damage History',
     ReportType.equipmentSupplies => 'Equipment Supply',
     ReportType.socialSupport => 'Social Support',
+    ReportType.patientWards => 'Patients by Ward',
   };
 }
 

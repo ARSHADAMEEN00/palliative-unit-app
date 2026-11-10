@@ -22,9 +22,11 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:printing/printing.dart';
 import 'package:oruma_app/models/patient_transfer.dart';
+import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/patient_transfer_form_page.dart';
 import 'package:oruma_app/patient_transfer_review_page.dart';
 import 'package:oruma_app/services/patient_transfer_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 
 enum _PatientAction { transfer, markDeceased, delete }
 
@@ -63,6 +65,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   List<PatientTransferRequest> _transferHistory = const [];
   bool _transferHistoryLoading = false;
   String? _transferHistoryError;
+  List<PatientWardHistoryEntry> _wardHistory = const [];
+  bool _wardHistoryLoading = false;
 
   @override
   void initState() {
@@ -71,6 +75,23 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     _details = PatientDetails(patient: widget.patient);
     _loadDetails();
     _loadTransferHistory();
+    _loadWardHistory();
+  }
+
+  Future<void> _loadWardHistory() async {
+    final patientId = _currentPatient.id;
+    if (patientId == null || patientId.isEmpty) return;
+    if (mounted) setState(() => _wardHistoryLoading = true);
+    try {
+      final history = await WardService.getPatientHistory(patientId);
+      if (!mounted) return;
+      setState(() {
+        _wardHistory = history;
+        _wardHistoryLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _wardHistoryLoading = false);
+    }
   }
 
   Future<void> _loadTransferHistory() async {
@@ -102,6 +123,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     await Future.wait([
       _loadDetails(showLoader: false),
       _loadTransferHistory(),
+      _loadWardHistory(),
     ]);
   }
 
@@ -769,6 +791,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(height: 10),
+          _lightHeaderPill(
+            _currentPatient.currentWard?.name ?? 'Unassigned',
+            icon: Icons.local_hospital_outlined,
+          ),
           if (_currentPatient.isDead) ...[
             const SizedBox(height: 10),
             _lightHeaderPill('Passed away', icon: Icons.favorite_border),
@@ -1020,6 +1047,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 _value(_currentPatient.village),
               ),
               _infoRow(
+                Icons.local_hospital_outlined,
+                'Care ward',
+                _currentPatient.currentWard?.label ?? 'Unassigned',
+              ),
+              _infoRow(
                 Icons.apartment_outlined,
                 'Ward number',
                 _value(_currentPatient.ward),
@@ -1027,6 +1059,41 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               if (_currentPatient.locationLink?.trim().isNotEmpty == true)
                 _mapButton(_currentPatient.locationLink!),
             ]),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _sectionCard(
+            icon: Icons.history_outlined,
+            title: 'Ward history',
+            children: [
+              if (_wardHistoryLoading)
+                const LinearProgressIndicator()
+              else if (_wardHistory.isEmpty)
+                const Text(
+                  'No ward changes recorded yet.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                )
+              else
+                ..._wardHistory.map(
+                  (entry) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: const Icon(Icons.swap_horiz_outlined),
+                    title: Text(
+                      '${entry.fromWard?.name ?? 'Unassigned'} → ${entry.toWard.name}',
+                    ),
+                    subtitle: Text(
+                      [
+                        DateFormat(
+                          'dd MMM yyyy, h:mm a',
+                        ).format(entry.changedAt.toLocal()),
+                        if (entry.changedByName?.isNotEmpty == true)
+                          entry.changedByName!,
+                        if (entry.note?.isNotEmpty == true) entry.note!,
+                      ].join(' • '),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

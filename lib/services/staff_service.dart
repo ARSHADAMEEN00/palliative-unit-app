@@ -95,6 +95,7 @@ class StaffService {
     required String password,
     required String role,
     List<String>? permittedModuleIds,
+    List<String>? wardIds,
   }) async {
     final result = await ApiService.post<Map<String, dynamic>>(
       ApiConfig.staffEndpoint,
@@ -105,6 +106,7 @@ class StaffService {
         'role': role,
         if (permittedModuleIds != null)
           'permittedModuleIds': permittedModuleIds,
+        if (wardIds != null) 'wardIds': wardIds,
       },
     );
 
@@ -137,6 +139,7 @@ class StaffService {
     required String role,
     required List<String> permittedModuleIds,
     String? password,
+    List<String>? wardIds,
   }) async {
     final result = await ApiService.patch<Map<String, dynamic>>(
       '${ApiConfig.staffEndpoint}/$id',
@@ -146,6 +149,7 @@ class StaffService {
         'role': role,
         'permittedModuleIds': permittedModuleIds,
         if (password != null && password.isNotEmpty) 'password': password,
+        if (wardIds != null) 'wardIds': wardIds,
       },
     );
     if (result.isSuccess && result.data != null) {

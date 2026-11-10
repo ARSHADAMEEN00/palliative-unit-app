@@ -6,8 +6,10 @@ import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/volunteer.dart';
+import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:intl/intl.dart';
@@ -42,8 +44,7 @@ class _patientrigisterState extends State<patientrigister> {
 
   // Controllers
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController caregiverNameController =
-      TextEditingController();
+  final TextEditingController caregiverNameController = TextEditingController();
   final TextEditingController relationController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
@@ -63,8 +64,10 @@ class _patientrigisterState extends State<patientrigister> {
   List<WardConfig> allWards = [];
   List<String> filteredWards = [];
   List<Volunteer> volunteers = [];
+  List<Ward> careWards = [];
   Volunteer? _selectedVolunteer;
   String? _selectedWardTitle;
+  String? _selectedCurrentWardId;
   int _volunteerFieldVersion = 0;
 
   @override
@@ -94,6 +97,7 @@ class _patientrigisterState extends State<patientrigister> {
       _gender = widget.patient!.gender;
       _selectedVillage = widget.patient!.village;
       _selectedWardTitle = widget.patient!.ward;
+      _selectedCurrentWardId = widget.patient!.currentWardId;
       _selectedDiseases = List.from(widget.patient!.disease);
       _selectedPlan = widget.patient!.plan;
 
@@ -114,8 +118,14 @@ class _patientrigisterState extends State<patientrigister> {
 
   Future<void> _loadConfig() async {
     try {
-      final config = await ConfigService.getConfig();
-      final loadedVolunteers = await _loadVolunteersSafely();
+      final results = await Future.wait([
+        ConfigService.getConfig(),
+        _loadVolunteersSafely(),
+        WardService.getTransferTargets(),
+      ]);
+      final config = results[0] as Config;
+      final loadedVolunteers = results[1] as List<Volunteer>;
+      final loadedCareWards = results[2] as List<Ward>;
       final initialVolunteer = _findInitialVolunteer(loadedVolunteers);
       setState(() {
         villages = config.villages;
@@ -123,6 +133,7 @@ class _patientrigisterState extends State<patientrigister> {
         plans = config.plans;
         allWards = sortWardConfigs(config.wards);
         volunteers = loadedVolunteers;
+        careWards = loadedCareWards;
         _selectedVolunteer = initialVolunteer;
         if (initialVolunteer != null) {
           volunteerNameController.text = initialVolunteer.name;
@@ -614,7 +625,9 @@ class _patientrigisterState extends State<patientrigister> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.patient != null;
-    final canManageConfig = context.watch<AuthService>().isAdmin;
+    final auth = context.watch<AuthService>();
+    final canManageConfig = auth.isAdmin;
+    final wardRequired = auth.wardRestrictionEnabled;
 
     // Show loading indicator while config is loading
     if (_isLoadingConfig) {
@@ -872,9 +885,7 @@ class _patientrigisterState extends State<patientrigister> {
                   TextFormField(
                     controller: caregiverNameController,
                     textCapitalization: TextCapitalization.words,
-                    inputFormatters: [
-                      CapitalizeWordsInputFormatter(),
-                    ],
+                    inputFormatters: [CapitalizeWordsInputFormatter()],
                     decoration: _buildInputDecoration(
                       "Caregiver Name",
                       Icons.badge_outlined,
@@ -908,6 +919,44 @@ class _patientrigisterState extends State<patientrigister> {
                 children: [
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
+                      wardRequired ? "Care Ward *" : "Care Ward (optional)",
+                      Icons.local_hospital_outlined,
+                    ),
+                    initialValue:
+                        careWards.any(
+                          (ward) => ward.id == _selectedCurrentWardId,
+                        )
+                        ? _selectedCurrentWardId
+                        : null,
+                    style: AppTypography.dropdownTextStyle(context),
+                    hint: Text(
+                      careWards.isEmpty
+                          ? wardRequired
+                                ? 'Ask an administrator to create a ward'
+                                : 'No care wards available'
+                          : 'Select care ward',
+                    ),
+                    items: careWards
+                        .where((ward) => ward.isActive)
+                        .map(
+                          (ward) => DropdownMenuItem(
+                            value: ward.id,
+                            child: Text(ward.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: careWards.isEmpty
+                        ? null
+                        : (value) =>
+                              setState(() => _selectedCurrentWardId = value),
+                    validator: (value) =>
+                        wardRequired && (value == null || value.isEmpty)
+                        ? 'Care ward is required'
+                        : null,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  DropdownButtonFormField<String>(
+                    decoration: _buildInputDecoration(
                       "Village",
                       Icons.location_city,
                     ),
@@ -932,7 +981,7 @@ class _patientrigisterState extends State<patientrigister> {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           decoration: _buildInputDecoration(
-                            "Ward Number",
+                            "Local Ward Number",
                             Icons.apartment,
                           ),
                           key: ValueKey(
@@ -1277,6 +1326,7 @@ class _patientrigisterState extends State<patientrigister> {
           ward: _selectedWardTitle == null
               ? null
               : normalizeWardNumberValue(_selectedWardTitle),
+          currentWardId: _selectedCurrentWardId,
           locationLink: locationLinkController.text.trim().isEmpty
               ? null
               : locationLinkController.text.trim(),

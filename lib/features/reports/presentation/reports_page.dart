@@ -10,6 +10,8 @@ import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/pdf/report_pdf_generator.dart';
 import 'package:oruma_app/features/reports/presentation/report_config.dart';
 import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/models/ward.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
@@ -53,6 +55,7 @@ class _ReportsPageState extends State<ReportsPage> {
   bool _exporting = false;
   String? _error;
   Timer? _searchDebounce;
+  List<Ward> _wardChoices = const [];
 
   ReportDefinition get _definition => reportDefinitions[_type]!;
 
@@ -63,7 +66,14 @@ class _ReportsPageState extends State<ReportsPage> {
     _filters = _defaultFilters(_type);
     _searchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.read<AuthService>().canAccessReports) _load();
+      if (mounted && context.read<AuthService>().canAccessReports) {
+        _load();
+        WardService.getWards()
+            .then((wards) {
+              if (mounted) setState(() => _wardChoices = wards);
+            })
+            .catchError((_) {});
+      }
     });
   }
 
@@ -908,6 +918,32 @@ class _ReportsPageState extends State<ReportsPage> {
                         ),
                       );
                     }),
+                    if (_type == ReportType.patientWards)
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.sm),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: extra['ward'] ?? '',
+                          decoration: _compactDropdownDecoration('Care ward'),
+                          items: [
+                            const DropdownMenuItem(
+                              value: '',
+                              child: Text('All wards'),
+                            ),
+                            const DropdownMenuItem(
+                              value: 'unassigned',
+                              child: Text('Unassigned'),
+                            ),
+                            ..._wardChoices.map(
+                              (ward) => DropdownMenuItem(
+                                value: ward.id,
+                                child: Text(ward.label),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) =>
+                              setModalState(() => extra['ward'] = value ?? ''),
+                        ),
+                      ),
                     if (_type == ReportType.medicineStock) ...[
                       const SizedBox(height: AppSpacing.md),
                       Row(
@@ -982,7 +1018,8 @@ class _ReportsPageState extends State<ReportsPage> {
   ReportFilters _defaultFilters(ReportType type) {
     return switch (type) {
       ReportType.medicineStock ||
-      ReportType.equipmentStock => const ReportFilters(),
+      ReportType.equipmentStock ||
+      ReportType.patientWards => const ReportFilters(),
       _ => ReportFilters.currentMonth(),
     };
   }

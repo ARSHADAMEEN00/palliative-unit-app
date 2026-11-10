@@ -14,6 +14,7 @@ class ApiConfig {
 
   /// API Endpoints
   static String get patientsEndpoint => '$baseUrl/patients';
+  static String get wardsEndpoint => '$baseUrl/wards';
   static String get v2PatientsEndpoint => '$baseUrl/v2/patients';
   static String get v2MedicinesEndpoint => '$baseUrl/v2/medicines';
   static String get homeVisitsEndpoint => '$baseUrl/home-visits';

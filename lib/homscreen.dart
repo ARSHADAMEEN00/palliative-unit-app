@@ -36,6 +36,8 @@ import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/notification_service.dart';
 import 'package:oruma_app/services/patient_enquiry_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
+import 'package:oruma_app/models/ward.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
@@ -131,6 +133,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   int? _patientCount;
   int _newPatientCountThisWeek = 0;
   int _newPatientCountThisMonth = 0;
+  List<WardPatientCount> _wardPatientCounts = const [];
   int _todayHomeVisitCount = 0;
   DateTime? _latestHomeVisitDate;
   int _latestHomeVisitCount = 0;
@@ -435,6 +438,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     )
                     .length;
               });
+            })
+            .catchError((_) {}),
+      );
+      futures.add(
+        WardService.getPatientCounts()
+            .then((counts) {
+              if (mounted) setState(() => _wardPatientCounts = counts);
             })
             .catchError((_) {}),
       );
@@ -4654,10 +4664,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   List<_HomeMetricAction> _priorityActions(AuthService auth) {
     final monthStr = DateFormat('MMM').format(DateTime.now());
+    final wardSummary = _wardPatientCounts
+        .take(2)
+        .map((row) => '${row.ward?.name ?? 'Unassigned'} ${row.active}')
+        .join(' • ');
     final patientSubtitle = auth.isMember
         ? 'Your family'
         : auth.isVolunteer
         ? 'Assigned to you'
+        : wardSummary.isNotEmpty
+        ? wardSummary
         : auth.isAdmin
         ? '$_newPatientCountThisMonth New $monthStr'
         : auth.isStaff && _todayHomeVisitCount > 0
