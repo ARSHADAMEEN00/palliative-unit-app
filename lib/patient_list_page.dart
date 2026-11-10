@@ -22,6 +22,8 @@ import 'package:oruma_app/services/patient_transfer_service.dart';
 import 'package:oruma_app/transferred_patient_list_page.dart';
 import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/services/ward_service.dart';
+import 'package:oruma_app/features/reports/models/report_models.dart';
+import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 
 class PatientListPage extends StatefulWidget {
   const PatientListPage({super.key});
@@ -330,6 +332,20 @@ class _PatientListPageState extends State<PatientListPage> {
                         ),
                       ),
                   ],
+                ),
+              ),
+            ),
+          if (!_isSearching && auth.canAccessReports)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Tooltip(
+                message: 'Patient Report',
+                child: _PatientIconButton(
+                  icon: Icons.assessment_outlined,
+                  onPressed: () => openReports(
+                    context,
+                    initialReport: ReportType.patients,
+                  ),
                 ),
               ),
             ),

@@ -1,4 +1,5 @@
 enum ReportType {
+  patients,
   medicineStock,
   medicineSupplies,
   equipmentStock,
@@ -10,6 +11,7 @@ enum ReportType {
 
 extension ReportTypeDetails on ReportType {
   String get apiSlug => switch (this) {
+    ReportType.patients => 'patients',
     ReportType.medicineStock => 'medicine-stock',
     ReportType.medicineSupplies => 'medicine-supplies',
     ReportType.equipmentStock => 'equipment-stock',
@@ -20,6 +22,7 @@ extension ReportTypeDetails on ReportType {
   };
 
   String get label => switch (this) {
+    ReportType.patients => 'Patients',
     ReportType.medicineStock => 'Medicine Stock',
     ReportType.medicineSupplies => 'Medicine Supply',
     ReportType.equipmentStock => 'Equipment Stock',

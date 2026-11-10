@@ -110,7 +110,9 @@ class ReportPdfGenerator {
                         ),
                       pw.SizedBox(height: 5),
                       pw.Text(
-                        '${definition.type.label} Report',
+                        definition.type == ReportType.patients
+                            ? 'Patient Report'
+                            : '${definition.type.label} Report',
                         style: pw.TextStyle(
                           font: bold,
                           fontSize: 20,

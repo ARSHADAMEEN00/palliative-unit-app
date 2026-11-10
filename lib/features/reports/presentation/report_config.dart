@@ -57,6 +57,63 @@ class ReportDefinition {
 }
 
 const reportDefinitions = <ReportType, ReportDefinition>{
+  ReportType.patients: ReportDefinition(
+    type: ReportType.patients,
+    icon: Icons.people_outline,
+    color: Color(0xFF1D4ED8),
+    summaryLabels: {
+      'total': 'Total',
+      'active': 'Active',
+      'deceased': 'Passed Away',
+      'transferred': 'Transferred',
+      'male': 'Male',
+      'female': 'Female',
+    },
+    columns: [
+      ReportColumn('registerId', 'Reg No'),
+      ReportColumn('patientName', 'Patient Name'),
+      ReportColumn('age', 'Age', numeric: true),
+      ReportColumn('gender', 'Gender'),
+      ReportColumn('phone', 'Phone'),
+      ReportColumn('currentWard', 'Care Ward'),
+      ReportColumn('place', 'Place'),
+      ReportColumn('disease', 'Condition / Disease'),
+      ReportColumn('plan', 'Plan'),
+      ReportColumn('status', 'Status'),
+      ReportColumn('volunteerName', 'Volunteer'),
+      ReportColumn('registrationDate', 'Registered'),
+    ],
+    filters: [
+      ReportFilterDefinition(
+        key: 'status',
+        label: 'Patient status',
+        choices: [
+          ReportChoice('', 'All'),
+          ReportChoice('active', 'Active'),
+          ReportChoice('deceased', 'Passed away'),
+          ReportChoice('transferred', 'Transferred'),
+        ],
+      ),
+      ReportFilterDefinition(
+        key: 'gender',
+        label: 'Gender',
+        choices: [
+          ReportChoice('', 'All'),
+          ReportChoice('Male', 'Male'),
+          ReportChoice('Female', 'Female'),
+          ReportChoice('Other', 'Other'),
+        ],
+      ),
+    ],
+    sorts: [
+      ReportSortDefinition('registrationDate', 'Registration date'),
+      ReportSortDefinition('patientName', 'Patient name'),
+      ReportSortDefinition('registerId', 'Reg No'),
+      ReportSortDefinition('age', 'Age'),
+      ReportSortDefinition('currentWard', 'Care ward'),
+      ReportSortDefinition('status', 'Status'),
+    ],
+  ),
   ReportType.medicineStock: ReportDefinition(
     type: ReportType.medicineStock,
     icon: Icons.medication_outlined,

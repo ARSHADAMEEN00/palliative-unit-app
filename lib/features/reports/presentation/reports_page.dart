@@ -11,6 +11,8 @@ import 'package:oruma_app/features/reports/pdf/report_pdf_generator.dart';
 import 'package:oruma_app/features/reports/presentation/report_config.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/models/ward.dart';
+import 'package:oruma_app/patient_details_page.dart';
+import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:printing/printing.dart';
@@ -18,7 +20,7 @@ import 'package:provider/provider.dart';
 
 Future<void> openReports(
   BuildContext context, {
-  ReportType initialReport = ReportType.medicineStock,
+  ReportType initialReport = ReportType.patients,
 }) {
   final auth = context.read<AuthService>();
   if (!auth.canAccessReports) {
@@ -38,7 +40,7 @@ Future<void> openReports(
 }
 
 class ReportsPage extends StatefulWidget {
-  const ReportsPage({super.key, this.initialReport = ReportType.medicineStock});
+  const ReportsPage({super.key, this.initialReport = ReportType.patients});
 
   final ReportType initialReport;
 
@@ -479,7 +481,12 @@ class _ReportsPageState extends State<ReportsPage> {
               )
               .toList(),
           rows: result.rows.map((row) {
+            final isPatient =
+                _type == ReportType.patients && row['id'] != null;
             return DataRow(
+              onSelectChanged: isPatient
+                  ? (_) => _openPatientDetails(row['id']?.toString())
+                  : null,
               cells: _definition.columns
                   .map(
                     (column) => DataCell(
@@ -510,46 +517,62 @@ class _ReportsPageState extends State<ReportsPage> {
         .toList(growable: false);
     return Column(
       children: result.rows.map((row) {
-        return Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
+        final isPatient =
+            _type == ReportType.patients && row['id'] != null;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isPatient
+                ? () => _openPatientDetails(row['id']?.toString())
+                : null,
             borderRadius: AppRadius.card,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: _definition.color.withValues(alpha: 0.1),
-                      borderRadius: AppRadius.sm,
-                    ),
-                    child: Icon(
-                      _definition.icon,
-                      color: _definition.color,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      formatReportValue(
-                        primaryColumn.key,
-                        row[primaryColumn.key],
-                      ),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: AppRadius.card,
+                border: Border.all(color: AppColors.border),
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _definition.color.withValues(alpha: 0.1),
+                          borderRadius: AppRadius.sm,
+                        ),
+                        child: Icon(
+                          _definition.icon,
+                          color: _definition.color,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          formatReportValue(
+                            primaryColumn.key,
+                            row[primaryColumn.key],
+                          ),
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      if (isPatient)
+                        const Icon(
+                          Icons.chevron_right,
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
+                    ],
+                  ),
               const SizedBox(height: AppSpacing.xs),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -596,9 +619,11 @@ class _ReportsPageState extends State<ReportsPage> {
               ),
             ],
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
+  }).toList(),
+);
   }
 
   Widget _buildPagination(ReportPagination pagination) {
@@ -918,7 +943,8 @@ class _ReportsPageState extends State<ReportsPage> {
                         ),
                       );
                     }),
-                    if (_type == ReportType.patientWards)
+                    if (_type == ReportType.patientWards ||
+                        _type == ReportType.patients)
                       Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.sm),
                         child: DropdownButtonFormField<String>(
@@ -1015,8 +1041,27 @@ class _ReportsPageState extends State<ReportsPage> {
     return error.toString().replaceFirst('Exception: ', '');
   }
 
+  Future<void> _openPatientDetails(String? id) async {
+    if (id == null || id.isEmpty) return;
+    try {
+      final patient = await PatientService.getPatientById(id);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PatientDetailsPage(patient: patient),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to open patient: $e')),
+      );
+    }
+  }
+
   ReportFilters _defaultFilters(ReportType type) {
     return switch (type) {
+      ReportType.patients ||
       ReportType.medicineStock ||
       ReportType.equipmentStock ||
       ReportType.patientWards => const ReportFilters(),
