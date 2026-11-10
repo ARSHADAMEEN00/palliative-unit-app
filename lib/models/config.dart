@@ -100,6 +100,35 @@ class WardConfig {
   }
 }
 
+class TransferSettings {
+  TransferSettings({this.expiryDays = 14, Set<String>? requiredChecks})
+    : requiredChecks =
+          requiredChecks ??
+          {
+            'identity_verified',
+            'address_verified',
+            'consent_confirmed',
+            'records_reviewed',
+          };
+
+  int expiryDays;
+  final Set<String> requiredChecks;
+
+  factory TransferSettings.fromJson(Map<String, dynamic> json) {
+    return TransferSettings(
+      expiryDays: int.tryParse(json['expiryDays']?.toString() ?? '') ?? 14,
+      requiredChecks: (json['requiredChecks'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toSet(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'expiryDays': expiryDays,
+    'requiredChecks': requiredChecks.toList(),
+  };
+}
+
 class Config {
   final String? id;
   final List<String> villages;
@@ -110,6 +139,7 @@ class Config {
   String volunteerAvailabilityStartTime;
   String volunteerAvailabilityEndTime;
   String? workingTime;
+  final TransferSettings transferSettings;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -123,9 +153,10 @@ class Config {
     this.volunteerAvailabilityStartTime = '09:30 AM',
     this.volunteerAvailabilityEndTime = '03:30 PM',
     this.workingTime,
+    TransferSettings? transferSettings,
     this.createdAt,
     this.updatedAt,
-  });
+  }) : transferSettings = transferSettings ?? TransferSettings();
 
   String get volunteerAvailabilityTimeWindow {
     final start = volunteerAvailabilityStartTime.trim().isNotEmpty
@@ -168,17 +199,26 @@ class Config {
               .toList() ??
           [1, 2, 3, 4, 5, 6],
       volunteerAvailabilityStartTime:
-          json['volunteerAvailabilityStartTime']?.toString().trim().isNotEmpty ==
-                  true
-              ? json['volunteerAvailabilityStartTime'].toString().trim()
-              : '09:30 AM',
+          json['volunteerAvailabilityStartTime']
+                  ?.toString()
+                  .trim()
+                  .isNotEmpty ==
+              true
+          ? json['volunteerAvailabilityStartTime'].toString().trim()
+          : '09:30 AM',
       volunteerAvailabilityEndTime:
           json['volunteerAvailabilityEndTime']?.toString().trim().isNotEmpty ==
-                  true
-              ? json['volunteerAvailabilityEndTime'].toString().trim()
-              : '03:30 PM',
-      workingTime: json['workingTime']?.toString().trim() ??
+              true
+          ? json['volunteerAvailabilityEndTime'].toString().trim()
+          : '03:30 PM',
+      workingTime:
+          json['workingTime']?.toString().trim() ??
           json['working_time']?.toString().trim(),
+      transferSettings: json['transferSettings'] is Map
+          ? TransferSettings.fromJson(
+              Map<String, dynamic>.from(json['transferSettings'] as Map),
+            )
+          : TransferSettings(),
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : null,
@@ -199,6 +239,7 @@ class Config {
       'volunteerAvailabilityStartTime': volunteerAvailabilityStartTime,
       'volunteerAvailabilityEndTime': volunteerAvailabilityEndTime,
       if (workingTime != null) 'workingTime': workingTime,
+      'transferSettings': transferSettings.toJson(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };

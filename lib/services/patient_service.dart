@@ -30,13 +30,15 @@ class PatientService {
     String filter = 'all',
     String? village,
     String? ward,
+    List<String>? currentWardIds,
   }) async {
     final hasSubFilter =
         (village != null && village.isNotEmpty) ||
         (ward != null && ward.isNotEmpty);
+    final hasOperationalWardFilter = currentWardIds?.isNotEmpty == true;
 
     // Only cache unfiltered list views — village/ward sub-views are live
-    if (!hasSubFilter) {
+    if (!hasSubFilter && !hasOperationalWardFilter) {
       return AppCache.get<PatientListResponse>(
         'patients:$filter',
         ttl: _ttl,
@@ -44,17 +46,24 @@ class PatientService {
           filter: filter,
           village: village,
           ward: ward,
+          currentWardIds: currentWardIds,
         ),
       );
     }
 
-    return _fetchPatientsList(filter: filter, village: village, ward: ward);
+    return _fetchPatientsList(
+      filter: filter,
+      village: village,
+      ward: ward,
+      currentWardIds: currentWardIds,
+    );
   }
 
   static Future<PatientListResponse> _fetchPatientsList({
     String filter = 'all',
     String? village,
     String? ward,
+    List<String>? currentWardIds,
   }) async {
     String query =
         '${ApiConfig.patientsEndpoint}?filter=$filter&populate=createdBy';
@@ -63,6 +72,10 @@ class PatientService {
     }
     if (ward != null && ward.isNotEmpty) {
       query += '&ward=${Uri.encodeComponent(ward)}';
+    }
+    if (currentWardIds != null && currentWardIds.isNotEmpty) {
+      query +=
+          '&currentWardIds=${Uri.encodeComponent(currentWardIds.join(','))}';
     }
     final result = await ApiService.get<dynamic>(query);
 
@@ -145,9 +158,7 @@ class PatientService {
 
   /// Delete a patient and invalidate the patients cache.
   static Future<bool> deletePatient(String id) async {
-    final result = await ApiService.delete(
-      '${ApiConfig.patientsEndpoint}/$id',
-    );
+    final result = await ApiService.delete('${ApiConfig.patientsEndpoint}/$id');
 
     if (result.isSuccess) {
       AppCache.invalidatePrefix(_prefix);

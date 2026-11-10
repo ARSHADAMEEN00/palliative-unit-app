@@ -1,4 +1,31 @@
 import 'package:oruma_app/models/config.dart';
+import 'package:oruma_app/models/ward.dart';
+
+class PatientUnitRegistration {
+  const PatientUnitRegistration({
+    required this.unitId,
+    required this.registerId,
+    this.activeFrom,
+    this.activeUntil,
+    this.transferRequestId,
+  });
+
+  final String unitId;
+  final String registerId;
+  final DateTime? activeFrom;
+  final DateTime? activeUntil;
+  final String? transferRequestId;
+
+  factory PatientUnitRegistration.fromJson(Map<String, dynamic> json) {
+    return PatientUnitRegistration(
+      unitId: json['unitId']?.toString() ?? '',
+      registerId: json['registerId']?.toString() ?? '',
+      activeFrom: DateTime.tryParse(json['activeFrom']?.toString() ?? ''),
+      activeUntil: DateTime.tryParse(json['activeUntil']?.toString() ?? ''),
+      transferRequestId: json['transferRequestId']?.toString(),
+    );
+  }
+}
 
 /// Patient model that matches the backend schema.
 class Patient {
@@ -14,6 +41,8 @@ class Patient {
   final String place;
   final String village;
   final String? ward;
+  final String? currentWardId;
+  final Ward? currentWard;
   final List<String> disease;
   final String plan;
   final String? locationLink;
@@ -27,6 +56,11 @@ class Patient {
   final String? createdBy;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String transferStatus;
+  final String? careJourneyId;
+  final String? previousUnitId;
+  final String? currentTransferRequestId;
+  final List<PatientUnitRegistration> unitRegistrationHistory;
 
   const Patient({
     this.id,
@@ -41,6 +75,8 @@ class Patient {
     required this.place,
     required this.village,
     this.ward,
+    this.currentWardId,
+    this.currentWard,
     this.disease = const [],
     required this.plan,
     this.locationLink,
@@ -54,6 +90,11 @@ class Patient {
     this.createdBy,
     this.createdAt,
     this.updatedAt,
+    this.transferStatus = 'ACTIVE',
+    this.careJourneyId,
+    this.previousUnitId,
+    this.currentTransferRequestId,
+    this.unitRegistrationHistory = const [],
   });
 
   /// Create Patient from JSON (API response).
@@ -75,6 +116,12 @@ class Patient {
       place: json['place']?.toString() ?? '',
       village: json['village']?.toString() ?? '',
       ward: normalizedWard.isEmpty ? null : normalizedWard,
+      currentWardId: _getId(json['currentWardId']),
+      currentWard: json['currentWard'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['currentWard']))
+          : json['currentWardId'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['currentWardId']))
+          : null,
       disease: json['disease'] is List
           ? List<String>.from(json['disease'])
           : json['disease'] != null
@@ -102,6 +149,20 @@ class Patient {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
+      transferStatus:
+          json['transferStatus']?.toString().toUpperCase() ?? 'ACTIVE',
+      careJourneyId: _getId(json['careJourneyId']),
+      previousUnitId: _getId(json['previousUnitId']),
+      currentTransferRequestId: _getId(json['currentTransferRequestId']),
+      unitRegistrationHistory:
+          (json['unitRegistrationHistory'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map(
+                (item) => PatientUnitRegistration.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList(),
     );
   }
 
@@ -119,6 +180,7 @@ class Patient {
       'place': place,
       'village': village,
       'ward': ward == null ? null : normalizeWardNumberValue(ward),
+      'currentWardId': currentWardId,
       'disease': disease,
       'plan': plan,
       'locationLink': locationLink,
@@ -146,6 +208,8 @@ class Patient {
     String? place,
     String? village,
     String? ward,
+    String? currentWardId,
+    Ward? currentWard,
     List<String>? disease,
     String? plan,
     String? locationLink,
@@ -156,6 +220,11 @@ class Patient {
     DateTime? registrationDate,
     bool? isDead,
     DateTime? dateOfDeath,
+    String? transferStatus,
+    String? careJourneyId,
+    String? previousUnitId,
+    String? currentTransferRequestId,
+    List<PatientUnitRegistration>? unitRegistrationHistory,
   }) {
     return Patient(
       id: id ?? this.id,
@@ -170,6 +239,8 @@ class Patient {
       place: place ?? this.place,
       village: village ?? this.village,
       ward: ward ?? this.ward,
+      currentWardId: currentWardId ?? this.currentWardId,
+      currentWard: currentWard ?? this.currentWard,
       disease: disease ?? this.disease,
       plan: plan ?? this.plan,
       locationLink: locationLink ?? this.locationLink,
@@ -182,6 +253,13 @@ class Patient {
       dateOfDeath: dateOfDeath ?? this.dateOfDeath,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      transferStatus: transferStatus ?? this.transferStatus,
+      careJourneyId: careJourneyId ?? this.careJourneyId,
+      previousUnitId: previousUnitId ?? this.previousUnitId,
+      currentTransferRequestId:
+          currentTransferRequestId ?? this.currentTransferRequestId,
+      unitRegistrationHistory:
+          unitRegistrationHistory ?? this.unitRegistrationHistory,
     );
   }
 

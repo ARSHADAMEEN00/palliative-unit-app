@@ -606,7 +606,13 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
             const SizedBox(height: AppSpacing.sm),
         itemBuilder: (context, index) {
           final supply = filteredList[index];
-          return _buildSupplyCard(supply, isActive: supply.status == 'active');
+          return _buildSupplyCard(
+            supply,
+            isActive: const [
+              'active',
+              'transferred_external',
+            ].contains(supply.status),
+          );
         },
       ),
     );
@@ -678,13 +684,15 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
   Widget _buildSupplyCard(EquipmentSupply supply, {required bool isActive}) {
     final statusColor = _getStatusColor(supply.status);
     final authService = Provider.of<AuthService>(context, listen: false);
-    final canEdit = authService.canEdit;
-    final canDelete = authService.canDelete;
+    final externallyHeld = supply.status == 'transferred_external';
+    final canReturn = authService.canEdit;
+    final canEdit = authService.canEdit && !externallyHeld;
+    final canDelete = authService.canDelete && !externallyHeld;
     final recipientName = _supplyRecipientName(supply);
     final placeLabel = _supplyPlaceLabel(supply);
 
     Widget buildReturnButton() {
-      if (isActive && canEdit) {
+      if (isActive && canReturn) {
         return InkWell(
           onTap: () => _returnSupply(supply),
           borderRadius: BorderRadius.circular(999),
@@ -1006,95 +1014,96 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                       'Phone',
                       supply.receiverPhone ?? 'N/A',
                     ),
-                if (supply.receiverAddress != null &&
-                    supply.receiverAddress!.isNotEmpty)
-                  _buildDetailRow(
-                    Icons.location_on,
-                    'Address',
-                    supply.receiverAddress!,
-                  ),
-                if (supply.receiverPlace != null &&
-                    supply.receiverPlace!.isNotEmpty)
-                  _buildDetailRow(
-                    Icons.location_city,
-                    'Place',
-                    supply.receiverPlace!,
-                  ),
-                if (supply.careOf != null && supply.careOf!.isNotEmpty)
-                  _buildDetailRow(
-                    Icons.supervised_user_circle,
-                    'Care Of',
-                    supply.careOf!,
-                  ),
-              ],
-              const SizedBox(height: AppSpacing.lg),
-              _buildDetailRow(
-                Icons.calendar_today,
-                'Supply Date',
-                _formatDate(supply.supplyDate),
-              ),
-              if (supply.returnDate != null)
-                _buildDetailRow(
-                  Icons.event_available,
-                  'Expected Return',
-                  _formatDate(supply.returnDate!),
-                ),
-              if (supply.actualReturnDate != null) ...[
-                const SizedBox(height: 8),
-                _buildDetailRow(
-                  Icons.check_circle_outlined,
-                  'Returned On',
-                  _formatDate(supply.actualReturnDate!),
-                ),
-              ],
-              if (supply.notes != null && supply.notes!.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.md),
-                _buildDetailRow(Icons.note, 'Notes', supply.notes!),
-              ],
-              if (supply.returnNote != null &&
-                  supply.returnNote!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _buildDetailRow(
-                  Icons.assignment_return_outlined,
-                  'Return Notes',
-                  supply.returnNote!,
-                ),
-              ],
-              if (supply.createdBy != null) ...[
+                  if (supply.receiverAddress != null &&
+                      supply.receiverAddress!.isNotEmpty)
+                    _buildDetailRow(
+                      Icons.location_on,
+                      'Address',
+                      supply.receiverAddress!,
+                    ),
+                  if (supply.receiverPlace != null &&
+                      supply.receiverPlace!.isNotEmpty)
+                    _buildDetailRow(
+                      Icons.location_city,
+                      'Place',
+                      supply.receiverPlace!,
+                    ),
+                  if (supply.careOf != null && supply.careOf!.isNotEmpty)
+                    _buildDetailRow(
+                      Icons.supervised_user_circle,
+                      'Care Of',
+                      supply.careOf!,
+                    ),
+                ],
                 const SizedBox(height: AppSpacing.lg),
-                Padding(
-                  padding: const EdgeInsets.only(top: 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Created by: ${supply.createdBy}',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (supply.createdAt != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            'Created on: ${_formatDate(supply.createdAt!)}',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: AppColors.textMuted,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ),
-                    ],
-                  ),
+                _buildDetailRow(
+                  Icons.calendar_today,
+                  'Supply Date',
+                  _formatDate(supply.supplyDate),
                 ),
+                if (supply.returnDate != null)
+                  _buildDetailRow(
+                    Icons.event_available,
+                    'Expected Return',
+                    _formatDate(supply.returnDate!),
+                  ),
+                if (supply.actualReturnDate != null) ...[
+                  const SizedBox(height: 8),
+                  _buildDetailRow(
+                    Icons.check_circle_outlined,
+                    'Returned On',
+                    _formatDate(supply.actualReturnDate!),
+                  ),
+                ],
+                if (supply.notes != null && supply.notes!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _buildDetailRow(Icons.note, 'Notes', supply.notes!),
+                ],
+                if (supply.returnNote != null &&
+                    supply.returnNote!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildDetailRow(
+                    Icons.assignment_return_outlined,
+                    'Return Notes',
+                    supply.returnNote!,
+                  ),
+                ],
+                if (supply.createdBy != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Created by: ${supply.createdBy}',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: AppColors.textMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        if (supply.createdAt != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Created on: ${_formatDate(supply.createdAt!)}',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: AppColors.textMuted,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      );
-    },
+        );
+      },
     );
   }
 
@@ -1149,6 +1158,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     switch (status.toLowerCase()) {
       case 'active':
         return _equipmentSupplyStrong;
+      case 'transferred_external':
+        return AppColors.warning;
       case 'returned':
         return AppColors.success;
       case 'lost':
@@ -1168,7 +1179,9 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
         border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Text(
-        status.toUpperCase(),
+        status == 'transferred_external'
+            ? 'EXTERNAL CUSTODY'
+            : status.replaceAll('_', ' ').toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w700,

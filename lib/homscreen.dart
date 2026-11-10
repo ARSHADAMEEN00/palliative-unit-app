@@ -36,6 +36,8 @@ import 'package:oruma_app/services/home_visit_service.dart';
 import 'package:oruma_app/services/notification_service.dart';
 import 'package:oruma_app/services/patient_enquiry_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
+import 'package:oruma_app/models/ward.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/models/app_notification.dart';
 import 'package:oruma_app/models/about_us.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
@@ -131,6 +133,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   int? _patientCount;
   int _newPatientCountThisWeek = 0;
   int _newPatientCountThisMonth = 0;
+  List<WardPatientCount> _wardPatientCounts = const [];
   int _todayHomeVisitCount = 0;
   DateTime? _latestHomeVisitDate;
   int _latestHomeVisitCount = 0;
@@ -435,6 +438,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     )
                     .length;
               });
+            })
+            .catchError((_) {}),
+      );
+      futures.add(
+        WardService.getPatientCounts()
+            .then((counts) {
+              if (mounted) setState(() => _wardPatientCounts = counts);
             })
             .catchError((_) {}),
       );
@@ -1341,7 +1351,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
                                   Text(
-                                    '${_profileRoleLabel(auth.role)} · ${auth.unitName}',
+                                    '${_profileRoleLabel(auth, auth.role)} · ${auth.unitName}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
@@ -1416,6 +1426,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                     MaterialPageRoute(
                                       builder: (context) => const ConfigPage(
                                         mode: ConfigPageMode.settings,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildProfileMenuItem(
+                                icon: Icons.holiday_village_outlined,
+                                title: 'LSGs & Wards',
+                                subtitle: 'Manage villages and ward numbers',
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  Navigator.of(pageContext).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const ConfigPage(
+                                        mode: ConfigPageMode.lsg,
                                       ),
                                     ),
                                   );
@@ -1550,17 +1575,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     );
   }
 
-  String _profileRoleLabel(String? role) {
-    return switch (role?.toLowerCase()) {
-      'admin' => 'Administrator',
-      'staff' => 'Staff',
-      'member' => 'Member',
-      'volunteer' => 'Volunteer',
-      'public' => 'Public user',
-      'superadmin' => 'Super administrator',
-      _ => 'User',
-    };
-  }
+  String _profileRoleLabel(AuthService auth, String? role) =>
+      auth.roleLabel(role);
 
   Widget _buildProfileSectionTitle(BuildContext context, String title) {
     return Text(
@@ -2423,7 +2439,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                   auth.isStaff
                       ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your staff account.'
                       : auth.isMember
-                      ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your member account.'
+                      ? 'Verify ${auth.userEmail ?? 'your email address'} to secure your ${auth.roleLabel('member').toLowerCase()} account.'
                       : 'Verify ${auth.userEmail ?? 'your email address'} to secure your account and submit enquiries.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -4648,10 +4664,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   List<_HomeMetricAction> _priorityActions(AuthService auth) {
     final monthStr = DateFormat('MMM').format(DateTime.now());
+    final wardSummary = _wardPatientCounts
+        .take(2)
+        .map((row) => '${row.ward?.name ?? 'Unassigned'} ${row.active}')
+        .join(' • ');
     final patientSubtitle = auth.isMember
         ? 'Your family'
         : auth.isVolunteer
         ? 'Assigned to you'
+        : wardSummary.isNotEmpty
+        ? wardSummary
         : auth.isAdmin
         ? '$_newPatientCountThisMonth New $monthStr'
         : auth.isStaff && _todayHomeVisitCount > 0
@@ -7003,7 +7025,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         ),
                         const SizedBox(height: AppSpacing.xxs),
                         Text(
-                          '${_profileRoleLabel(auth.role)} · $userDetail',
+                          '${_profileRoleLabel(auth, auth.role)} · $userDetail',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.labelSmall
@@ -7369,6 +7391,22 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     },
                   ),
                   if (auth.isAdmin) ...[
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.holiday_village_outlined,
+                      title: "LSGs & Wards",
+                      compact: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ConfigPage(mode: ConfigPageMode.lsg),
+                          ),
+                        );
+                      },
+                    ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.settings_outlined,

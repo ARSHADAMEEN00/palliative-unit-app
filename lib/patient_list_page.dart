@@ -17,6 +17,11 @@ import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:oruma_app/volunteer_patient_registration_page.dart';
 import 'package:oruma_app/patient_enquiry_list_page.dart';
+import 'package:oruma_app/patient_transfer_requests_page.dart';
+import 'package:oruma_app/services/patient_transfer_service.dart';
+import 'package:oruma_app/transferred_patient_list_page.dart';
+import 'package:oruma_app/models/ward.dart';
+import 'package:oruma_app/services/ward_service.dart';
 
 class PatientListPage extends StatefulWidget {
   const PatientListPage({super.key});
@@ -39,11 +44,14 @@ class _PatientListPageState extends State<PatientListPage> {
   List<String> _filteredWardsList = ['All'];
   String _selectedVillage = 'All';
   String _selectedWard = 'All';
+  List<Ward> _careWards = const [];
+  Set<String> _selectedCareWardIds = <String>{};
 
   // Search
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   String _searchQuery = '';
+  int _incomingTransferCount = 0;
 
   @override
   void initState() {
@@ -55,15 +63,29 @@ class _PatientListPageState extends State<PatientListPage> {
     });
     _loadConfig();
     _loadPatients();
+    _loadTransferCount();
+  }
+
+  Future<void> _loadTransferCount() async {
+    try {
+      final count = await PatientTransferService.incomingCount();
+      if (mounted) setState(() => _incomingTransferCount = count);
+    } catch (_) {}
   }
 
   Future<void> _loadConfig() async {
     try {
-      final config = await ConfigService.getConfig();
+      final results = await Future.wait([
+        ConfigService.getConfig(),
+        WardService.getWards(),
+      ]);
+      final config = results[0] as Config;
+      final careWards = results[1] as List<Ward>;
       if (mounted) {
         setState(() {
           _villagesList = ['All', ...config.villages];
           _allWards = sortWardConfigs(config.wards);
+          _careWards = careWards;
           _updateFilteredWardsList();
         });
       }
@@ -115,6 +137,7 @@ class _PatientListPageState extends State<PatientListPage> {
         filter: _currentFilter,
         village: _selectedVillage != 'All' ? _selectedVillage : null,
         ward: _selectedWard != 'All' ? _selectedWard : null,
+        currentWardIds: _selectedCareWardIds.toList(),
       );
       if (mounted) {
         setState(() {
@@ -160,7 +183,11 @@ class _PatientListPageState extends State<PatientListPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline_rounded, size: 48, color: AppColors.danger),
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
                 SizedBox(height: AppSpacing.md),
                 Text(
                   'Access Denied',
@@ -226,6 +253,86 @@ class _PatientListPageState extends State<PatientListPage> {
                 ),
               ),
             ),
+          if (!_isSearching && auth.canViewPatientTransfers)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: Tooltip(
+                message: 'Patient Transfers',
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Material(
+                      color: AppColors.surface1,
+                      borderRadius: AppRadius.md,
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Patient transfer menu',
+                          icon: const Icon(Icons.swap_horiz_rounded),
+                          onSelected: (value) async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => value == 'archive'
+                                    ? const TransferredPatientListPage()
+                                    : const PatientTransferRequestsPage(),
+                              ),
+                            );
+                            _loadPatients();
+                            _loadTransferCount();
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'requests',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.move_to_inbox_outlined),
+                                title: Text('Transfer requests'),
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'archive',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.archive_outlined),
+                                title: Text('Transferred patients'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_incomingTransferCount > 0)
+                      Positioned(
+                        right: -3,
+                        top: -5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: AppColors.background),
+                          ),
+                          child: Text(
+                            _incomingTransferCount > 99
+                                ? '99+'
+                                : '$_incomingTransferCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           if (!_isSearching)
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -274,6 +381,10 @@ class _PatientListPageState extends State<PatientListPage> {
                   if (_selectedWard != 'All' && p.ward != _selectedWard) {
                     return false;
                   }
+                  if (_selectedCareWardIds.isNotEmpty) {
+                    final value = p.currentWardId ?? 'unassigned';
+                    if (!_selectedCareWardIds.contains(value)) return false;
+                  }
 
                   // Text search filter
                   if (_searchQuery.isNotEmpty) {
@@ -314,12 +425,13 @@ class _PatientListPageState extends State<PatientListPage> {
                             onPressed: _navigateToCreatePatient,
                           )
                         : (auth.canVolunteerRegisterPatient
-                            ? AppPrimaryButton(
-                                label: 'Register Patient',
-                                icon: Icons.person_add_alt_1,
-                                onPressed: _navigateToVolunteerPatientRegister,
-                              )
-                            : null),
+                              ? AppPrimaryButton(
+                                  label: 'Register Patient',
+                                  icon: Icons.person_add_alt_1,
+                                  onPressed:
+                                      _navigateToVolunteerPatientRegister,
+                                )
+                              : null),
                   );
                 }
 
@@ -538,45 +650,118 @@ class _PatientListPageState extends State<PatientListPage> {
         AppInsets.screenHorizontal(context),
         AppSpacing.sm,
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _PatientDropdown(
-              value: _selectedVillage,
-              icon: Icons.location_on_outlined,
-              items: _villagesList,
-              labelBuilder: (value) => value == 'All' ? 'All villages' : value,
-              onChanged: (newValue) {
-                if (newValue != null && newValue != _selectedVillage) {
-                  setState(() {
-                    _selectedVillage = newValue;
-                    _updateFilteredWardsList();
-                  });
-                  _loadPatients();
-                }
-              },
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _PatientDropdown(
+                  value: _selectedVillage,
+                  icon: Icons.location_on_outlined,
+                  items: _villagesList,
+                  labelBuilder: (value) =>
+                      value == 'All' ? 'All villages' : value,
+                  onChanged: (newValue) {
+                    if (newValue != null && newValue != _selectedVillage) {
+                      setState(() {
+                        _selectedVillage = newValue;
+                        _updateFilteredWardsList();
+                      });
+                      _loadPatients();
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _PatientDropdown(
+                  value: _selectedWard,
+                  icon: Icons.map_outlined,
+                  items: _filteredWardsList,
+                  labelBuilder: _wardFilterLabel,
+                  onChanged: (newValue) {
+                    if (newValue != null && newValue != _selectedWard) {
+                      setState(() {
+                        _selectedWard = newValue;
+                      });
+                      _loadPatients();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: _PatientDropdown(
-              value: _selectedWard,
-              icon: Icons.map_outlined,
-              items: _filteredWardsList,
-              labelBuilder: _wardFilterLabel,
-              onChanged: (newValue) {
-                if (newValue != null && newValue != _selectedWard) {
-                  setState(() {
-                    _selectedWard = newValue;
-                  });
-                  _loadPatients();
-                }
-              },
+          const SizedBox(height: AppSpacing.sm),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showCareWardFilter,
+              icon: const Icon(Icons.local_hospital_outlined),
+              label: Text(
+                _selectedCareWardIds.isEmpty
+                    ? 'All care wards'
+                    : '${_selectedCareWardIds.length} care ward filter(s)',
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _showCareWardFilter() async {
+    var selected = <String>{..._selectedCareWardIds};
+    final applied = await showDialog<Set<String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Filter by care ward'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CheckboxListTile(
+                    value: selected.contains('unassigned'),
+                    title: const Text('Unassigned'),
+                    onChanged: (checked) => setDialogState(() {
+                      checked == true
+                          ? selected.add('unassigned')
+                          : selected.remove('unassigned');
+                    }),
+                  ),
+                  ..._careWards.map(
+                    (ward) => CheckboxListTile(
+                      value: selected.contains(ward.id),
+                      title: Text(ward.label),
+                      onChanged: (checked) => setDialogState(() {
+                        checked == true
+                            ? selected.add(ward.id)
+                            : selected.remove(ward.id);
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, <String>{}),
+              child: const Text('Clear'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, selected),
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (applied == null || !mounted) return;
+    setState(() => _selectedCareWardIds = applied);
+    await _loadPatients();
   }
 
   Future<void> _navigateToEditPatient(Patient patient) async {
@@ -730,6 +915,13 @@ class _PatientListPageState extends State<PatientListPage> {
                         label: 'Passed away',
                         color: AppColors.danger,
                       ),
+                    ] else if (patient.transferStatus ==
+                        'TRANSFER_PENDING') ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      const _PatientStatusPill(
+                        label: 'Transfer pending',
+                        color: AppColors.warning,
+                      ),
                     ],
                   ],
                 ),
@@ -751,6 +943,13 @@ class _PatientListPageState extends State<PatientListPage> {
                         label: details,
                         color: AppColors.textSecondary,
                       ),
+                    _PatientMetaPill(
+                      icon: Icons.local_hospital_outlined,
+                      label: patient.currentWard?.name ?? 'Unassigned',
+                      color: patient.currentWard == null
+                          ? AppColors.warning
+                          : AppColors.primary,
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -813,8 +1012,10 @@ class _PatientListPageState extends State<PatientListPage> {
       ),
     );
 
-    final canEdit = authService.canEdit;
-    final canDelete = authService.canDelete;
+    final canEdit =
+        authService.canEdit && patient.transferStatus != 'TRANSFER_PENDING';
+    final canDelete =
+        authService.canDelete && patient.transferStatus != 'TRANSFER_PENDING';
 
     if (canEdit || canDelete) {
       final actions = <Widget>[];

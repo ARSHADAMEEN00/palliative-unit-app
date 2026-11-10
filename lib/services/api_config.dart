@@ -14,6 +14,7 @@ class ApiConfig {
 
   /// API Endpoints
   static String get patientsEndpoint => '$baseUrl/patients';
+  static String get wardsEndpoint => '$baseUrl/wards';
   static String get v2PatientsEndpoint => '$baseUrl/v2/patients';
   static String get v2MedicinesEndpoint => '$baseUrl/v2/medicines';
   static String get homeVisitsEndpoint => '$baseUrl/home-visits';
@@ -49,6 +50,9 @@ class ApiConfig {
   static String get publicPatientEnquiriesEndpoint =>
       '$baseUrl/public/patient-enquiries';
   static String get patientEnquiriesEndpoint => '$baseUrl/patient-enquiries';
+  static String get patientTransfersEndpoint => '$baseUrl/transfers';
+  static String get transferredPatientsEndpoint =>
+      '$baseUrl/transferred-patients';
   static String get patientEnquiriesCountEndpoint =>
       '$baseUrl/patient-enquiries/count';
   static String patientEnquiryStatusEndpoint(String id) =>

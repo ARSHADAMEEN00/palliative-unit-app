@@ -109,6 +109,7 @@ class AuthService with ChangeNotifier {
   String? get userAddress => _cleanString(_user?['address']);
   String? get userId => _cleanString(_user?['id'] ?? _user?['_id']);
   String? get userEmail => _cleanString(_user?['email']);
+  String? get userDisplayName => _cleanString(_user?['name']);
   String? get username => _cleanString(_user?['username']);
 
   Set<String>? get permittedModuleIds {
@@ -121,6 +122,15 @@ class AuthService with ChangeNotifier {
       _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canEdit => _role == 'admin' || _role == 'staff' || _role == 'member';
   bool get canDelete => _role == 'admin';
+  bool get canViewPatientTransfers =>
+      _role == 'admin' ||
+      _role == 'staff' ||
+      _role == 'member' ||
+      _role == 'superadmin';
+  bool get canInitiatePatientTransfer =>
+      _role == 'admin' || _role == 'staff' || _role == 'superadmin';
+  bool get canReviewPatientTransfer =>
+      _role == 'admin' || _role == 'superadmin';
   bool get canCall => !isVolunteer && !isPublicUser;
   bool get canViewContactNumbers => !isVolunteer && !isPublicUser;
   bool get canViewPatientDetails =>
@@ -390,6 +400,13 @@ class AuthService with ChangeNotifier {
 
   String? get unitId => _cleanString(_user?['unitId'] ?? unit?['id']);
 
+  bool get wardRestrictionEnabled {
+    final value =
+        unit?['wardRestrictionEnabled'] ?? unit?['ward_restriction_enabled'];
+    if (value is bool) return value;
+    return value?.toString().toLowerCase() == 'true';
+  }
+
   String get unitName => _firstText([
     unit?['name'],
     _user?['unitName'],
@@ -444,6 +461,25 @@ class AuthService with ChangeNotifier {
   String? get unitVillage => _cleanString(unit?['village']);
   String? get unitDistrict => _cleanString(unit?['district']);
   String? get unitAddress => _cleanString(unit?['address']);
+  String roleLabel(String? role) {
+    final normalized = role?.trim().toLowerCase() ?? '';
+    final labels = unit?['roleLabels'];
+    if (labels is Map) {
+      final custom = _cleanString(labels[normalized]);
+      if (custom != null) return custom;
+    }
+
+    return switch (normalized) {
+      'admin' => 'Administrator',
+      'staff' => 'Staff',
+      'member' => 'Member',
+      'volunteer' => 'Volunteer',
+      'public' => 'Public user',
+      'superadmin' => 'Super administrator',
+      _ => 'User',
+    };
+  }
+
   String? get unitContactEmail =>
       _cleanString(unit?['contactEmail'] ?? _supportValue('email'));
   String? get unitNotes => _cleanString(unit?['notes']);

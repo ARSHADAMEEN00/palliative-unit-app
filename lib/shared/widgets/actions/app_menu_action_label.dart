@@ -5,12 +5,14 @@ import 'package:oruma_app/core/theme/app_spacing.dart';
 class AppMenuActionLabel extends StatelessWidget {
   const AppMenuActionLabel({
     super.key,
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.label,
     this.color,
-  });
+  }) : assert(icon != null || leading != null, 'Either icon or leading must be provided');
 
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
   final String label;
   final Color? color;
 
@@ -20,7 +22,10 @@ class AppMenuActionLabel extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: foreground),
+        if (leading != null)
+          leading!
+        else if (icon != null)
+          Icon(icon, size: 18, color: foreground),
         const SizedBox(width: AppSpacing.sm),
         Text(
           label,

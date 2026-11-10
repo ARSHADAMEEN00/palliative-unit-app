@@ -21,8 +21,14 @@ import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:printing/printing.dart';
+import 'package:oruma_app/models/patient_transfer.dart';
+import 'package:oruma_app/models/ward.dart';
+import 'package:oruma_app/patient_transfer_form_page.dart';
+import 'package:oruma_app/patient_transfer_review_page.dart';
+import 'package:oruma_app/services/patient_transfer_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 
-enum _PatientAction { markDeceased, delete }
+enum _PatientAction { transfer, markDeceased, delete }
 
 enum _PatientDetailsTab {
   overview,
@@ -32,6 +38,7 @@ enum _PatientDetailsTab {
   assessments,
   medicines,
   socialSupport,
+  transferHistory,
 }
 
 const _patientCardBackground = AppColors.surface;
@@ -55,6 +62,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   bool _isMutating = false;
   bool _isPdfGenerating = false;
   String? _detailsError;
+  List<PatientTransferRequest> _transferHistory = const [];
+  bool _transferHistoryLoading = false;
+  String? _transferHistoryError;
+  List<PatientWardHistoryEntry> _wardHistory = const [];
+  bool _wardHistoryLoading = false;
 
   @override
   void initState() {
@@ -62,6 +74,67 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     _currentPatient = widget.patient;
     _details = PatientDetails(patient: widget.patient);
     _loadDetails();
+    _loadTransferHistory();
+    _loadWardHistory();
+  }
+
+  Future<void> _loadWardHistory() async {
+    final patientId = _currentPatient.id;
+    if (patientId == null || patientId.isEmpty) return;
+    if (mounted) setState(() => _wardHistoryLoading = true);
+    try {
+      final history = await WardService.getPatientHistory(patientId);
+      if (!mounted) return;
+      setState(() {
+        _wardHistory = history;
+        _wardHistoryLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _wardHistoryLoading = false);
+    }
+  }
+
+  Future<void> _loadTransferHistory() async {
+    final patientId = _currentPatient.id;
+    if (patientId == null || patientId.isEmpty) return;
+    if (mounted) {
+      setState(() {
+        _transferHistoryLoading = true;
+        _transferHistoryError = null;
+      });
+    }
+    try {
+      final history = await PatientTransferService.patientHistory(patientId);
+      if (!mounted) return;
+      setState(() {
+        _transferHistory = history;
+        _transferHistoryLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _transferHistoryLoading = false;
+        _transferHistoryError = _friendlyError(error);
+      });
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait([
+      _loadDetails(showLoader: false),
+      _loadTransferHistory(),
+      _loadWardHistory(),
+    ]);
+  }
+
+  Future<void> _transferPatient() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PatientTransferFormPage(patient: _currentPatient),
+      ),
+    );
+    if (changed == true && mounted) await _refreshAll();
   }
 
   Future<void> _loadDetails({bool showLoader = true}) async {
@@ -322,6 +395,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
 
   void _handlePatientAction(_PatientAction action) {
     switch (action) {
+      case _PatientAction.transfer:
+        _transferPatient();
+        return;
       case _PatientAction.markDeceased:
         _markAsDeceased();
         return;
@@ -349,7 +425,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline_rounded, size: 48, color: AppColors.danger),
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
                 SizedBox(height: AppSpacing.md),
                 Text(
                   'Access Denied',
@@ -367,8 +447,16 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
         ),
       );
     }
+    final transferPending =
+        _currentPatient.transferStatus == 'TRANSFER_PENDING';
+    final canTransfer =
+        auth.canInitiatePatientTransfer &&
+        !_currentPatient.isDead &&
+        !transferPending;
     final canShowMenu =
-        auth.canDelete || (auth.canEdit && !_currentPatient.isDead);
+        canTransfer ||
+        (!transferPending &&
+            (auth.canDelete || (auth.canEdit && !_currentPatient.isDead)));
     final visibleTabs = _visiblePatientTabs(auth);
 
     return DefaultTabController(
@@ -424,6 +512,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       if (auth.canAccessNHC) _PatientDetailsTab.assessments,
       if (auth.canAccessMedicineSupply) _PatientDetailsTab.medicines,
       if (auth.canAccessSocialSupport) _PatientDetailsTab.socialSupport,
+      if (auth.canViewPatientTransfers) _PatientDetailsTab.transferHistory,
     ];
   }
 
@@ -436,6 +525,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       _PatientDetailsTab.assessments => _buildAssessmentsTab(),
       _PatientDetailsTab.medicines => _buildMedicineSuppliesTab(),
       _PatientDetailsTab.socialSupport => _buildSocialSupportTab(),
+      _PatientDetailsTab.transferHistory => _buildTransferHistoryTab(),
     };
   }
 
@@ -555,7 +645,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
                 ),
         ),
-      if (auth.canEdit)
+      if (auth.canEdit && _currentPatient.transferStatus != 'TRANSFER_PENDING')
         Padding(
           padding: const EdgeInsets.only(right: AppSpacing.xs),
           child: IconButton(
@@ -579,18 +669,30 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
             shape: const RoundedRectangleBorder(borderRadius: AppRadius.card),
             onSelected: _handlePatientAction,
             itemBuilder: (context) => [
-              if (auth.canEdit && !_currentPatient.isDead)
+              if (auth.canInitiatePatientTransfer &&
+                  !_currentPatient.isDead &&
+                  _currentPatient.transferStatus != 'TRANSFER_PENDING')
                 const PopupMenuItem(
-                  value: _PatientAction.markDeceased,
-                  child: Row(
-                    children: [
-                      DeceasedIcon(size: 20, color: AppColors.danger),
-                      SizedBox(width: 12),
-                      Text('Mark as passed away'),
-                    ],
+                  value: _PatientAction.transfer,
+                  child: AppMenuActionLabel(
+                    icon: Icons.swap_horiz_rounded,
+                    label: 'Transfer patient',
+                    color: AppColors.primary,
                   ),
                 ),
-              if (auth.canDelete)
+              if (auth.canEdit &&
+                  !_currentPatient.isDead &&
+                  _currentPatient.transferStatus != 'TRANSFER_PENDING')
+                const PopupMenuItem(
+                  value: _PatientAction.markDeceased,
+                  child: AppMenuActionLabel(
+                    leading: DeceasedIcon(size: 18, color: AppColors.warning),
+                    label: 'Mark as passed away',
+                    color: AppColors.warning,
+                  ),
+                ),
+              if (auth.canDelete &&
+                  _currentPatient.transferStatus != 'TRANSFER_PENDING')
                 const PopupMenuItem(
                   value: _PatientAction.delete,
                   child: AppMenuActionLabel(
@@ -608,7 +710,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   double _headerActionWidth(AuthService auth, bool canShowMenu) {
     var width = 16.0;
     if (auth.canAccessPatientPdf) width += 52;
-    if (auth.canEdit) width += 52;
+    if (auth.canEdit && _currentPatient.transferStatus != 'TRANSFER_PENDING') {
+      width += 52;
+    }
     if (canShowMenu) width += 48;
     return width;
   }
@@ -686,6 +790,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: 10),
+          _lightHeaderPill(
+            _currentPatient.currentWard?.name ?? 'Unassigned',
+            icon: Icons.local_hospital_outlined,
           ),
           if (_currentPatient.isDead) ...[
             const SizedBox(height: 10),
@@ -821,6 +930,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
             _PatientDetailsTab.medicines => 'Medicines ($medicineSupplyCount)',
             _PatientDetailsTab.socialSupport =>
               'Social Support ($socialSupportCount)',
+            _PatientDetailsTab.transferHistory =>
+              'Transfers (${_transferHistory.length})',
           };
           return Tab(text: label);
         }).toList(),
@@ -836,6 +947,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppInsets.page,
         children: [
+          if (_currentPatient.transferStatus == 'TRANSFER_PENDING') ...[
+            _transferPendingBanner(),
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (_detailsError != null) ...[
             _buildSyncError(),
             const SizedBox(height: AppSpacing.sm),
@@ -859,7 +974,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   Icons.call_outlined,
                   'Phone',
                   _value(_currentPatient.phone),
-                  trailing: auth.canCall ? _phoneButton(_currentPatient.phone) : null,
+                  trailing: auth.canCall
+                      ? _phoneButton(_currentPatient.phone)
+                      : null,
                 ),
               if (_currentPatient.caregiverName?.trim().isNotEmpty == true)
                 _infoRow(
@@ -877,7 +994,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   Icons.phone_android_outlined,
                   'Caregiver phone',
                   _value(_currentPatient.phone2),
-                  trailing: auth.canCall ? _phoneButton(_currentPatient.phone2) : null,
+                  trailing: auth.canCall
+                      ? _phoneButton(_currentPatient.phone2)
+                      : null,
                 ),
               if (_currentPatient.volunteerName?.trim().isNotEmpty == true)
                 _infoRow(
@@ -891,7 +1010,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   Icons.call_outlined,
                   'Volunteer contact',
                   _value(_currentPatient.volunteerContact),
-                  trailing: auth.canCall ? _phoneButton(_currentPatient.volunteerContact) : null,
+                  trailing: auth.canCall
+                      ? _phoneButton(_currentPatient.volunteerContact)
+                      : null,
                 ),
               _infoRow(
                 Icons.wc_outlined,
@@ -926,6 +1047,11 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 _value(_currentPatient.village),
               ),
               _infoRow(
+                Icons.local_hospital_outlined,
+                'Care ward',
+                _currentPatient.currentWard?.label ?? 'Unassigned',
+              ),
+              _infoRow(
                 Icons.apartment_outlined,
                 'Ward number',
                 _value(_currentPatient.ward),
@@ -933,6 +1059,41 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               if (_currentPatient.locationLink?.trim().isNotEmpty == true)
                 _mapButton(_currentPatient.locationLink!),
             ]),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _sectionCard(
+            icon: Icons.history_outlined,
+            title: 'Ward history',
+            children: [
+              if (_wardHistoryLoading)
+                const LinearProgressIndicator()
+              else if (_wardHistory.isEmpty)
+                const Text(
+                  'No ward changes recorded yet.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                )
+              else
+                ..._wardHistory.map(
+                  (entry) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: const Icon(Icons.swap_horiz_outlined),
+                    title: Text(
+                      '${entry.fromWard?.name ?? 'Unassigned'} → ${entry.toWard.name}',
+                    ),
+                    subtitle: Text(
+                      [
+                        DateFormat(
+                          'dd MMM yyyy, h:mm a',
+                        ).format(entry.changedAt.toLocal()),
+                        if (entry.changedByName?.isNotEmpty == true)
+                          entry.changedByName!,
+                        if (entry.note?.isNotEmpty == true) entry.note!,
+                      ].join(' • '),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -1175,6 +1336,109 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     );
   }
 
+  Widget _buildTransferHistoryTab() {
+    if (_transferHistoryLoading && _transferHistory.isEmpty) {
+      return const AppListSkeleton(itemCount: 3);
+    }
+    if (_transferHistoryError != null && _transferHistory.isEmpty) {
+      return _recordsError('Could not load transfer history');
+    }
+    if (_transferHistory.isEmpty) {
+      return _emptyState(
+        icon: Icons.swap_horiz_rounded,
+        title: 'No completed transfers',
+        message:
+            'Accepted transfers in this patient’s care journey will appear here.',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _refreshAll,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: AppInsets.page,
+        itemCount: _transferHistory.length,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+        itemBuilder: (context, index) {
+          final transfer = _transferHistory[index];
+          final acceptedAt = transfer.acceptedAt ?? transfer.transferDate;
+          return _sectionCard(
+            icon: Icons.swap_horiz_rounded,
+            title:
+                '${transfer.sourceUnit?.name ?? 'Source unit'} → '
+                '${transfer.destinationUnit?.name ?? 'Destination unit'}',
+            children: _withSpacing([
+              _infoRow(
+                Icons.event_outlined,
+                'Accepted',
+                DateFormat('dd MMM yyyy, hh:mm a').format(acceptedAt),
+              ),
+              _infoRow(Icons.notes_outlined, 'Reason', transfer.reason),
+              _infoRow(
+                Icons.person_outline,
+                'Accepted by',
+                _value(transfer.acceptedByName),
+              ),
+              _infoRow(
+                Icons.badge_outlined,
+                'Requested by',
+                _value(transfer.requestedByName),
+              ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _transferPendingBanner() {
+    final requestId = _currentPatient.currentTransferRequestId;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: AppRadius.card,
+        onTap: requestId == null
+            ? null
+            : () async {
+                final changed = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PatientTransferReviewPage(
+                      requestId: requestId,
+                      incoming: false,
+                    ),
+                  ),
+                );
+                if (changed == true && mounted) await _refreshAll();
+              },
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withValues(alpha: 0.09),
+            borderRadius: AppRadius.card,
+            border: Border.all(
+              color: AppColors.warning.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.lock_clock_outlined, color: AppColors.warning),
+              const SizedBox(width: AppSpacing.sm),
+              const Expanded(
+                child: Text(
+                  'Transfer pending — this patient is temporarily locked against '
+                  'editing, deletion, new clinical history, and status changes.',
+                ),
+              ),
+              if (requestId != null)
+                const Icon(Icons.chevron_right, color: AppColors.warning),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _homeVisitCard(HomeVisit visit, int index) {
     final modeColor = _visitModeColor(visit.visitMode);
 
@@ -1345,6 +1609,20 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               Icons.assignment_return_outlined,
               'Return note',
               supply.returnNote!,
+            ),
+          ],
+          if (supply.status == 'external_custody') ...[
+            const SizedBox(height: 10),
+            _detailLine(
+              Icons.account_balance_outlined,
+              'Asset owner',
+              _value(supply.ownerUnitName),
+            ),
+            const SizedBox(height: 10),
+            _detailLine(
+              Icons.info_outline,
+              'Custody',
+              'Issued by ${_value(supply.ownerUnitName)} — pending reassignment or return',
             ),
           ],
         ],
@@ -2229,6 +2507,14 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
         return 'Active';
       case 'returned':
         return 'Returned';
+      case 'transferred_external':
+        return 'External custody';
+      case 'external_custody':
+        return 'Source-owned';
+      case 'returned_to_owner':
+        return 'Returned to owner';
+      case 'formally_reassigned':
+        return 'Reassigned';
       case 'lost':
         return 'Lost';
       default:
@@ -2242,6 +2528,12 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
         return AppColors.success;
       case 'returned':
         return AppColors.offline;
+      case 'transferred_external':
+      case 'external_custody':
+        return AppColors.warning;
+      case 'returned_to_owner':
+      case 'formally_reassigned':
+        return AppColors.success;
       case 'lost':
         return AppColors.danger;
       default:

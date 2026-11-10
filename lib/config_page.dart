@@ -4,16 +4,18 @@ import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/staff_user.dart';
+import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/config_service.dart';
 import 'package:oruma_app/services/staff_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
 import 'package:provider/provider.dart';
 
-enum ConfigPageMode { combined, settings, staff }
+enum ConfigPageMode { combined, settings, staff, lsg }
 
 enum _DeleteStaffOption { removeFromUnit, deleteUser }
 
@@ -63,6 +65,8 @@ class _ConfigPageState extends State<ConfigPage>
 
   Config? _config;
   List<StaffUser> _staff = [];
+  List<Ward> _careWards = [];
+  List<WardPatientCount> _wardPatientCounts = [];
   Map<String, Set<String>> _rolePermissionDefaults = {
     for (final role in _permissionRoles)
       role: {..._defaultModulesForRole(role)},
@@ -71,6 +75,7 @@ class _ConfigPageState extends State<ConfigPage>
   String _selectedStaffSection = 'staff';
   String _selectedPermissionRole = 'staff';
   String _staffRoleFilter = 'all';
+  String _staffWardFilter = 'all';
   String _staffSearchQuery = '';
   final TextEditingController _staffSearchController = TextEditingController();
   final Set<String> _updatingStaffIds = <String>{};
@@ -171,7 +176,10 @@ class _ConfigPageState extends State<ConfigPage>
         if (widget.mode != ConfigPageMode.staff) {
           _fetchConfig();
         }
-        if (widget.mode != ConfigPageMode.settings) _fetchStaff();
+        if (widget.mode != ConfigPageMode.settings &&
+            widget.mode != ConfigPageMode.lsg) {
+          _fetchStaff();
+        }
       } else {
         setState(() {
           _isLoadingConfig = false;
@@ -211,10 +219,19 @@ class _ConfigPageState extends State<ConfigPage>
     });
 
     try {
-      final config = await ConfigService.getConfig(forceRefresh: true);
+      final results = await Future.wait([
+        ConfigService.getConfig(forceRefresh: true),
+        WardService.getWards(includeInactive: true, forceRefresh: true),
+        WardService.getPatientCounts(),
+      ]);
+      final config = results[0] as Config;
+      final careWards = results[1] as List<Ward>;
+      final wardPatientCounts = results[2] as List<WardPatientCount>;
       if (!mounted) return;
       setState(() {
         _config = config;
+        _careWards = careWards;
+        _wardPatientCounts = wardPatientCounts;
         _ensureSelectedWardVillage(config);
         _isLoadingConfig = false;
       });
@@ -237,12 +254,15 @@ class _ConfigPageState extends State<ConfigPage>
       final results = await Future.wait([
         StaffService.getStaff(),
         StaffService.getRolePermissions(),
+        WardService.getWards(forceRefresh: true),
       ]);
       final staff = results[0] as List<StaffUser>;
       final permissions = results[1] as RolePermissionSettings;
+      final careWards = results[2] as List<Ward>;
       if (!mounted) return;
       setState(() {
         _staff = staff;
+        _careWards = careWards;
         _rolePermissionDefaults = {
           for (final role in _permissionRoles)
             role: {...?permissions.rolePermissions[role]},
@@ -916,6 +936,7 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   Future<void> _showAddStaffSheet([String? initialRole]) async {
+    final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
@@ -925,6 +946,7 @@ class _ConfigPageState extends State<ConfigPage>
         : 'staff';
     var selectedRole = defaultRole;
     var selectedModules = <String>{..._modulesForRole(defaultRole)};
+    var selectedWardIds = <String>{};
     var obscurePassword = true;
     var isSubmitting = false;
     var modulesExpanded = false;
@@ -944,6 +966,14 @@ class _ConfigPageState extends State<ConfigPage>
                   return;
                 }
 
+                if (wardRequired &&
+                    selectedRole == 'staff' &&
+                    selectedWardIds.isEmpty) {
+                  setSheetState(() {
+                    formError = 'Select at least one ward for a staff user';
+                  });
+                  return;
+                }
                 final navigator = Navigator.of(sheetContext);
                 final messenger = ScaffoldMessenger.of(this.context);
                 setSheetState(() {
@@ -958,6 +988,7 @@ class _ConfigPageState extends State<ConfigPage>
                     password: passwordController.text,
                     role: selectedRole,
                     permittedModuleIds: selectedModules.toList(),
+                    wardIds: selectedWardIds.toList(),
                   );
                   if (!mounted) return;
                   setState(() {
@@ -1150,6 +1181,51 @@ class _ConfigPageState extends State<ConfigPage>
                                     }),
                             ),
                             const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Assigned wards${wardRequired && selectedRole == 'staff' ? ' *' : ' (optional)'}',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            if (_careWards.isEmpty)
+                              Text(
+                                wardRequired && selectedRole == 'staff'
+                                    ? 'Create an active ward before adding staff.'
+                                    : 'No active wards are available yet.',
+                                style: TextStyle(
+                                  color: wardRequired && selectedRole == 'staff'
+                                      ? AppColors.danger
+                                      : AppColors.textSecondary,
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: AppSpacing.xs,
+                                runSpacing: AppSpacing.xs,
+                                children: _careWards
+                                    .where((ward) => ward.isActive)
+                                    .map((ward) {
+                                      final selected = selectedWardIds.contains(
+                                        ward.id,
+                                      );
+                                      return FilterChip(
+                                        label: Text(ward.label),
+                                        selected: selected,
+                                        onSelected: isSubmitting
+                                            ? null
+                                            : (enabled) => setSheetState(() {
+                                                enabled
+                                                    ? selectedWardIds.add(
+                                                        ward.id,
+                                                      )
+                                                    : selectedWardIds.remove(
+                                                        ward.id,
+                                                      );
+                                              }),
+                                      );
+                                    })
+                                    .toList(),
+                              ),
+                            const SizedBox(height: AppSpacing.md),
                             InkWell(
                               borderRadius: AppRadius.sm,
                               onTap: () => setSheetState(
@@ -1329,6 +1405,7 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   Future<void> _showEditStaffDialog(StaffUser staff) async {
+    final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final nameController = TextEditingController(text: staff.name);
     final emailController = TextEditingController(text: staff.email);
     final passwordController = TextEditingController();
@@ -1340,6 +1417,7 @@ class _ConfigPageState extends State<ConfigPage>
           ? staff.permittedModuleIds
           : _modulesForRole(selectedRole)),
     };
+    var selectedWardIds = staff.assignedWards.map((ward) => ward.id).toSet();
     var obscurePassword = true;
     var saving = false;
     var modulesExpanded = false;
@@ -1354,6 +1432,14 @@ class _ConfigPageState extends State<ConfigPage>
               if (saving || !(formKey.currentState?.validate() ?? false)) {
                 return;
               }
+              if (wardRequired &&
+                  selectedRole == 'staff' &&
+                  selectedWardIds.isEmpty) {
+                setDialogState(() {
+                  errorMessage = 'Select at least one ward for a staff user';
+                });
+                return;
+              }
               setDialogState(() {
                 saving = true;
                 errorMessage = null;
@@ -1365,6 +1451,7 @@ class _ConfigPageState extends State<ConfigPage>
                   email: emailController.text,
                   role: selectedRole,
                   permittedModuleIds: selectedModules.toList(),
+                  wardIds: selectedWardIds.toList(),
                   password: passwordController.text.trim().isEmpty
                       ? null
                       : passwordController.text,
@@ -1522,6 +1609,45 @@ class _ConfigPageState extends State<ConfigPage>
                                   };
                                 }),
                         ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'Assigned wards${wardRequired && selectedRole == 'staff' ? ' *' : ' (optional)'}',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: _careWards
+                              .where((ward) => ward.isActive)
+                              .map((ward) {
+                                final selected = selectedWardIds.contains(
+                                  ward.id,
+                                );
+                                return FilterChip(
+                                  label: Text(ward.label),
+                                  selected: selected,
+                                  onSelected: saving
+                                      ? null
+                                      : (enabled) => setDialogState(() {
+                                          enabled
+                                              ? selectedWardIds.add(ward.id)
+                                              : selectedWardIds.remove(ward.id);
+                                        }),
+                                );
+                              })
+                              .toList(),
+                        ),
+                        if (wardRequired &&
+                            selectedRole == 'staff' &&
+                            selectedWardIds.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: AppSpacing.xs),
+                            child: Text(
+                              'At least one ward is required for staff.',
+                              style: TextStyle(color: AppColors.danger),
+                            ),
+                          ),
                         const SizedBox(height: AppSpacing.md),
                         InkWell(
                           borderRadius: AppRadius.sm,
@@ -1724,12 +1850,14 @@ class _ConfigPageState extends State<ConfigPage>
     final auth = context.watch<AuthService>();
     final activeIndex = switch (widget.mode) {
       ConfigPageMode.settings => 0,
+      ConfigPageMode.lsg => 0,
       ConfigPageMode.staff => 1,
       ConfigPageMode.combined => _tabController.index,
     };
     final pageTitle = switch (widget.mode) {
       ConfigPageMode.settings => 'Settings',
       ConfigPageMode.staff => 'Staff Management',
+      ConfigPageMode.lsg => 'LSGs & Wards',
       ConfigPageMode.combined => 'System Config',
     };
 
@@ -1765,6 +1893,8 @@ class _ConfigPageState extends State<ConfigPage>
                   _buildConfigurationView()
                 else if (widget.mode == ConfigPageMode.staff)
                   _buildStaffView()
+                else if (widget.mode == ConfigPageMode.lsg)
+                  _buildLsgView()
                 else
                   TabBarView(
                     controller: _tabController,
@@ -1865,17 +1995,11 @@ class _ConfigPageState extends State<ConfigPage>
           _buildOverviewHeader(config),
           const SizedBox(height: AppSpacing.sm),
           _buildUnitWorkingTimeSection(),
+          _buildCareWardSection(),
           _buildWorkingDaysSection(),
           _buildAvailabilityTimeSection(),
-          _buildListSection(
-            title: 'Villages',
-            icon: Icons.location_city_outlined,
-            listName: 'villages',
-            items: config.villages,
-            controller: _villageController,
-            hintText: 'Add village',
-          ),
-          _buildWardSection(),
+          _buildTransferSettingsSection(),
+          _buildLsgNavigationCard(config),
           _buildListSection(
             title: 'Diseases',
             icon: Icons.medical_information_outlined,
@@ -1891,6 +2015,144 @@ class _ConfigPageState extends State<ConfigPage>
             items: config.plans,
             controller: _planController,
             hintText: 'Add care plan',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLsgNavigationCard(Config config) {
+    return _SectionCard(
+      child: InkWell(
+        borderRadius: AppRadius.card,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ConfigPage(mode: ConfigPageMode.lsg),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              const _IconBadge(
+                icon: Icons.holiday_village_outlined,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'LSGs & Wards',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${config.villages.length} villages / LSGs • ${config.wards.length} wards',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLsgView() {
+    if (_isLoadingConfig && _config == null) {
+      return _buildLoadingList();
+    }
+
+    if (_configErrorMessage != null && _config == null) {
+      return _ErrorState(message: _configErrorMessage!, onRetry: _fetchConfig);
+    }
+
+    final config = _config!;
+
+    return RefreshIndicator(
+      onRefresh: _fetchConfig,
+      child: ListView(
+        padding: AppInsets.screen(context, top: AppSpacing.md, bottom: 112),
+        children: [
+          _buildLsgOverviewHeader(config),
+          const SizedBox(height: AppSpacing.sm),
+          _buildListSection(
+            title: 'Villages',
+            icon: Icons.location_city_outlined,
+            listName: 'villages',
+            items: config.villages,
+            controller: _villageController,
+            hintText: 'Add village',
+          ),
+          _buildWardSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLsgOverviewHeader(Config config) {
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _IconBadge(
+                icon: Icons.holiday_village_outlined,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Local Bodies & Wards',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Manage villages / LSGs and assign wards to each local body',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _isLoadingConfig ? null : _fetchConfig,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetricPill(
+                label: 'Villages / LSGs',
+                value: config.villages.length.toString(),
+                icon: Icons.location_city_outlined,
+              ),
+              _MetricPill(
+                label: 'Total Wards',
+                value: config.wards.length.toString(),
+                icon: Icons.map_outlined,
+              ),
+            ],
           ),
         ],
       ),
@@ -1931,11 +2193,29 @@ class _ConfigPageState extends State<ConfigPage>
                 label: 'Villages',
                 value: config.villages.length.toString(),
                 icon: Icons.location_city_outlined,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const ConfigPage(mode: ConfigPageMode.lsg),
+                    ),
+                  );
+                },
               ),
               _MetricPill(
                 label: 'Wards',
                 value: config.wards.length.toString(),
                 icon: Icons.map_outlined,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const ConfigPage(mode: ConfigPageMode.lsg),
+                    ),
+                  );
+                },
               ),
               _MetricPill(
                 label: 'Diseases',
@@ -2251,6 +2531,88 @@ class _ConfigPageState extends State<ConfigPage>
     await _saveConfig();
   }
 
+  Widget _buildTransferSettingsSection() {
+    final settings = _config!.transferSettings;
+    const checks = [
+      (key: 'identity_verified', label: 'Identity verified'),
+      (key: 'address_verified', label: 'Address verified'),
+      (key: 'consent_confirmed', label: 'Consent confirmed'),
+      (key: 'records_reviewed', label: 'Records reviewed'),
+    ];
+    final expiryOptions = <int>{
+      3,
+      7,
+      14,
+      30,
+      60,
+      90,
+      settings.expiryDays,
+    }.toList()..sort();
+    return _ConfigSection(
+      title: 'Patient transfer review',
+      icon: Icons.swap_horiz_rounded,
+      badgeText: '${settings.expiryDays} day expiry',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set when pending requests expire and which checks destination '
+            'administrators must complete before accepting.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<int>(
+            initialValue: settings.expiryDays,
+            decoration: const InputDecoration(
+              labelText: 'Pending request expiry',
+              prefixIcon: Icon(Icons.timer_outlined),
+            ),
+            items: expiryOptions
+                .map(
+                  (days) =>
+                      DropdownMenuItem(value: days, child: Text('$days days')),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => settings.expiryDays = value);
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Required acceptance checks',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: checks.map((check) {
+              final selected = settings.requiredChecks.contains(check.key);
+              return FilterChip(
+                selected: selected,
+                showCheckmark: true,
+                label: Text(check.label),
+                onSelected: (value) {
+                  setState(() {
+                    if (value) {
+                      settings.requiredChecks.add(check.key);
+                    } else {
+                      settings.requiredChecks.remove(check.key);
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildWorkingDaysSection() {
     const days = [
       (value: DateTime.monday, label: 'Monday'),
@@ -2496,6 +2858,203 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  Widget _buildCareWardSection() {
+    int patientCount(String wardId) => _wardPatientCounts
+        .where((row) => row.ward?.id == wardId)
+        .fold(0, (total, row) => total + row.active);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: _SectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const _IconBadge(
+                  icon: Icons.local_hospital_outlined,
+                  color: _primaryColor,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Care wards',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Text(
+                        'Operational wards used for patient and staff access.',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Add care ward',
+                  onPressed: () => _showCareWardEditor(),
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (_careWards.isEmpty)
+              const _EmptyInlineState(label: 'No care wards created yet')
+            else
+              ..._careWards.map(
+                (ward) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    ward.isActive
+                        ? Icons.local_hospital_outlined
+                        : Icons.block_outlined,
+                    color: ward.isActive
+                        ? AppColors.primary
+                        : AppColors.textMuted,
+                  ),
+                  title: Text(ward.label),
+                  subtitle: Text(
+                    ward.isActive
+                        ? '${patientCount(ward.id)} active patient(s)'
+                        : 'Inactive',
+                  ),
+                  trailing: Wrap(
+                    spacing: AppSpacing.xs,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit ward',
+                        onPressed: () => _showCareWardEditor(ward),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      if (ward.isActive)
+                        IconButton(
+                          tooltip: 'Deactivate ward',
+                          onPressed: () => _deactivateCareWard(ward),
+                          icon: const Icon(Icons.block_outlined),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCareWardEditor([Ward? ward]) async {
+    final nameController = TextEditingController(text: ward?.name ?? '');
+    final codeController = TextEditingController(text: ward?.code ?? '');
+    final formKey = GlobalKey<FormState>();
+    try {
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(ward == null ? 'Add care ward' : 'Edit care ward'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: _fieldDecoration(
+                    labelText: 'Ward name',
+                    prefixIcon: Icons.local_hospital_outlined,
+                  ),
+                  validator: (value) => value?.trim().isEmpty ?? true
+                      ? 'Ward name is required'
+                      : null,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: codeController,
+                  decoration: _fieldDecoration(
+                    labelText: 'Code (optional)',
+                    prefixIcon: Icons.tag_outlined,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                try {
+                  if (ward == null) {
+                    await WardService.createWard(
+                      name: nameController.text,
+                      code: codeController.text,
+                    );
+                  } else {
+                    await WardService.updateWard(
+                      ward.id,
+                      name: nameController.text,
+                      code: codeController.text,
+                    );
+                  }
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (error) {
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(
+                      dialogContext,
+                    ).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      if (saved == true && mounted) await _fetchConfig();
+    } finally {
+      nameController.dispose();
+      codeController.dispose();
+    }
+  }
+
+  Future<void> _deactivateCareWard(Ward ward) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Deactivate ${ward.name}?'),
+        content: const Text(
+          'Patients and staff must be reassigned first. The ward and its history will be preserved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await WardService.deactivateWard(ward.id);
+      await _fetchConfig();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
   Widget _buildWardSection() {
     final wards = _config == null
         ? const <WardConfig>[]
@@ -2637,6 +3196,10 @@ class _ConfigPageState extends State<ConfigPage>
       if (_staffRoleFilter != 'all' && staff.role != _staffRoleFilter) {
         return false;
       }
+      if (_staffWardFilter != 'all' &&
+          !staff.assignedWards.any((ward) => ward.id == _staffWardFilter)) {
+        return false;
+      }
       if (_staffSearchQuery.isNotEmpty) {
         final query = _staffSearchQuery.toLowerCase();
         final matchesName = staff.name.toLowerCase().contains(query);
@@ -2758,6 +3321,30 @@ class _ConfigPageState extends State<ConfigPage>
                     ),
                     onChanged: (val) =>
                         setState(() => _staffSearchQuery = val.trim()),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  DropdownButtonFormField<String>(
+                    initialValue: _staffWardFilter,
+                    decoration: _fieldDecoration(
+                      labelText: 'Filter by ward',
+                      prefixIcon: Icons.local_hospital_outlined,
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'all',
+                        child: Text('All wards'),
+                      ),
+                      ..._careWards
+                          .where((ward) => ward.isActive)
+                          .map(
+                            (ward) => DropdownMenuItem(
+                              value: ward.id,
+                              child: Text(ward.label),
+                            ),
+                          ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _staffWardFilter = value ?? 'all'),
                   ),
                 ],
               ),
@@ -2893,6 +3480,34 @@ class _ConfigPageState extends State<ConfigPage>
           final permissions = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (staff.assignedWards.isNotEmpty) ...[
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: staff.assignedWards
+                      .map(
+                        (ward) => Chip(
+                          avatar: const Icon(
+                            Icons.local_hospital_outlined,
+                            size: 15,
+                          ),
+                          label: Text(ward.label),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ] else if (staff.role == 'staff') ...[
+                const Text(
+                  'No ward assigned',
+                  style: TextStyle(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ],
               const SizedBox(height: AppSpacing.xs),
               InkWell(
                 borderRadius: AppRadius.sm,
@@ -3068,19 +3683,8 @@ class _ConfigPageState extends State<ConfigPage>
     return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }
 
-  static String _roleLabel(String role) {
-    switch (role) {
-      case 'admin':
-        return 'Admin';
-      case 'staff':
-        return 'Staff';
-      case 'member':
-        return 'Member';
-      case 'volunteer':
-        return 'Volunteer';
-      default:
-        return 'Volunteer';
-    }
+  String _roleLabel(String role) {
+    return context.read<AuthService>().roleLabel(role);
   }
 
   static List<String> _defaultModulesForRole(String role) {

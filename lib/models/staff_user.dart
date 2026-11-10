@@ -1,3 +1,5 @@
+import 'package:oruma_app/models/ward.dart';
+
 class StaffUser {
   final String id;
   final String name;
@@ -5,6 +7,7 @@ class StaffUser {
   final String role;
   final List<String> permittedModuleIds;
   final bool hasExplicitModulePermissions;
+  final List<Ward> assignedWards;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -15,6 +18,7 @@ class StaffUser {
     required this.role,
     this.permittedModuleIds = const [],
     this.hasExplicitModulePermissions = false,
+    this.assignedWards = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -30,6 +34,10 @@ class StaffUser {
               .map((item) => item.toString())
               .toList(),
       hasExplicitModulePermissions: json.containsKey('permittedModuleIds'),
+      assignedWards: (json['assignedWards'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((item) => Ward.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
       createdAt: _parseDate(json['createdAt']),
       updatedAt: _parseDate(json['updatedAt']),
     );
@@ -42,6 +50,7 @@ class StaffUser {
     String? role,
     List<String>? permittedModuleIds,
     bool? hasExplicitModulePermissions,
+    List<Ward>? assignedWards,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -53,6 +62,7 @@ class StaffUser {
       permittedModuleIds: permittedModuleIds ?? this.permittedModuleIds,
       hasExplicitModulePermissions:
           hasExplicitModulePermissions ?? this.hasExplicitModulePermissions,
+      assignedWards: assignedWards ?? this.assignedWards,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
