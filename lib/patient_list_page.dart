@@ -24,6 +24,7 @@ import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
+import 'package:oruma_app/core/utils/format_utils.dart';
 
 class PatientListPage extends StatefulWidget {
   const PatientListPage({super.key});
@@ -208,21 +209,38 @@ class _PatientListPageState extends State<PatientListPage> {
       );
     }
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isSmall = screenWidth < 440;
+    final actionGap = isSmall ? 3.0 : AppSpacing.xs;
+    final actionEndPadding = isSmall ? AppSpacing.xs : AppSpacing.md;
+    final actionSize = isSmall ? 36.0 : 44.0;
+    final actionIconSize = isSmall ? 19.0 : AppIcons.large;
+
     return AdaptiveAppScaffold(
       appBar: AppBar(
-        toolbarHeight: 72,
+        toolbarHeight: isSmall ? 64 : 72,
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.text,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleSpacing: AppSpacing.md,
+        titleSpacing: isSmall ? AppSpacing.xs : AppSpacing.md,
         title: _isSearching
             ? _buildSearchField('Search patients...')
-            : Text("Patients", style: Theme.of(context).textTheme.titleLarge),
+            : Text(
+                "Patients",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: (isSmall
+                        ? Theme.of(context).textTheme.titleMedium
+                        : Theme.of(context).textTheme.titleLarge)
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.xs),
+            padding: EdgeInsets.only(right: actionGap),
             child: _PatientIconButton(
+              size: actionSize,
+              iconSize: actionIconSize,
               icon: _isSearching ? Icons.close : Icons.search,
               onPressed: () {
                 setState(() {
@@ -239,10 +257,12 @@ class _PatientListPageState extends State<PatientListPage> {
           ),
           if (!_isSearching && auth.isAdmin)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              padding: EdgeInsets.only(right: actionGap),
               child: Tooltip(
                 message: 'Patient Enquiries',
                 child: _PatientIconButton(
+                  size: actionSize,
+                  iconSize: actionIconSize,
                   icon: Icons.mark_email_unread_outlined,
                   onPressed: () {
                     Navigator.push(
@@ -257,7 +277,7 @@ class _PatientListPageState extends State<PatientListPage> {
             ),
           if (!_isSearching && auth.canViewPatientTransfers)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              padding: EdgeInsets.only(right: actionGap),
               child: Tooltip(
                 message: 'Patient Transfers',
                 child: Stack(
@@ -265,13 +285,19 @@ class _PatientListPageState extends State<PatientListPage> {
                   children: [
                     Material(
                       color: AppColors.surface1,
-                      borderRadius: AppRadius.md,
+                      borderRadius:
+                          actionSize <= 38 ? AppRadius.sm : AppRadius.md,
                       child: SizedBox(
-                        width: 48,
-                        height: 48,
+                        width: actionSize,
+                        height: actionSize,
                         child: PopupMenuButton<String>(
                           tooltip: 'Patient transfer menu',
-                          icon: const Icon(Icons.swap_horiz_rounded),
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.swap_horiz_rounded,
+                            size: actionIconSize,
+                            color: AppColors.text,
+                          ),
                           onSelected: (value) async {
                             await Navigator.push(
                               context,
@@ -307,12 +333,12 @@ class _PatientListPageState extends State<PatientListPage> {
                     ),
                     if (_incomingTransferCount > 0)
                       Positioned(
-                        right: -3,
-                        top: -5,
+                        right: isSmall ? -2 : -3,
+                        top: isSmall ? -3 : -5,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmall ? 4 : 6,
+                            vertical: isSmall ? 1 : 2,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.danger,
@@ -320,12 +346,12 @@ class _PatientListPageState extends State<PatientListPage> {
                             border: Border.all(color: AppColors.background),
                           ),
                           child: Text(
-                            _incomingTransferCount > 99
-                                ? '99+'
-                                : '$_incomingTransferCount',
-                            style: const TextStyle(
+                            FormatUtils.formatCompactCount(
+                              _incomingTransferCount,
+                            ),
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: isSmall ? 9 : 10,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -337,22 +363,24 @@ class _PatientListPageState extends State<PatientListPage> {
             ),
           if (!_isSearching && auth.canAccessReports)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              padding: EdgeInsets.only(right: actionGap),
               child: Tooltip(
                 message: 'Patient Report',
                 child: _PatientIconButton(
+                  size: actionSize,
+                  iconSize: actionIconSize,
                   icon: Icons.assessment_outlined,
-                  onPressed: () => openReports(
-                    context,
-                    initialReport: ReportType.patients,
-                  ),
+                  onPressed: () =>
+                      openReports(context, initialReport: ReportType.patients),
                 ),
               ),
             ),
           if (!_isSearching)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.md),
+              padding: EdgeInsets.only(right: actionEndPadding),
               child: _PatientIconButton(
+                size: actionSize,
+                iconSize: actionIconSize,
                 icon: Icons.refresh,
                 onPressed: _loadPatients,
               ),
@@ -639,7 +667,7 @@ class _PatientListPageState extends State<PatientListPage> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        count > 99 ? '99+' : count.toString(),
+                        FormatUtils.formatCompactCount(count),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: isSelected
                               ? activeColor
@@ -707,19 +735,21 @@ class _PatientListPageState extends State<PatientListPage> {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _showCareWardFilter,
-              icon: const Icon(Icons.local_hospital_outlined),
-              label: Text(
-                _selectedCareWardIds.isEmpty
-                    ? 'All care wards'
-                    : '${_selectedCareWardIds.length} care ward filter(s)',
+          if (_careWards.isNotEmpty || _selectedCareWardIds.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _showCareWardFilter,
+                icon: const Icon(Icons.local_hospital_outlined),
+                label: Text(
+                  _selectedCareWardIds.isEmpty
+                      ? 'Filter by care ward'
+                      : '${_selectedCareWardIds.length} care ward filter(s)',
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -879,153 +909,182 @@ class _PatientListPageState extends State<PatientListPage> {
     final authService = Provider.of<AuthService>(context, listen: false);
     final canViewContacts = authService.canViewContactNumbers;
     final canViewDetails = authService.canViewPatientDetails;
+    final hasAssignedCareWard =
+        patient.currentWardId?.trim().isNotEmpty == true;
     final details = <String>[
       '${patient.age} years',
       patient.gender,
       patient.plan,
     ].where((item) => item.trim().isNotEmpty).join(' • ');
 
-    Widget cardContent = AppCard(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      surfaceLevel: patient.isDead
-          ? AppSurfaceLevel.surface
-          : AppSurfaceLevel.elevated,
-      borderColor: patient.isDead ? AppColors.borderStrong : AppColors.border,
-      onTap: canViewDetails
-          ? () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ModuleTheme(
-                    palette: ModulePalettes.patients,
-                    child: PatientDetailsPage(patient: patient),
-                  ),
-                ),
-              );
-              if (result == true) {
-                _loadPatients();
-              }
-            }
-          : null,
-      child: Row(
-        children: [
-          _PatientAvatar(patient: patient),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        patient.name,
-                        style: Theme.of(context).textTheme.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+    Widget cardContent = Stack(
+      children: [
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          surfaceLevel: patient.isDead
+              ? AppSurfaceLevel.surface
+              : AppSurfaceLevel.elevated,
+          borderColor: patient.isDead
+              ? AppColors.borderStrong
+              : AppColors.border,
+          onTap: canViewDetails
+              ? () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ModuleTheme(
+                        palette: ModulePalettes.patients,
+                        child: PatientDetailsPage(patient: patient),
                       ),
                     ),
-                    if (patient.isDead) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      const _PatientStatusPill(
-                        label: 'Passed away',
-                        color: AppColors.danger,
-                      ),
-                    ] else if (patient.transferStatus ==
-                        'TRANSFER_PENDING') ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      const _PatientStatusPill(
-                        label: 'Transfer pending',
-                        color: AppColors.warning,
+                  );
+                  if (result == true) {
+                    _loadPatients();
+                  }
+                }
+              : null,
+          child: Row(
+            children: [
+              _PatientAvatar(patient: patient),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            patient.name,
+                            style: Theme.of(context).textTheme.titleSmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (patient.isDead) ...[
+                          const SizedBox(width: AppSpacing.xs),
+                          const _PatientStatusPill(
+                            label: 'Passed away',
+                            color: AppColors.danger,
+                          ),
+                        ] else if (patient.transferStatus ==
+                            'TRANSFER_PENDING') ...[
+                          const SizedBox(width: AppSpacing.xs),
+                          const _PatientStatusPill(
+                            label: 'Transfer pending',
+                            color: AppColors.warning,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        if (patient.registerId != null &&
+                            patient.registerId!.isNotEmpty)
+                          _PatientMetaPill(
+                            icon: Icons.badge_outlined,
+                            label: 'REG ${patient.registerId}',
+                            color: AppColors.primary,
+                          ),
+                        if (details.isNotEmpty)
+                          _PatientMetaPill(
+                            icon: Icons.person_outline,
+                            label: details,
+                            color: AppColors.textSecondary,
+                          ),
+                        if (patient.currentWard != null)
+                          _PatientMetaPill(
+                            icon: Icons.local_hospital_outlined,
+                            label: patient.currentWard!.name,
+                            color: AppColors.primary,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.place_outlined,
+                          size: AppIcons.small,
+                          color: AppColors.textMuted,
+                        ),
+                        const SizedBox(width: AppSpacing.xxs),
+                        Expanded(
+                          child: Text(
+                            patient.place.isNotEmpty
+                                ? patient.place
+                                : patient.village,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppColors.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (canViewContacts && patient.phone.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.phone_outlined,
+                            size: AppIcons.small,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: AppSpacing.xxs),
+                          Expanded(
+                            child: Text(
+                              patient.phone,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    if (patient.registerId != null &&
-                        patient.registerId!.isNotEmpty)
-                      _PatientMetaPill(
-                        icon: Icons.badge_outlined,
-                        label: 'REG ${patient.registerId}',
-                        color: AppColors.primary,
-                      ),
-                    if (details.isNotEmpty)
-                      _PatientMetaPill(
-                        icon: Icons.person_outline,
-                        label: details,
-                        color: AppColors.textSecondary,
-                      ),
-                    _PatientMetaPill(
-                      icon: Icons.local_hospital_outlined,
-                      label: patient.currentWard?.name ?? 'Unassigned',
-                      color: patient.currentWard == null
-                          ? AppColors.warning
-                          : AppColors.primary,
-                    ),
-                  ],
+              ),
+              if (canViewDetails) ...[
+                const SizedBox(width: AppSpacing.sm),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textMuted,
+                  size: AppIcons.large,
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.place_outlined,
-                      size: AppIcons.small,
-                      color: AppColors.textMuted,
-                    ),
-                    const SizedBox(width: AppSpacing.xxs),
-                    Expanded(
-                      child: Text(
-                        patient.place.isNotEmpty
-                            ? patient.place
-                            : patient.village,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                if (canViewContacts && patient.phone.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.phone_outlined,
-                        size: AppIcons.small,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(width: AppSpacing.xxs),
-                      Expanded(
-                        child: Text(
-                          patient.phone,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.textSecondary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ],
+            ],
+          ),
+        ),
+        if (!hasAssignedCareWard)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Semantics(
+              label: 'Care ward not assigned',
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: AppColors.warning,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.warning.withValues(alpha: 0.3),
+                      blurRadius: 5,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          if (canViewDetails) ...[
-            const SizedBox(width: AppSpacing.sm),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.textMuted,
-              size: AppIcons.large,
-            ),
-          ],
-        ],
-      ),
+      ],
     );
 
     final canEdit =
@@ -1081,23 +1140,34 @@ class _PatientListPageState extends State<PatientListPage> {
 }
 
 class _PatientIconButton extends StatelessWidget {
-  const _PatientIconButton({required this.icon, required this.onPressed});
+  const _PatientIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 44,
+    this.iconSize,
+  });
 
   final IconData icon;
   final VoidCallback onPressed;
+  final double size;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface1,
-      borderRadius: AppRadius.md,
+      borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
       child: InkWell(
-        borderRadius: AppRadius.md,
+        borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
         onTap: onPressed,
         child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Icon(icon, size: AppIcons.large, color: AppColors.text),
+          width: size,
+          height: size,
+          child: Icon(
+            icon,
+            size: iconSize ?? (size <= 38 ? 19.0 : AppIcons.large),
+            color: AppColors.text,
+          ),
         ),
       ),
     );

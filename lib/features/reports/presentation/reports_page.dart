@@ -200,6 +200,7 @@ class _ReportsPageState extends State<ReportsPage> {
         surfaceTintColor: AppColors.surface,
         actions: [
           IconButton(
+            visualDensity: VisualDensity.compact,
             tooltip: 'Export PDF',
             onPressed: _exporting || _loading ? null : _exportPdf,
             icon: _exporting
@@ -210,11 +211,12 @@ class _ReportsPageState extends State<ReportsPage> {
                 : const Icon(Icons.picture_as_pdf_outlined),
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             tooltip: 'Refresh',
             onPressed: _loading ? null : _load,
             icon: const Icon(Icons.refresh),
           ),
-          const SizedBox(width: AppSpacing.xs),
+          const SizedBox(width: AppSpacing.xxs),
         ],
       ),
       body: Column(
@@ -949,20 +951,30 @@ class _ReportsPageState extends State<ReportsPage> {
                         padding: const EdgeInsets.only(top: AppSpacing.sm),
                         child: DropdownButtonFormField<String>(
                           initialValue: extra['ward'] ?? '',
+                          style: _compactDropdownTextStyle(),
                           decoration: _compactDropdownDecoration('Care ward'),
                           items: [
-                            const DropdownMenuItem(
+                            DropdownMenuItem(
                               value: '',
-                              child: Text('All wards'),
+                              child: Text(
+                                'All wards',
+                                style: _compactDropdownTextStyle(),
+                              ),
                             ),
-                            const DropdownMenuItem(
+                            DropdownMenuItem(
                               value: 'unassigned',
-                              child: Text('Unassigned'),
+                              child: Text(
+                                'Unassigned',
+                                style: _compactDropdownTextStyle(),
+                              ),
                             ),
                             ..._wardChoices.map(
                               (ward) => DropdownMenuItem(
                                 value: ward.id,
-                                child: Text(ward.label),
+                                child: Text(
+                                  ward.label,
+                                  style: _compactDropdownTextStyle(),
+                                ),
                               ),
                             ),
                           ],

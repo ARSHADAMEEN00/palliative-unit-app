@@ -226,25 +226,38 @@ class _VolunteerListPageState extends State<VolunteerListPage>
         .where((item) => item.applicationStatus == 'pending')
         .length;
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isSmall = screenWidth < 440;
+    final actionEndPadding = isSmall ? AppSpacing.xs : AppSpacing.md;
+    final actionSize = isSmall ? 36.0 : 44.0;
+    final actionIconSize = isSmall ? 19.0 : AppIcons.large;
+
     return ModuleTheme(
       palette: ModulePalettes.volunteers,
       child: AdaptiveAppScaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          toolbarHeight: 72,
-          titleSpacing: AppSpacing.md,
+          toolbarHeight: isSmall ? 64 : 72,
+          titleSpacing: isSmall ? AppSpacing.xs : AppSpacing.md,
           backgroundColor: AppColors.background,
           foregroundColor: AppColors.text,
           elevation: 0,
           scrolledUnderElevation: 0,
           title: Text(
             'Volunteers',
-            style: Theme.of(context).textTheme.titleLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: (isSmall
+                    ? Theme.of(context).textTheme.titleMedium
+                    : Theme.of(context).textTheme.titleLarge)
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.md),
+              padding: EdgeInsets.only(right: actionEndPadding),
               child: _VolunteerIconButton(
+                size: actionSize,
+                iconSize: actionIconSize,
                 icon: Icons.refresh,
                 onPressed: _loading ? null : _loadData,
               ),
@@ -1720,26 +1733,33 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
 }
 
 class _VolunteerIconButton extends StatelessWidget {
-  const _VolunteerIconButton({required this.icon, required this.onPressed});
+  const _VolunteerIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 44,
+    this.iconSize,
+  });
 
   final IconData icon;
   final VoidCallback? onPressed;
+  final double size;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface1,
-      borderRadius: AppRadius.md,
+      borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
       child: InkWell(
-        borderRadius: AppRadius.md,
+        borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
         onTap: onPressed,
         child: SizedBox(
-          width: 48,
-          height: 48,
+          width: size,
+          height: size,
           child: Icon(
             icon,
             color: onPressed == null ? AppColors.textMuted : AppColors.text,
-            size: AppIcons.large,
+            size: iconSize ?? (size <= 38 ? 19.0 : AppIcons.large),
           ),
         ),
       ),

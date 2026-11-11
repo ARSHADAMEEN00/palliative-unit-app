@@ -48,6 +48,7 @@ import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/services/volunteer_assignment_service.dart';
 import 'package:oruma_app/services/volunteer_availability_request_service.dart';
 import 'package:oruma_app/services/volunteer_service.dart';
+import 'package:oruma_app/core/utils/format_utils.dart';
 import 'package:oruma_app/services/about_us_service.dart';
 import 'package:oruma_app/core/localization/volunteer_request_messages.dart';
 import 'package:oruma_app/volunteer_assignment_detail_page.dart';
@@ -131,7 +132,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   bool _importantRequestsLoading = false;
   bool _patientEnquiriesLoading = false;
   int? _patientCount;
-  int _newPatientCountThisWeek = 0;
   int _newPatientCountThisMonth = 0;
   List<WardPatientCount> _wardPatientCounts = const [];
   int _todayHomeVisitCount = 0;
@@ -419,17 +419,9 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             .then((response) {
               if (!mounted) return;
               final now = DateTime.now();
-              final weekAgo = now.subtract(const Duration(days: 7));
               final startOfMonth = DateTime(now.year, now.month, 1);
               setState(() {
                 _patientCount = response.counts.aliveCount;
-                _newPatientCountThisWeek = response.patients
-                    .where(
-                      (patient) =>
-                          patient.createdAt != null &&
-                          patient.createdAt!.isAfter(weekAgo),
-                    )
-                    .length;
                 _newPatientCountThisMonth = response.patients
                     .where(
                       (patient) =>
@@ -1407,11 +1399,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               ),
                               const SizedBox(height: AppSpacing.lg),
                             ],
-                            _buildProfileSectionTitle(context, 'Care unit'),
-                            const SizedBox(height: AppSpacing.sm),
-                            _buildUnitDetailsCard(context, auth),
                             if (auth.isAdmin) ...[
-                              const SizedBox(height: AppSpacing.lg),
                               _buildProfileSectionTitle(
                                 context,
                                 'Administration',
@@ -1421,11 +1409,24 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 icon: Icons.settings_outlined,
                                 title: 'Settings',
                                 onTap: () {
-                                  Navigator.pop(sheetContext);
-                                  Navigator.of(pageContext).push(
+                                  Navigator.of(pageContext, rootNavigator: true).push(
                                     MaterialPageRoute(
                                       builder: (context) => const ConfigPage(
                                         mode: ConfigPageMode.settings,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildProfileMenuItem(
+                                icon: Icons.manage_accounts_outlined,
+                                title: 'Staff Management',
+                                subtitle: 'Manage staff and permissions',
+                                onTap: () {
+                                  Navigator.of(pageContext, rootNavigator: true).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const ConfigPage(
+                                        mode: ConfigPageMode.staff,
                                       ),
                                     ),
                                   );
@@ -1436,8 +1437,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'LSGs & Wards',
                                 subtitle: 'Manage villages and ward numbers',
                                 onTap: () {
-                                  Navigator.pop(sheetContext);
-                                  Navigator.of(pageContext).push(
+                                  Navigator.of(pageContext, rootNavigator: true).push(
                                     MaterialPageRoute(
                                       builder: (context) => const ConfigPage(
                                         mode: ConfigPageMode.lsg,
@@ -1451,8 +1451,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'Billing & Plan',
                                 subtitle: _billingProfileSubtitle(),
                                 onTap: () {
-                                  Navigator.pop(sheetContext);
-                                  Navigator.of(pageContext).push(
+                                  Navigator.of(pageContext, rootNavigator: true).push(
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const BillingPlanScreen(),
@@ -1465,8 +1464,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'Invoices',
                                 subtitle: 'View and download billing invoices',
                                 onTap: () {
-                                  Navigator.pop(sheetContext);
-                                  Navigator.of(pageContext).push(
+                                  Navigator.of(pageContext, rootNavigator: true).push(
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const InvoicesScreen(),
@@ -1474,7 +1472,11 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                   );
                                 },
                               ),
+                              const SizedBox(height: AppSpacing.lg),
                             ],
+                            _buildProfileSectionTitle(context, 'Care unit'),
+                            const SizedBox(height: AppSpacing.sm),
+                            _buildUnitDetailsCard(context, auth),
                             const SizedBox(height: AppSpacing.lg),
                             _buildProfileSectionTitle(
                               context,
@@ -1523,8 +1525,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               icon: Icons.privacy_tip_outlined,
                               title: 'Privacy & Data Use',
                               onTap: () {
-                                Navigator.pop(sheetContext);
-                                Navigator.of(pageContext).push(
+                                Navigator.of(pageContext, rootNavigator: true).push(
                                   MaterialPageRoute(
                                     builder: (context) => PrivacyPolicyScreen(
                                       supportEmail: auth.unitSupportEmail,
@@ -4664,23 +4665,14 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
 
   List<_HomeMetricAction> _priorityActions(AuthService auth) {
     final monthStr = DateFormat('MMM').format(DateTime.now());
-    final wardSummary = _wardPatientCounts
-        .take(2)
-        .map((row) => '${row.ward?.name ?? 'Unassigned'} ${row.active}')
-        .join(' • ');
+    final hasUnassignedPatients = _wardPatientCounts.any(
+      (row) => row.ward == null && row.total > 0,
+    );
     final patientSubtitle = auth.isMember
         ? 'Your family'
         : auth.isVolunteer
         ? 'Assigned to you'
-        : wardSummary.isNotEmpty
-        ? wardSummary
-        : auth.isAdmin
-        ? '$_newPatientCountThisMonth New $monthStr'
-        : auth.isStaff && _todayHomeVisitCount > 0
-        ? '$_todayHomeVisitCount visits today'
-        : _newPatientCountThisWeek > 0
-        ? '$_newPatientCountThisWeek new this week'
-        : 'Active patients';
+        : '$_newPatientCountThisMonth New $monthStr';
     final patients = _HomeMetricAction(
       title: 'Patients',
       value: _formatMetric(_patientCount),
@@ -4688,6 +4680,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       icon: Icons.people_outline_rounded,
       iconBackground: ModulePalettes.patients.iconBackground,
       iconColor: ModulePalettes.patients.primary,
+      showWarningDot: hasUnassignedPatients,
       onTap: () => _openPatients(auth),
     );
 
@@ -7659,6 +7652,7 @@ class _HomeMetricAction {
     required this.iconColor,
     required this.onTap,
     this.customContent,
+    this.showWarningDot = false,
   });
 
   final String title;
@@ -7669,6 +7663,7 @@ class _HomeMetricAction {
   final Color iconColor;
   final VoidCallback onTap;
   final Widget? customContent;
+  final bool showWarningDot;
 }
 
 class _HomeQuickAction {
@@ -7710,80 +7705,109 @@ class _HomeMetricCard extends StatelessWidget {
           focusColor: _homeHoverOverlay,
           highlightColor: _homePressedOverlay,
           splashColor: _homePressedOverlay,
-          child: SizedBox(
-            height: 124,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+          child: Stack(
+            children: [
+              SizedBox(
+                height: 124,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: action.iconBackground,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          action.icon,
-                          color: action.iconColor,
-                          size: 21,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: action.iconBackground,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              action.icon,
+                              color: action.iconColor,
+                              size: 21,
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              action.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  const TextStyle(
+                                    color: _homeInk,
+                                    fontSize: 15,
+                                    height: 1.05,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -0.2,
+                                  ).copyWith(
+                                    fontFamilyFallback: const [
+                                      'NotoSansMalayalam',
+                                    ],
+                                  ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          action.title,
-                          maxLines: 2,
+                      const Spacer(),
+                      if (action.customContent != null)
+                        action.customContent!
+                      else ...[
+                        Text(
+                          action.value,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: _homeInk,
+                            fontSize: action.value.length > 3 ? 25 : 32,
+                            height: 0.95,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -1,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          action.subtitle,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              const TextStyle(
-                                color: _homeInk,
-                                fontSize: 15,
-                                height: 1.05,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.2,
-                              ).copyWith(
-                                fontFamilyFallback: const ['NotoSansMalayalam'],
-                              ),
+                          style: const TextStyle(
+                            color: _homeMuted,
+                            fontSize: 13,
+                            height: 1,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
-                  const Spacer(),
-                  if (action.customContent != null)
-                    action.customContent!
-                  else ...[
-                    Text(
-                      action.value,
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: _homeInk,
-                        fontSize: action.value.length > 3 ? 25 : 32,
-                        height: 0.95,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      action.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _homeMuted,
-                        fontSize: 13,
-                        height: 1,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
+              if (action.showWarningDot)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Semantics(
+                    label: 'Patients without a care ward',
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: AppColors.warning,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.warning.withValues(alpha: 0.3),
+                            blurRadius: 5,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -8023,7 +8047,7 @@ class _HomeActivityCard extends StatelessWidget {
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              badgeCount! > 99 ? '99+' : badgeCount.toString(),
+                              FormatUtils.formatCompactCount(badgeCount!),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,

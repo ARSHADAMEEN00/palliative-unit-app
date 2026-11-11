@@ -619,16 +619,23 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   }
 
   List<Widget> _buildHeaderActions(AuthService auth, bool canShowMenu) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isSmall = screenWidth < 440;
+    final actionGap = isSmall ? 3.0 : AppSpacing.xs;
+    final actionEndPadding = isSmall ? AppSpacing.xs : AppSpacing.md;
+    final btnSize = isSmall ? 36.0 : 40.0;
+    final iconSize = isSmall ? 18.0 : 20.0;
+
     return [
       if (auth.canAccessPatientPdf)
         Padding(
-          padding: const EdgeInsets.only(right: AppSpacing.xs),
+          padding: EdgeInsets.only(right: actionGap),
           child: _isPdfGenerating
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
+              ? Padding(
+                  padding: EdgeInsets.all(isSmall ? 8 : 12),
                   child: SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: isSmall ? 18 : 20,
+                    height: isSmall ? 18 : 20,
                     child: CircularProgressIndicator(
                       color: AppColors.primary,
                       strokeWidth: 2.5,
@@ -638,37 +645,49 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               : IconButton(
                   tooltip: 'Download patient report (PDF)',
                   onPressed: _isMutating ? null : _downloadPatientPdf,
+                  constraints:
+                      BoxConstraints.tightFor(width: btnSize, height: btnSize),
+                  padding: EdgeInsets.zero,
                   style: IconButton.styleFrom(
                     backgroundColor: AppColors.surface1,
                     foregroundColor: AppColors.primary,
                   ),
-                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                  icon: Icon(Icons.picture_as_pdf_outlined, size: iconSize),
                 ),
         ),
       if (auth.canEdit && _currentPatient.transferStatus != 'TRANSFER_PENDING')
         Padding(
-          padding: const EdgeInsets.only(right: AppSpacing.xs),
+          padding: EdgeInsets.only(right: actionGap),
           child: IconButton(
             tooltip: 'Edit patient',
             onPressed: _isMutating ? null : _editPatient,
+            constraints:
+                BoxConstraints.tightFor(width: btnSize, height: btnSize),
+            padding: EdgeInsets.zero,
             style: IconButton.styleFrom(
               backgroundColor: AppColors.surface1,
               foregroundColor: AppColors.primary,
             ),
-            icon: const Icon(Icons.edit_outlined, size: 20),
+            icon: Icon(Icons.edit_outlined, size: iconSize),
           ),
         ),
       if (canShowMenu)
         Padding(
-          padding: const EdgeInsets.only(right: AppSpacing.md),
-          child: PopupMenuButton<_PatientAction>(
-            tooltip: 'More actions',
-            enabled: !_isMutating,
-            icon: const Icon(Icons.more_horiz, color: AppColors.text),
-            color: AppColors.surface,
-            shape: const RoundedRectangleBorder(borderRadius: AppRadius.card),
-            onSelected: _handlePatientAction,
-            itemBuilder: (context) => [
+          padding: EdgeInsets.only(right: actionEndPadding),
+          child: SizedBox(
+            width: btnSize,
+            height: btnSize,
+            child: PopupMenuButton<_PatientAction>(
+              tooltip: 'More actions',
+              padding: EdgeInsets.zero,
+              enabled: !_isMutating,
+              icon: Icon(Icons.more_horiz,
+                  color: AppColors.text, size: iconSize),
+              color: AppColors.surface,
+              shape:
+                  const RoundedRectangleBorder(borderRadius: AppRadius.card),
+              onSelected: _handlePatientAction,
+              itemBuilder: (context) => [
               if (auth.canInitiatePatientTransfer &&
                   !_currentPatient.isDead &&
                   _currentPatient.transferStatus != 'TRANSFER_PENDING')
@@ -704,6 +723,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
             ],
           ),
         ),
+      ),
     ];
   }
 
@@ -791,11 +811,13 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 10),
-          _lightHeaderPill(
-            _currentPatient.currentWard?.name ?? 'Unassigned',
-            icon: Icons.local_hospital_outlined,
-          ),
+          if (_currentPatient.currentWard != null) ...[
+            const SizedBox(height: 10),
+            _lightHeaderPill(
+              _currentPatient.currentWard!.name,
+              icon: Icons.local_hospital_outlined,
+            ),
+          ],
           if (_currentPatient.isDead) ...[
             const SizedBox(height: 10),
             _lightHeaderPill('Passed away', icon: Icons.favorite_border),
@@ -1046,11 +1068,12 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 'Village',
                 _value(_currentPatient.village),
               ),
-              _infoRow(
-                Icons.local_hospital_outlined,
-                'Care ward',
-                _currentPatient.currentWard?.label ?? 'Unassigned',
-              ),
+              if (_currentPatient.currentWard != null)
+                _infoRow(
+                  Icons.local_hospital_outlined,
+                  'Care ward',
+                  _currentPatient.currentWard!.label,
+                ),
               _infoRow(
                 Icons.apartment_outlined,
                 'Ward number',
@@ -1079,7 +1102,9 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                     dense: true,
                     leading: const Icon(Icons.swap_horiz_outlined),
                     title: Text(
-                      '${entry.fromWard?.name ?? 'Unassigned'} → ${entry.toWard.name}',
+                      entry.fromWard == null
+                          ? 'Assigned to ${entry.toWard.name}'
+                          : '${entry.fromWard!.name} → ${entry.toWard.name}',
                     ),
                     subtitle: Text(
                       [

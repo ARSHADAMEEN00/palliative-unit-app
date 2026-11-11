@@ -61,8 +61,6 @@ class _patientrigisterState extends State<patientrigister> {
   List<String> villages = [];
   List<String> diseases = [];
   List<String> plans = [];
-  List<WardConfig> allWards = [];
-  List<String> filteredWards = [];
   List<Volunteer> volunteers = [];
   List<Ward> careWards = [];
   Volunteer? _selectedVolunteer;
@@ -131,7 +129,6 @@ class _patientrigisterState extends State<patientrigister> {
         villages = config.villages;
         diseases = config.diseases;
         plans = config.plans;
-        allWards = sortWardConfigs(config.wards);
         volunteers = loadedVolunteers;
         careWards = loadedCareWards;
         _selectedVolunteer = initialVolunteer;
@@ -139,7 +136,7 @@ class _patientrigisterState extends State<patientrigister> {
           volunteerNameController.text = initialVolunteer.name;
           volunteerContactController.text = initialVolunteer.phone;
         }
-        _updateFilteredWards();
+        _syncLsgWardSelection();
         _isLoadingConfig = false;
       });
     } catch (e) {
@@ -190,22 +187,53 @@ class _patientrigisterState extends State<patientrigister> {
     return null;
   }
 
-  void _updateFilteredWards() {
-    if (_selectedVillage == null) {
-      filteredWards = [];
-    } else {
-      filteredWards =
-          allWards
-              .where((w) => w.village == _selectedVillage)
-              .map((w) => w.number)
-              .toList()
-            ..sort(compareWardNumbers);
+  List<Ward> get _wardsForSelectedLocalBody {
+    final selected = _selectedVillage;
+    if (selected == null) return const [];
+    return careWards
+        .where((ward) => ward.isActive && ward.localBody == selected)
+        .toList()
+      ..sort((a, b) => compareNaturally(a.name, b.name));
+  }
+
+  Ward? _wardById(String? id) {
+    if (id == null) return null;
+    for (final ward in careWards) {
+      if (ward.id == id) return ward;
     }
-    // If current selected ward is not in the filtered list, clear it
-    if (_selectedWardTitle != null &&
-        !filteredWards.contains(_selectedWardTitle)) {
-      _selectedWardTitle = null;
+    return null;
+  }
+
+  void _syncLsgWardSelection() {
+    Ward? selectedWard;
+    for (final ward in careWards) {
+      if (ward.id == _selectedCurrentWardId) {
+        selectedWard = ward;
+        break;
+      }
     }
+    if (selectedWard != null) {
+      _selectedVillage = selectedWard.localBody ?? _selectedVillage;
+      _selectedWardTitle =
+          selectedWard.lsgWardValue ?? _selectedWardTitle ?? selectedWard.name;
+      return;
+    }
+
+    final legacyWard = normalizeWardNumberValue(_selectedWardTitle);
+    if (_selectedVillage != null && legacyWard.isNotEmpty) {
+      for (final ward in careWards) {
+        if (ward.localBody == _selectedVillage &&
+            normalizeWardNumberValue(
+                  ward.lsgWardValue ?? ward.name,
+                ).toLowerCase() ==
+                legacyWard.toLowerCase()) {
+          _selectedCurrentWardId = ward.id;
+          _selectedWardTitle = ward.lsgWardValue ?? legacyWard;
+          return;
+        }
+      }
+    }
+    _selectedCurrentWardId = null;
   }
 
   @override
@@ -303,154 +331,6 @@ class _patientrigisterState extends State<patientrigister> {
         0,
       );
       setState(() => _registrationDate = normalizedDate);
-    }
-  }
-
-  Future<void> _showAddWardDialog() async {
-    final TextEditingController newWardController = TextEditingController();
-    String? popupSelectedVillage = _selectedVillage;
-    bool isSaving = false;
-
-    try {
-      await showDialog(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setStateBuilder) {
-              return AlertDialog(
-                backgroundColor: AppColors.surface,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: AppRadius.dialog,
-                ),
-                title: _DialogTitle(
-                  icon: Icons.map_outlined,
-                  title: 'Add ward',
-                  subtitle: 'Create a ward under the selected village.',
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      decoration: _buildInputDecoration(
-                        "Village",
-                        Icons.location_city,
-                      ),
-                      initialValue: popupSelectedVillage,
-                      style: AppTypography.dropdownTextStyle(context),
-                      items: villages
-                          .map(
-                            (v) => DropdownMenuItem(value: v, child: Text(v)),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        setStateBuilder(() {
-                          popupSelectedVillage = v;
-                        });
-                      },
-                      hint: const Text("Select Village"),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      controller: newWardController,
-                      decoration: _buildInputDecoration(
-                        'Ward Number',
-                        Icons.tag_outlined,
-                      ).copyWith(hintText: 'e.g. 1'),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      autofocus: true,
-                    ),
-                  ],
-                ),
-                actionsPadding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  0,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                ),
-                actions: [
-                  AppSecondaryButton(
-                    label: 'Cancel',
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  AppPrimaryButton(
-                    label: 'Add',
-                    icon: Icons.add,
-                    loading: isSaving,
-                    onPressed: (isSaving || popupSelectedVillage == null)
-                        ? null
-                        : () async {
-                            final newWardNumber = normalizeWardNumberValue(
-                              newWardController.text,
-                            );
-                            if (newWardNumber.isEmpty) return;
-
-                            setStateBuilder(() => isSaving = true);
-
-                            try {
-                              final config = await ConfigService.getConfig();
-                              final exists = config.wards.any(
-                                (w) =>
-                                    w.number == newWardNumber &&
-                                    w.village == popupSelectedVillage,
-                              );
-
-                              if (!exists) {
-                                config.wards.add(
-                                  WardConfig(
-                                    number: newWardNumber,
-                                    village: popupSelectedVillage!,
-                                  ),
-                                );
-                                await ConfigService.updateConfig(config);
-                              }
-
-                              setState(() {
-                                if (!allWards.any(
-                                  (w) =>
-                                      w.number == newWardNumber &&
-                                      w.village == popupSelectedVillage,
-                                )) {
-                                  allWards = sortWardConfigs([
-                                    ...allWards,
-                                    WardConfig(
-                                      number: newWardNumber,
-                                      village: popupSelectedVillage!,
-                                    ),
-                                  ]);
-                                }
-                                // If we added it for the currently selected village in the main form,
-                                // update the filtered list and select it. Otherwise just refresh.
-                                if (_selectedVillage == popupSelectedVillage) {
-                                  _updateFilteredWards();
-                                  _selectedWardTitle = newWardNumber;
-                                }
-                              });
-
-                              if (context.mounted) Navigator.pop(context);
-                            } catch (e) {
-                              setStateBuilder(() => isSaving = false);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to add ward: $e'),
-                                    backgroundColor: AppColors.danger,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        newWardController.dispose();
-      });
     }
   }
 
@@ -919,45 +799,7 @@ class _patientrigisterState extends State<patientrigister> {
                 children: [
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
-                      wardRequired ? "Care Ward *" : "Care Ward (optional)",
-                      Icons.local_hospital_outlined,
-                    ),
-                    initialValue:
-                        careWards.any(
-                          (ward) => ward.id == _selectedCurrentWardId,
-                        )
-                        ? _selectedCurrentWardId
-                        : null,
-                    style: AppTypography.dropdownTextStyle(context),
-                    hint: Text(
-                      careWards.isEmpty
-                          ? wardRequired
-                                ? 'Ask an administrator to create a ward'
-                                : 'No care wards available'
-                          : 'Select care ward',
-                    ),
-                    items: careWards
-                        .where((ward) => ward.isActive)
-                        .map(
-                          (ward) => DropdownMenuItem(
-                            value: ward.id,
-                            child: Text(ward.label),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: careWards.isEmpty
-                        ? null
-                        : (value) =>
-                              setState(() => _selectedCurrentWardId = value),
-                    validator: (value) =>
-                        wardRequired && (value == null || value.isEmpty)
-                        ? 'Care ward is required'
-                        : null,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  DropdownButtonFormField<String>(
-                    decoration: _buildInputDecoration(
-                      "Village",
+                      "Local body",
                       Icons.location_city,
                     ),
                     key: ValueKey(_selectedVillage),
@@ -969,66 +811,62 @@ class _patientrigisterState extends State<patientrigister> {
                     onChanged: (v) {
                       setState(() {
                         _selectedVillage = v;
-                        _updateFilteredWards();
+                        _selectedCurrentWardId = null;
+                        _selectedWardTitle = null;
                       });
                     },
                     validator: (val) => val == null ? "Required" : null,
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: _buildInputDecoration(
-                            "Local Ward Number",
-                            Icons.apartment,
-                          ),
-                          key: ValueKey(
-                            '${_selectedVillage ?? ''}:${_selectedWardTitle ?? ''}:${filteredWards.length}',
-                          ),
-                          initialValue: _selectedWardTitle,
-                          style: AppTypography.dropdownTextStyle(context),
-                          hint: const Text("Select Ward Number"),
-                          items: filteredWards
-                              .map(
-                                (w) => DropdownMenuItem(
-                                  value: w,
-                                  child: Text("Ward $w"),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedWardTitle = v),
-                        ),
-                      ),
-                      if (canManageConfig) ...[
-                        const SizedBox(width: AppSpacing.sm),
-                        Tooltip(
-                          message: 'Add New Ward',
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Material(
-                              color: AppColors.primaryLight,
-                              borderRadius: AppRadius.md,
-                              child: InkWell(
-                                borderRadius: AppRadius.md,
-                                onTap: _showAddWardDialog,
-                                child: const SizedBox(
-                                  width: 48,
-                                  height: 48,
-                                  child: Icon(
-                                    Icons.add,
-                                    color: _patientPrimary,
-                                    size: AppIcons.large,
-                                  ),
-                                ),
-                              ),
+                  DropdownButtonFormField<String>(
+                    decoration: _buildInputDecoration(
+                      wardRequired ? "Ward *" : "Ward (optional)",
+                      Icons.apartment,
+                    ),
+                    key: ValueKey(
+                      '${_selectedVillage ?? ''}:${_selectedCurrentWardId ?? ''}:${_wardsForSelectedLocalBody.length}',
+                    ),
+                    initialValue:
+                        _wardsForSelectedLocalBody.any(
+                          (ward) => ward.id == _selectedCurrentWardId,
+                        )
+                        ? _selectedCurrentWardId
+                        : null,
+                    isExpanded: true,
+                    style: AppTypography.dropdownTextStyle(context),
+                    hint: Text(
+                      _selectedVillage == null
+                          ? 'Select a local body first'
+                          : _wardsForSelectedLocalBody.isEmpty
+                          ? 'No wards configured for this local body'
+                          : 'Select ward',
+                    ),
+                    items: _wardsForSelectedLocalBody
+                        .map(
+                          (ward) => DropdownMenuItem(
+                            value: ward.id,
+                            child: Text(
+                              ward.label,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                      ],
-                    ],
+                        )
+                        .toList(),
+                    onChanged: _wardsForSelectedLocalBody.isEmpty
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedCurrentWardId = value;
+                              final selectedWard = _wardById(value);
+                              _selectedWardTitle =
+                                  selectedWard?.lsgWardValue ??
+                                  selectedWard?.name;
+                            });
+                          },
+                    validator: (value) =>
+                        wardRequired && (value == null || value.isEmpty)
+                        ? 'Ward is required'
+                        : null,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   TextFormField(

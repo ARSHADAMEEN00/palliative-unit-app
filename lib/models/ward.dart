@@ -3,12 +3,18 @@ class Ward {
     required this.id,
     required this.name,
     this.code,
+    this.localBody,
+    this.lsgWardValue,
+    this.managedByLsg = false,
     this.isActive = true,
   });
 
   final String id;
   final String name;
   final String? code;
+  final String? localBody;
+  final String? lsgWardValue;
+  final bool managedByLsg;
   final bool isActive;
 
   String get label {
@@ -16,10 +22,18 @@ class Ward {
     return value == null || value.isEmpty ? name : '$name ($value)';
   }
 
+  String get fullLabel {
+    final body = localBody?.trim();
+    return body == null || body.isEmpty ? label : '$body • $label';
+  }
+
   factory Ward.fromJson(Map<String, dynamic> json) => Ward(
     id: (json['id'] ?? json['_id'] ?? '').toString(),
     name: json['name']?.toString() ?? '',
     code: json['code']?.toString(),
+    localBody: json['localBody']?.toString(),
+    lsgWardValue: json['lsgWardValue']?.toString(),
+    managedByLsg: json['managedByLsg'] == true,
     isActive: json['isActive'] != false,
   );
 }

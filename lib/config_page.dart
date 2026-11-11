@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/config.dart';
@@ -66,7 +65,6 @@ class _ConfigPageState extends State<ConfigPage>
   Config? _config;
   List<StaffUser> _staff = [];
   List<Ward> _careWards = [];
-  List<WardPatientCount> _wardPatientCounts = [];
   Map<String, Set<String>> _rolePermissionDefaults = {
     for (final role in _permissionRoles)
       role: {..._defaultModulesForRole(role)},
@@ -88,10 +86,21 @@ class _ConfigPageState extends State<ConfigPage>
   String? _configErrorMessage;
   String? _staffErrorMessage;
 
+  List<String> get _assignableRoles => _roles
+      .where(
+        (role) =>
+            role != 'volunteer' ||
+            _subscribedModuleIds.contains(AppFeature.volunteers),
+      )
+      .toList(growable: false);
+
   final TextEditingController _villageController = TextEditingController();
   final TextEditingController _diseaseController = TextEditingController();
   final TextEditingController _planController = TextEditingController();
   final TextEditingController _wardController = TextEditingController();
+  final TextEditingController _settingsSearchController =
+      TextEditingController();
+  String _settingsSearchQuery = '';
   String? _selectedWardVillage;
 
   static InputDecoration _fieldDecoration({
@@ -193,6 +202,7 @@ class _ConfigPageState extends State<ConfigPage>
   void dispose() {
     _tabController.dispose();
     _staffSearchController.dispose();
+    _settingsSearchController.dispose();
     _villageController.dispose();
     _diseaseController.dispose();
     _planController.dispose();
@@ -221,17 +231,14 @@ class _ConfigPageState extends State<ConfigPage>
     try {
       final results = await Future.wait([
         ConfigService.getConfig(forceRefresh: true),
-        WardService.getWards(includeInactive: true, forceRefresh: true),
-        WardService.getPatientCounts(),
+        WardService.getWards(forceRefresh: true),
       ]);
       final config = results[0] as Config;
-      final careWards = results[1] as List<Ward>;
-      final wardPatientCounts = results[2] as List<WardPatientCount>;
+      final wards = results[1] as List<Ward>;
       if (!mounted) return;
       setState(() {
         _config = config;
-        _careWards = careWards;
-        _wardPatientCounts = wardPatientCounts;
+        _careWards = wards;
         _ensureSelectedWardVillage(config);
         _isLoadingConfig = false;
       });
@@ -268,6 +275,10 @@ class _ConfigPageState extends State<ConfigPage>
             role: {...?permissions.rolePermissions[role]},
         };
         _subscribedModuleIds = {...permissions.subscribedModuleIds};
+        if (_selectedPermissionRole == 'volunteer' &&
+            !_subscribedModuleIds.contains(AppFeature.volunteers)) {
+          _selectedPermissionRole = 'staff';
+        }
         _isLoadingStaff = false;
       });
     } catch (e) {
@@ -285,9 +296,11 @@ class _ConfigPageState extends State<ConfigPage>
     setState(() => _isSavingConfig = true);
     try {
       final updatedConfig = await ConfigService.updateConfig(_config!);
+      final syncedWards = await WardService.getWards(forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _config = updatedConfig;
+        _careWards = syncedWards;
         _ensureSelectedWardVillage(updatedConfig);
       });
       final auth = Provider.of<AuthService>(context, listen: false);
@@ -350,22 +363,27 @@ class _ConfigPageState extends State<ConfigPage>
   void _addWard() {
     if (_config == null || _selectedWardVillage == null) return;
 
-    final wardNumber = normalizeWardNumberValue(_wardController.text);
-    if (wardNumber.isEmpty) return;
-
-    final exists = _config!.wards.any(
-      (ward) =>
-          ward.village == _selectedWardVillage && ward.number == wardNumber,
-    );
-    if (exists) {
-      _wardController.clear();
-      return;
-    }
+    final wardValues = parseWardInput(_wardController.text);
+    if (wardValues.isEmpty) return;
 
     setState(() {
-      _config!.wards.add(
-        WardConfig(number: wardNumber, village: _selectedWardVillage!),
-      );
+      for (final wardValue in wardValues) {
+        final key = wardKey(wardValue);
+        final existingIndex = _config!.wards.indexWhere(
+          (w) => w.village == _selectedWardVillage && wardKey(w.number) == key,
+        );
+
+        if (existingIndex >= 0) {
+          _config!.wards[existingIndex] = WardConfig(
+            number: wardValue,
+            village: _selectedWardVillage!,
+          );
+        } else {
+          _config!.wards.add(
+            WardConfig(number: wardValue, village: _selectedWardVillage!),
+          );
+        }
+      }
       _config!.wards.sort(compareWardConfigs);
       _wardController.clear();
     });
@@ -848,7 +866,7 @@ class _ConfigPageState extends State<ConfigPage>
           Wrap(
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
-            children: _permissionRoles.map((role) {
+            children: _assignableRoles.map((role) {
               final selected = _selectedPermissionRole == role;
               return ChoiceChip(
                 selected: selected,
@@ -935,18 +953,136 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  List<String> get _wardLocalBodies {
+    final values = _careWards
+        .where((ward) => ward.isActive)
+        .map((ward) => ward.localBody?.trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort(compareNaturally);
+    return values;
+  }
+
+  String? _defaultWardLocalBody(Set<String> selectedWardIds) {
+    for (final ward in _careWards) {
+      if (selectedWardIds.contains(ward.id) &&
+          (ward.localBody?.trim().isNotEmpty ?? false)) {
+        return ward.localBody!.trim();
+      }
+    }
+    final localBodies = _wardLocalBodies;
+    return localBodies.isEmpty ? null : localBodies.first;
+  }
+
+  Widget _buildStaffWardPicker({
+    required String? selectedLocalBody,
+    required Set<String> selectedWardIds,
+    required bool required,
+    required bool disabled,
+    required ValueChanged<String?> onLocalBodyChanged,
+    required ValueChanged<String> onWardToggled,
+  }) {
+    final localBodies = _wardLocalBodies;
+    final visibleWards =
+        _careWards
+            .where(
+              (ward) =>
+                  ward.isActive && ward.localBody?.trim() == selectedLocalBody,
+            )
+            .toList()
+          ..sort((a, b) => compareNaturally(a.name, b.name));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Assigned wards${required ? ' *' : ' (optional)'}',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+            if (selectedWardIds.isNotEmpty)
+              Text(
+                '${selectedWardIds.length} selected',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        if (localBodies.isEmpty)
+          Text(
+            required
+                ? 'Add wards under LSGs & Wards before adding staff.'
+                : 'No LSG wards are available yet.',
+            style: TextStyle(
+              color: required ? AppColors.danger : AppColors.textSecondary,
+            ),
+          )
+        else ...[
+          DropdownButtonFormField<String>(
+            initialValue: localBodies.contains(selectedLocalBody)
+                ? selectedLocalBody
+                : null,
+            isExpanded: true,
+            decoration: _fieldDecoration(
+              labelText: 'Local body',
+              prefixIcon: Icons.location_city_outlined,
+            ),
+            items: localBodies
+                .map(
+                  (localBody) => DropdownMenuItem(
+                    value: localBody,
+                    child: Text(localBody, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: disabled ? null : onLocalBodyChanged,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (visibleWards.isEmpty)
+            const Text(
+              'No wards are available for this local body.',
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: visibleWards.map((ward) {
+                final selected = selectedWardIds.contains(ward.id);
+                return FilterChip(
+                  label: Text(ward.label),
+                  selected: selected,
+                  onSelected: disabled ? null : (_) => onWardToggled(ward.id),
+                );
+              }).toList(),
+            ),
+        ],
+      ],
+    );
+  }
+
   Future<void> _showAddStaffSheet([String? initialRole]) async {
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
+    final assignableRoles = _assignableRoles;
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final defaultRole = (initialRole != null && _roles.contains(initialRole))
+    final defaultRole =
+        (initialRole != null && assignableRoles.contains(initialRole))
         ? initialRole
         : 'staff';
     var selectedRole = defaultRole;
     var selectedModules = <String>{..._modulesForRole(defaultRole)};
     var selectedWardIds = <String>{};
+    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds);
     var obscurePassword = true;
     var isSubmitting = false;
     var modulesExpanded = false;
@@ -1160,7 +1296,7 @@ class _ConfigPageState extends State<ConfigPage>
                                 labelText: 'Role',
                                 prefixIcon: Icons.admin_panel_settings,
                               ),
-                              items: _roles
+                              items: assignableRoles
                                   .map(
                                     (role) => DropdownMenuItem(
                                       value: role,
@@ -1181,50 +1317,20 @@ class _ConfigPageState extends State<ConfigPage>
                                     }),
                             ),
                             const SizedBox(height: AppSpacing.md),
-                            Text(
-                              'Assigned wards${wardRequired && selectedRole == 'staff' ? ' *' : ' (optional)'}',
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            if (_careWards.isEmpty)
-                              Text(
-                                wardRequired && selectedRole == 'staff'
-                                    ? 'Create an active ward before adding staff.'
-                                    : 'No active wards are available yet.',
-                                style: TextStyle(
-                                  color: wardRequired && selectedRole == 'staff'
-                                      ? AppColors.danger
-                                      : AppColors.textSecondary,
-                                ),
-                              )
-                            else
-                              Wrap(
-                                spacing: AppSpacing.xs,
-                                runSpacing: AppSpacing.xs,
-                                children: _careWards
-                                    .where((ward) => ward.isActive)
-                                    .map((ward) {
-                                      final selected = selectedWardIds.contains(
-                                        ward.id,
-                                      );
-                                      return FilterChip(
-                                        label: Text(ward.label),
-                                        selected: selected,
-                                        onSelected: isSubmitting
-                                            ? null
-                                            : (enabled) => setSheetState(() {
-                                                enabled
-                                                    ? selectedWardIds.add(
-                                                        ward.id,
-                                                      )
-                                                    : selectedWardIds.remove(
-                                                        ward.id,
-                                                      );
-                                              }),
-                                      );
-                                    })
-                                    .toList(),
+                            _buildStaffWardPicker(
+                              selectedLocalBody: selectedWardLocalBody,
+                              selectedWardIds: selectedWardIds,
+                              required: wardRequired && selectedRole == 'staff',
+                              disabled: isSubmitting,
+                              onLocalBodyChanged: (value) => setSheetState(
+                                () => selectedWardLocalBody = value,
                               ),
+                              onWardToggled: (wardId) => setSheetState(() {
+                                selectedWardIds.contains(wardId)
+                                    ? selectedWardIds.remove(wardId)
+                                    : selectedWardIds.add(wardId);
+                              }),
+                            ),
                             const SizedBox(height: AppSpacing.md),
                             InkWell(
                               borderRadius: AppRadius.sm,
@@ -1406,18 +1512,19 @@ class _ConfigPageState extends State<ConfigPage>
 
   Future<void> _showEditStaffDialog(StaffUser staff) async {
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
+    final assignableRoles = _assignableRoles;
     final nameController = TextEditingController(text: staff.name);
     final emailController = TextEditingController(text: staff.email);
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    var selectedRole = staff.role;
-    if (!_roles.contains(selectedRole)) selectedRole = 'staff';
+    var selectedRole = assignableRoles.contains(staff.role) ? staff.role : '';
     var selectedModules = <String>{
       ...(staff.hasExplicitModulePermissions
           ? staff.permittedModuleIds
-          : _modulesForRole(selectedRole)),
+          : _modulesForRole(selectedRole.isEmpty ? staff.role : selectedRole)),
     };
     var selectedWardIds = staff.assignedWards.map((ward) => ward.id).toSet();
+    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds);
     var obscurePassword = true;
     var saving = false;
     var modulesExpanded = false;
@@ -1579,7 +1686,10 @@ class _ConfigPageState extends State<ConfigPage>
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         DropdownButtonFormField<String>(
-                          initialValue: selectedRole,
+                          initialValue: selectedRole.isEmpty
+                              ? null
+                              : selectedRole,
+                          hint: const Text('Select an available role'),
                           style: const TextStyle(
                             color: _inkColor,
                             fontSize: 13,
@@ -1589,7 +1699,7 @@ class _ConfigPageState extends State<ConfigPage>
                             labelText: 'Role',
                             prefixIcon: Icons.admin_panel_settings_outlined,
                           ),
-                          items: _roles
+                          items: assignableRoles
                               .map(
                                 (role) => DropdownMenuItem(
                                   value: role,
@@ -1600,43 +1710,34 @@ class _ConfigPageState extends State<ConfigPage>
                                 ),
                               )
                               .toList(),
+                          validator: (value) =>
+                              value == null ? 'Select an available role' : null,
                           onChanged: saving
                               ? null
-                              : (value) => setDialogState(() {
-                                  selectedRole = value ?? staff.role;
-                                  selectedModules = {
-                                    ..._modulesForRole(selectedRole),
-                                  };
-                                }),
+                              : (value) {
+                                  if (value == null) return;
+                                  setDialogState(() {
+                                    selectedRole = value;
+                                    selectedModules = {
+                                      ..._modulesForRole(selectedRole),
+                                    };
+                                  });
+                                },
                         ),
                         const SizedBox(height: AppSpacing.md),
-                        Text(
-                          'Assigned wards${wardRequired && selectedRole == 'staff' ? ' *' : ' (optional)'}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Wrap(
-                          spacing: AppSpacing.xs,
-                          runSpacing: AppSpacing.xs,
-                          children: _careWards
-                              .where((ward) => ward.isActive)
-                              .map((ward) {
-                                final selected = selectedWardIds.contains(
-                                  ward.id,
-                                );
-                                return FilterChip(
-                                  label: Text(ward.label),
-                                  selected: selected,
-                                  onSelected: saving
-                                      ? null
-                                      : (enabled) => setDialogState(() {
-                                          enabled
-                                              ? selectedWardIds.add(ward.id)
-                                              : selectedWardIds.remove(ward.id);
-                                        }),
-                                );
-                              })
-                              .toList(),
+                        _buildStaffWardPicker(
+                          selectedLocalBody: selectedWardLocalBody,
+                          selectedWardIds: selectedWardIds,
+                          required: wardRequired && selectedRole == 'staff',
+                          disabled: saving,
+                          onLocalBodyChanged: (value) => setDialogState(
+                            () => selectedWardLocalBody = value,
+                          ),
+                          onWardToggled: (wardId) => setDialogState(() {
+                            selectedWardIds.contains(wardId)
+                                ? selectedWardIds.remove(wardId)
+                                : selectedWardIds.add(wardId);
+                          }),
                         ),
                         if (wardRequired &&
                             selectedRole == 'staff' &&
@@ -1929,30 +2030,47 @@ class _ConfigPageState extends State<ConfigPage>
             )
           : _buildAccessDenied(),
       floatingActionButton:
-          auth.isAdmin && !(activeIndex == 1 && _selectedStaffSection == 'role')
-          ? RevealActionFab(
-              onPressed: activeIndex == 0
-                  ? (_isLoadingConfig || _config == null || _isSavingConfig
+          auth.isAdmin &&
+                  !(activeIndex == 1 && _selectedStaffSection == 'role') &&
+                  widget.mode != ConfigPageMode.settings
+              ? widget.mode == ConfigPageMode.lsg
+                ? FloatingActionButton.extended(
+                    onPressed:
+                        _isLoadingConfig || _config == null || _isSavingConfig
                         ? null
-                        : _saveConfig)
-                  : (_isLoadingStaff
-                        ? null
-                        : () => _showAddStaffSheet(
-                            _staffRoleFilter == 'all' ? null : _staffRoleFilter,
-                          )),
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              icon: activeIndex == 0
-                  ? Icons.save_outlined
-                  : (_staffRoleFilter == 'volunteer'
-                        ? Icons.volunteer_activism_outlined
-                        : Icons.person_add),
-              label: activeIndex == 0
-                  ? 'Save Changes'
-                  : (_staffRoleFilter != 'all'
-                        ? 'Add ${_roleLabel(_staffRoleFilter)}'
-                        : 'Add User'),
-            )
+                        : _saveConfig,
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save changes'),
+                  )
+                : RevealActionFab(
+                    onPressed: activeIndex == 0
+                        ? (_isLoadingConfig ||
+                                  _config == null ||
+                                  _isSavingConfig
+                              ? null
+                              : _saveConfig)
+                        : (_isLoadingStaff
+                              ? null
+                              : () => _showAddStaffSheet(
+                                  _staffRoleFilter == 'all'
+                                      ? null
+                                      : _staffRoleFilter,
+                                )),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    icon: activeIndex == 0
+                        ? Icons.save_outlined
+                        : (_staffRoleFilter == 'volunteer'
+                              ? Icons.volunteer_activism_outlined
+                              : Icons.person_add),
+                    label: activeIndex == 0
+                        ? 'Save Changes'
+                        : (_staffRoleFilter != 'all'
+                              ? 'Add ${_roleLabel(_staffRoleFilter)}'
+                              : 'Add User'),
+                  )
           : null,
     );
   }
@@ -1990,39 +2108,735 @@ class _ConfigPageState extends State<ConfigPage>
     return RefreshIndicator(
       onRefresh: _fetchConfig,
       child: ListView(
-        padding: AppInsets.screen(context, top: AppSpacing.md, bottom: 112),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         children: [
-          _buildOverviewHeader(config),
-          const SizedBox(height: AppSpacing.sm),
-          _buildUnitWorkingTimeSection(),
-          _buildCareWardSection(),
-          _buildWorkingDaysSection(),
-          _buildAvailabilityTimeSection(),
-          _buildTransferSettingsSection(),
-          _buildLsgNavigationCard(config),
-          _buildListSection(
-            title: 'Diseases',
-            icon: Icons.medical_information_outlined,
-            listName: 'diseases',
-            items: config.diseases,
-            controller: _diseaseController,
-            hintText: 'Add disease',
-          ),
-          _buildListSection(
-            title: 'Plans',
-            icon: Icons.event_repeat_outlined,
-            listName: 'plans',
-            items: config.plans,
-            controller: _planController,
-            hintText: 'Add care plan',
-          ),
+          _buildSettingsSearchBar(),
+          if (_settingsSearchQuery.isNotEmpty)
+            _buildSettingsSearchResults(config)
+          else ...[
+            _buildSettingsGroupSection(
+              header: 'OPERATIONS & SCHEDULE',
+              items: [
+                _SettingsItem(
+                  title: 'Unit working hours',
+                  subtitle: 'Displayed on the home top card',
+                  icon: Icons.schedule_rounded,
+                  trailingText: config.workingTime?.trim().isNotEmpty == true
+                      ? config.workingTime!.trim()
+                      : 'Not set',
+                  onTap: _openWorkingTimeEditorDialog,
+                ),
+                _SettingsItem(
+                  title: 'Volunteer shift hours',
+                  subtitle: 'Daily availability window',
+                  icon: Icons.access_time_rounded,
+                  trailingText:
+                      '${config.volunteerAvailabilityStartTime.isNotEmpty ? config.volunteerAvailabilityStartTime : '09:30 AM'} - ${config.volunteerAvailabilityEndTime.isNotEmpty ? config.volunteerAvailabilityEndTime : '03:30 PM'}',
+                  onTap: _openAvailabilityTimeDialog,
+                ),
+                _SettingsItem(
+                  title: 'Volunteer working days',
+                  subtitle: 'Days volunteers can be assigned',
+                  icon: Icons.calendar_month_outlined,
+                  trailingText: _getWorkingDaysSummary(config.workingDays),
+                  onTap: _openWorkingDaysDialog,
+                ),
+              ],
+            ),
+            _buildSettingsGroupSection(
+              header: 'CARE STRUCTURE & WARDS',
+              items: [
+                _SettingsItem(
+                  title: 'Care wards',
+                  subtitle: 'Operational wards for patient & staff access',
+                  icon: Icons.local_hospital_outlined,
+                  trailingText:
+                      '${_careWards.where((w) => w.isActive).length} active',
+                  onTap: _openCareWardsPage,
+                ),
+                _SettingsItem(
+                  title: 'LSGs & Wards',
+                  subtitle: 'Villages, municipalities & ward numbers',
+                  icon: Icons.holiday_village_outlined,
+                  trailingText: '${config.villages.length} local bodies',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const ConfigPage(mode: ConfigPageMode.lsg),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            _buildSettingsGroupSection(
+              header: 'CLINICAL MASTER DATA',
+              items: [
+                _SettingsItem(
+                  title: 'Diseases catalog',
+                  subtitle: 'Medical conditions for patient files',
+                  icon: Icons.medical_information_outlined,
+                  trailingText: '${config.diseases.length} diseases',
+                  onTap: () => _openMasterListPage(
+                    title: 'Diseases Catalog',
+                    icon: Icons.medical_information_outlined,
+                    listName: 'diseases',
+                    hintText: 'Add disease',
+                  ),
+                ),
+                _SettingsItem(
+                  title: 'Care plans',
+                  subtitle: 'Standard plan templates for visits',
+                  icon: Icons.event_repeat_outlined,
+                  trailingText: '${config.plans.length} plans',
+                  onTap: () => _openMasterListPage(
+                    title: 'Care Plans',
+                    icon: Icons.event_repeat_outlined,
+                    listName: 'plans',
+                    hintText: 'Add care plan',
+                  ),
+                ),
+              ],
+            ),
+            _buildSettingsGroupSection(
+              header: 'PATIENT TRANSFER & SAFETY',
+              items: [
+                _SettingsItem(
+                  title: 'Patient transfer review',
+                  subtitle: 'Approval expiry & required checks',
+                  icon: Icons.swap_horiz_rounded,
+                  trailingText:
+                      '${config.transferSettings.expiryDays} day expiry',
+                  onTap: _openTransferSettingsPage,
+                ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsSearchBar() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+      ),
+      child: TextField(
+        controller: _settingsSearchController,
+        style: const TextStyle(fontSize: 14, color: AppColors.text),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search settings',
+          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13.5),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: AppColors.textMuted,
+            size: 20,
+          ),
+          suffixIcon: _settingsSearchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(
+                    Icons.clear_rounded,
+                    size: 18,
+                    color: AppColors.textMuted,
+                  ),
+                  onPressed: () {
+                    _settingsSearchController.clear();
+                    setState(() => _settingsSearchQuery = '');
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        ),
+        onChanged: (val) =>
+            setState(() => _settingsSearchQuery = val.trim().toLowerCase()),
+      ),
+    );
+  }
+
+  Widget _buildSettingsGroupSection({
+    required String header,
+    required List<_SettingsItem> items,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 6, bottom: 8, top: 18),
+          child: Text(
+            header,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0)
+                    Divider(
+                      height: 1,
+                      thickness: 0.7,
+                      indent: 58,
+                      endIndent: 0,
+                      color: AppColors.border.withValues(alpha: 0.6),
+                    ),
+                  _buildSettingsRow(items[i]),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsRow(_SettingsItem item) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: item.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _softAccentColor,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(item.icon, size: 20, color: _primaryColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                        height: 1.2,
+                      ),
+                    ),
+                    if (item.subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        item.subtitle!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (item.trailingText != null) ...[
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 120),
+                  child: Text(
+                    item.trailingText!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppColors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsSearchResults(Config config) {
+    final allItems = [
+      _SettingsItem(
+        title: 'Unit working hours',
+        subtitle: 'Displayed on the home top card',
+        icon: Icons.schedule_rounded,
+        trailingText: config.workingTime?.trim().isNotEmpty == true
+            ? config.workingTime!.trim()
+            : 'Not set',
+        onTap: _openWorkingTimeEditorDialog,
+      ),
+      _SettingsItem(
+        title: 'Volunteer shift hours',
+        subtitle: 'Daily availability window',
+        icon: Icons.access_time_rounded,
+        trailingText:
+            '${config.volunteerAvailabilityStartTime.isNotEmpty ? config.volunteerAvailabilityStartTime : '09:30 AM'} - ${config.volunteerAvailabilityEndTime.isNotEmpty ? config.volunteerAvailabilityEndTime : '03:30 PM'}',
+        onTap: _openAvailabilityTimeDialog,
+      ),
+      _SettingsItem(
+        title: 'Volunteer working days',
+        subtitle: 'Days volunteers can be assigned',
+        icon: Icons.calendar_month_outlined,
+        trailingText: _getWorkingDaysSummary(config.workingDays),
+        onTap: _openWorkingDaysDialog,
+      ),
+      _SettingsItem(
+        title: 'Care wards',
+        subtitle: 'Operational wards for patient & staff access',
+        icon: Icons.local_hospital_outlined,
+        trailingText: '${_careWards.where((w) => w.isActive).length} active',
+        onTap: _openCareWardsPage,
+      ),
+      _SettingsItem(
+        title: 'LSGs & Wards',
+        subtitle: 'Villages, municipalities & ward numbers',
+        icon: Icons.holiday_village_outlined,
+        trailingText: '${config.villages.length} local bodies',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ConfigPage(mode: ConfigPageMode.lsg),
+            ),
+          );
+        },
+      ),
+      _SettingsItem(
+        title: 'Diseases catalog',
+        subtitle: 'Medical conditions for patient files',
+        icon: Icons.medical_information_outlined,
+        trailingText: '${config.diseases.length} diseases',
+        onTap: () => _openMasterListPage(
+          title: 'Diseases Catalog',
+          icon: Icons.medical_information_outlined,
+          listName: 'diseases',
+          hintText: 'Add disease',
+        ),
+      ),
+      _SettingsItem(
+        title: 'Care plans',
+        subtitle: 'Standard plan templates for visits',
+        icon: Icons.event_repeat_outlined,
+        trailingText: '${config.plans.length} plans',
+        onTap: () => _openMasterListPage(
+          title: 'Care Plans',
+          icon: Icons.event_repeat_outlined,
+          listName: 'plans',
+          hintText: 'Add care plan',
+        ),
+      ),
+      _SettingsItem(
+        title: 'Patient transfer review',
+        subtitle: 'Approval expiry & required checks',
+        icon: Icons.swap_horiz_rounded,
+        trailingText: '${config.transferSettings.expiryDays} day expiry',
+        onTap: _openTransferSettingsPage,
+      ),
+    ];
+
+    final matched = allItems.where((item) {
+      final t = item.title.toLowerCase();
+      final s = (item.subtitle ?? '').toLowerCase();
+      return t.contains(_settingsSearchQuery) ||
+          s.contains(_settingsSearchQuery);
+    }).toList();
+
+    if (matched.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.search_off_rounded,
+                size: 40,
+                color: AppColors.textMuted,
+              ),
+              SizedBox(height: AppSpacing.xs),
+              Text(
+                'No matching settings found',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return _buildSettingsGroupSection(
+      header: 'MATCHING SETTINGS (${matched.length})',
+      items: matched,
+    );
+  }
+
+  String _getWorkingDaysSummary(List<int> days) {
+    if (days.isEmpty) return 'Not set';
+    if (days.length == 7) return 'All 7 days';
+    if (days.length == 6 && !days.contains(DateTime.sunday)) return 'Mon - Sat';
+    if (days.length == 5 &&
+        !days.contains(DateTime.saturday) &&
+        !days.contains(DateTime.sunday)) {
+      return 'Mon - Fri';
+    }
+    return '${days.length} days active';
+  }
+
+  Future<void> _openWorkingDaysDialog() async {
+    final config = _config;
+    if (config == null) return;
+    const days = [
+      (value: DateTime.monday, label: 'Monday'),
+      (value: DateTime.tuesday, label: 'Tuesday'),
+      (value: DateTime.wednesday, label: 'Wednesday'),
+      (value: DateTime.thursday, label: 'Thursday'),
+      (value: DateTime.friday, label: 'Friday'),
+      (value: DateTime.saturday, label: 'Saturday'),
+      (value: DateTime.sunday, label: 'Sunday'),
+    ];
+    final selectedDays = Set<int>.from(config.workingDays);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.sheet),
+      builder: (modalCtx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _softAccentColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.calendar_month_outlined,
+                      color: _primaryColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  const Expanded(
+                    child: Text(
+                      'Volunteer Working Days',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'Select which days volunteers are available to be assigned visits.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: days.map((day) {
+                  final selected = selectedDays.contains(day.value);
+                  return FilterChip(
+                    selected: selected,
+                    showCheckmark: true,
+                    label: Text(day.label),
+                    onSelected: (val) {
+                      setModalState(() {
+                        if (val) {
+                          selectedDays.add(day.value);
+                        } else {
+                          selectedDays.remove(day.value);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(modalCtx);
+                    final sorted = selectedDays.toList()..sort();
+                    setState(() {
+                      _config?.workingDays.clear();
+                      _config?.workingDays.addAll(sorted);
+                    });
+                    await _saveConfig();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppRadius.button,
+                    ),
+                  ),
+                  child: const Text(
+                    'Save Working Days',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAvailabilityTimeDialog() async {
+    final config = _config;
+    if (config == null) return;
+    var start = config.volunteerAvailabilityStartTime.isNotEmpty
+        ? config.volunteerAvailabilityStartTime
+        : '09:30 AM';
+    var end = config.volunteerAvailabilityEndTime.isNotEmpty
+        ? config.volunteerAvailabilityEndTime
+        : '03:30 PM';
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.sheet),
+      builder: (modalCtx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _softAccentColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.access_time_rounded,
+                      color: _primaryColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  const Expanded(
+                    child: Text(
+                      'Volunteer Shift Hours',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'Standard daily shift time window displayed to volunteers.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTimePickerTile(
+                      label: 'Start time',
+                      value: start,
+                      onTap: () async {
+                        final initial = _parseTimeOfDay(start) ??
+                            const TimeOfDay(hour: 9, minute: 30);
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: initial,
+                        );
+                        if (picked != null) {
+                          setModalState(() => start = _formatTimeOfDay(picked));
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _buildTimePickerTile(
+                      label: 'End time',
+                      value: end,
+                      onTap: () async {
+                        final initial = _parseTimeOfDay(end) ??
+                            const TimeOfDay(hour: 15, minute: 30);
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: initial,
+                        );
+                        if (picked != null) {
+                          setModalState(() => end = _formatTimeOfDay(picked));
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(modalCtx);
+                    setState(() {
+                      _config?.volunteerAvailabilityStartTime = start;
+                      _config?.volunteerAvailabilityEndTime = end;
+                    });
+                    await _saveConfig();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppRadius.button,
+                    ),
+                  ),
+                  child: const Text(
+                    'Save Shift Hours',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCareWardsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _CareWardsSettingsPage(
+          configState: this,
+        ),
+      ),
+    );
+  }
+
+  void _openMasterListPage({
+    required String title,
+    required IconData icon,
+    required String listName,
+    required String hintText,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _MasterListSettingsPage(
+          title: title,
+          icon: icon,
+          listName: listName,
+          hintText: hintText,
+          configState: this,
+        ),
+      ),
+    );
+  }
+
+  void _openTransferSettingsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _TransferSettingsPage(
+          configState: this,
+        ),
       ),
     );
   }
 
   Widget _buildLsgNavigationCard(Config config) {
     return _SectionCard(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: InkWell(
         borderRadius: AppRadius.card,
         onTap: () {
@@ -2052,7 +2866,7 @@ class _ConfigPageState extends State<ConfigPage>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${config.villages.length} villages / LSGs • ${config.wards.length} wards',
+                      '${config.villages.length} local bodies • ${config.wards.length} wards',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -2082,19 +2896,11 @@ class _ConfigPageState extends State<ConfigPage>
     return RefreshIndicator(
       onRefresh: _fetchConfig,
       child: ListView(
-        padding: AppInsets.screen(context, top: AppSpacing.md, bottom: 112),
+        padding: AppInsets.screen(context, top: AppSpacing.sm, bottom: 96),
         children: [
           _buildLsgOverviewHeader(config),
           const SizedBox(height: AppSpacing.sm),
-          _buildListSection(
-            title: 'Villages',
-            icon: Icons.location_city_outlined,
-            listName: 'villages',
-            items: config.villages,
-            controller: _villageController,
-            hintText: 'Add village',
-          ),
-          _buildWardSection(),
+          _buildLsgManagementCard(config),
         ],
       ),
     );
@@ -2118,11 +2924,13 @@ class _ConfigPageState extends State<ConfigPage>
                   children: [
                     Text(
                       'Local Bodies & Wards',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Manage villages / LSGs and assign wards to each local body',
+                      'Village • Municipality • Corporation',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -2133,17 +2941,18 @@ class _ConfigPageState extends State<ConfigPage>
               IconButton(
                 tooltip: 'Refresh',
                 onPressed: _isLoadingConfig ? null : _fetchConfig,
+                visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.refresh),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               _MetricPill(
-                label: 'Villages / LSGs',
+                label: 'Local bodies',
                 value: config.villages.length.toString(),
                 icon: Icons.location_city_outlined,
               ),
@@ -2154,6 +2963,143 @@ class _ConfigPageState extends State<ConfigPage>
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLsgManagementCard(Config config) {
+    final wards = sortWardConfigs(config.wards);
+    final selectedLocalBody = _selectedWardVillage;
+    final selectedWards = selectedLocalBody == null
+        ? const <WardConfig>[]
+        : wards.where((ward) => ward.village == selectedLocalBody).toList();
+
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _LsgSectionHeader(
+            icon: Icons.location_city_outlined,
+            title: 'Local bodies',
+            subtitle: 'Village, municipality, or corporation',
+            count: config.villages.length,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _AddInlineField(
+            controller: _villageController,
+            hintText: 'Add local body',
+            compact: true,
+            onSubmitted: () => _addItem('villages', _villageController),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (config.villages.isEmpty)
+            const _EmptyInlineState(
+              label: 'No local bodies added yet',
+              compact: true,
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: config.villages.map((localBody) {
+                return _ConfigChip(
+                  label: Text(localBody),
+                  icon: Icons.location_city_outlined,
+                  onDeleted: () => _removeItem('villages', localBody),
+                );
+              }).toList(),
+            ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Divider(height: 1),
+          ),
+          _LsgSectionHeader(
+            icon: Icons.map_outlined,
+            title: 'Wards',
+            subtitle:
+                selectedLocalBody ?? 'Select a local body to manage its wards',
+            count: wards.length,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final localBodyField = DropdownButtonFormField<String>(
+                key: ValueKey(_selectedWardVillage),
+                initialValue: _selectedWardVillage,
+                isExpanded: true,
+                style: AppTypography.dropdownTextStyle(context),
+                decoration: _fieldDecoration(
+                  labelText: 'Local body',
+                  prefixIcon: Icons.location_city_outlined,
+                ),
+                items: config.villages
+                    .map(
+                      (localBody) => DropdownMenuItem(
+                        value: localBody,
+                        child: Text(
+                          localBody,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: config.villages.isEmpty
+                    ? null
+                    : (value) => setState(() => _selectedWardVillage = value),
+              );
+              final wardField = _AddInlineField(
+                controller: _wardController,
+                hintText: 'Add wards, separated by commas',
+                compact: true,
+                enabled: config.villages.isNotEmpty,
+                keyboardType: TextInputType.text,
+                onSubmitted: _addWard,
+              );
+
+              if (constraints.maxWidth >= 560) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: localBodyField),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(child: wardField),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  localBodyField,
+                  const SizedBox(height: AppSpacing.xs),
+                  wardField,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (selectedLocalBody == null)
+            const _EmptyInlineState(
+              label: 'Add a local body before adding wards',
+              compact: true,
+            )
+          else if (selectedWards.isEmpty)
+            _EmptyInlineState(
+              label: 'No wards added for $selectedLocalBody yet',
+              compact: true,
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: selectedWards.map((ward) {
+                return _ConfigChip(
+                  label: Text(formatWardLabel(ward.number)),
+                  icon: Icons.map_outlined,
+                  onDeleted: () => _removeWard(ward),
+                );
+              }).toList(),
+            ),
         ],
       ),
     );
@@ -2190,7 +3136,7 @@ class _ConfigPageState extends State<ConfigPage>
             runSpacing: 8,
             children: [
               _MetricPill(
-                label: 'Villages',
+                label: 'Local bodies',
                 value: config.villages.length.toString(),
                 icon: Icons.location_city_outlined,
                 onTap: () {
@@ -2565,14 +3511,25 @@ class _ConfigPageState extends State<ConfigPage>
           const SizedBox(height: AppSpacing.md),
           DropdownButtonFormField<int>(
             initialValue: settings.expiryDays,
+            isExpanded: true,
+            style: const TextStyle(
+              color: _inkColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: const InputDecoration(
               labelText: 'Pending request expiry',
               prefixIcon: Icon(Icons.timer_outlined),
             ),
             items: expiryOptions
                 .map(
-                  (days) =>
-                      DropdownMenuItem(value: days, child: Text('$days days')),
+                  (days) => DropdownMenuItem(
+                    value: days,
+                    child: Text(
+                      '$days days',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
                 )
                 .toList(),
             onChanged: (value) {
@@ -2858,268 +3815,6 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
-  Widget _buildCareWardSection() {
-    int patientCount(String wardId) => _wardPatientCounts
-        .where((row) => row.ward?.id == wardId)
-        .fold(0, (total, row) => total + row.active);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: _SectionCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const _IconBadge(
-                  icon: Icons.local_hospital_outlined,
-                  color: _primaryColor,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Care wards',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const Text(
-                        'Operational wards used for patient and staff access.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Add care ward',
-                  onPressed: () => _showCareWardEditor(),
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            if (_careWards.isEmpty)
-              const _EmptyInlineState(label: 'No care wards created yet')
-            else
-              ..._careWards.map(
-                (ward) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    ward.isActive
-                        ? Icons.local_hospital_outlined
-                        : Icons.block_outlined,
-                    color: ward.isActive
-                        ? AppColors.primary
-                        : AppColors.textMuted,
-                  ),
-                  title: Text(ward.label),
-                  subtitle: Text(
-                    ward.isActive
-                        ? '${patientCount(ward.id)} active patient(s)'
-                        : 'Inactive',
-                  ),
-                  trailing: Wrap(
-                    spacing: AppSpacing.xs,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit ward',
-                        onPressed: () => _showCareWardEditor(ward),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      if (ward.isActive)
-                        IconButton(
-                          tooltip: 'Deactivate ward',
-                          onPressed: () => _deactivateCareWard(ward),
-                          icon: const Icon(Icons.block_outlined),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showCareWardEditor([Ward? ward]) async {
-    final nameController = TextEditingController(text: ward?.name ?? '');
-    final codeController = TextEditingController(text: ward?.code ?? '');
-    final formKey = GlobalKey<FormState>();
-    try {
-      final saved = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(ward == null ? 'Add care ward' : 'Edit care ward'),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  decoration: _fieldDecoration(
-                    labelText: 'Ward name',
-                    prefixIcon: Icons.local_hospital_outlined,
-                  ),
-                  validator: (value) => value?.trim().isEmpty ?? true
-                      ? 'Ward name is required'
-                      : null,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                TextFormField(
-                  controller: codeController,
-                  decoration: _fieldDecoration(
-                    labelText: 'Code (optional)',
-                    prefixIcon: Icons.tag_outlined,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (!(formKey.currentState?.validate() ?? false)) return;
-                try {
-                  if (ward == null) {
-                    await WardService.createWard(
-                      name: nameController.text,
-                      code: codeController.text,
-                    );
-                  } else {
-                    await WardService.updateWard(
-                      ward.id,
-                      name: nameController.text,
-                      code: codeController.text,
-                    );
-                  }
-                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-                } catch (error) {
-                  if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(
-                      dialogContext,
-                    ).showSnackBar(SnackBar(content: Text(error.toString())));
-                  }
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      );
-      if (saved == true && mounted) await _fetchConfig();
-    } finally {
-      nameController.dispose();
-      codeController.dispose();
-    }
-  }
-
-  Future<void> _deactivateCareWard(Ward ward) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Deactivate ${ward.name}?'),
-        content: const Text(
-          'Patients and staff must be reassigned first. The ward and its history will be preserved.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Deactivate'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await WardService.deactivateWard(ward.id);
-      await _fetchConfig();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString()),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    }
-  }
-
-  Widget _buildWardSection() {
-    final wards = _config == null
-        ? const <WardConfig>[]
-        : sortWardConfigs(_config!.wards);
-    final selectedVillage = _selectedWardVillage;
-    final selectedWards = selectedVillage == null
-        ? const <WardConfig>[]
-        : wards.where((ward) => ward.village == selectedVillage).toList();
-
-    return _ConfigSection(
-      title: 'Wards',
-      icon: Icons.map_outlined,
-      count: wards.length,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DropdownButtonFormField<String>(
-            key: ValueKey(_selectedWardVillage),
-            initialValue: _selectedWardVillage,
-            style: AppTypography.dropdownTextStyle(context),
-            decoration: _fieldDecoration(
-              labelText: 'Village',
-              prefixIcon: Icons.location_city_outlined,
-            ),
-            items: (_config?.villages ?? [])
-                .map(
-                  (village) =>
-                      DropdownMenuItem(value: village, child: Text(village)),
-                )
-                .toList(),
-            onChanged: (_config?.villages.isEmpty ?? true)
-                ? null
-                : (value) => setState(() => _selectedWardVillage = value),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _AddInlineField(
-            controller: _wardController,
-            hintText: 'Add ward number',
-            enabled: (_config?.villages.isNotEmpty ?? false),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onSubmitted: _addWard,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          if (selectedVillage == null)
-            const _EmptyInlineState(label: 'Add a village before adding wards')
-          else if (selectedWards.isEmpty)
-            _EmptyInlineState(label: 'No wards added for $selectedVillage yet')
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: selectedWards.map((ward) {
-                return _ConfigChip(
-                  label: Text('Ward ${ward.number}'),
-                  icon: Icons.map_outlined,
-                  onDeleted: () => _removeWard(ward),
-                );
-              }).toList(),
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildStaffSectionTabs() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -3325,6 +4020,12 @@ class _ConfigPageState extends State<ConfigPage>
                   const SizedBox(height: AppSpacing.sm),
                   DropdownButtonFormField<String>(
                     initialValue: _staffWardFilter,
+                    isExpanded: true,
+                    style: const TextStyle(
+                      color: _inkColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                    ),
                     decoration: _fieldDecoration(
                       labelText: 'Filter by ward',
                       prefixIcon: Icons.local_hospital_outlined,
@@ -3332,14 +4033,20 @@ class _ConfigPageState extends State<ConfigPage>
                     items: [
                       const DropdownMenuItem(
                         value: 'all',
-                        child: Text('All wards'),
+                        child: Text(
+                          'All wards',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                       ..._careWards
                           .where((ward) => ward.isActive)
                           .map(
                             (ward) => DropdownMenuItem(
                               value: ward.id,
-                              child: Text(ward.label),
+                              child: Text(
+                                ward.fullLabel,
+                                style: const TextStyle(fontSize: 13),
+                              ),
                             ),
                           ),
                     ],
@@ -3375,6 +4082,8 @@ class _ConfigPageState extends State<ConfigPage>
 
   Widget _buildStaffCard(StaffUser staff) {
     final isUpdating = _updatingStaffIds.contains(staff.id);
+    final assignableRoles = _assignableRoles;
+    final currentRoleIsAssignable = assignableRoles.contains(staff.role);
     final joined = staff.createdAt == null
         ? 'Joined date unavailable'
         : 'Joined ${DateFormat('dd MMM yyyy').format(staff.createdAt!.toLocal())}';
@@ -3491,7 +4200,7 @@ class _ConfigPageState extends State<ConfigPage>
                             Icons.local_hospital_outlined,
                             size: 15,
                           ),
-                          label: Text(ward.label),
+                          label: Text(ward.fullLabel),
                           visualDensity: VisualDensity.compact,
                         ),
                       )
@@ -3603,7 +4312,8 @@ class _ConfigPageState extends State<ConfigPage>
             width: compact ? double.infinity : 190,
             child: DropdownButtonFormField<String>(
               key: ValueKey('${staff.id}:${staff.role}'),
-              initialValue: _roles.contains(staff.role) ? staff.role : 'staff',
+              initialValue: currentRoleIsAssignable ? staff.role : null,
+              hint: const Text('Select an available role'),
               style: const TextStyle(
                 color: _inkColor,
                 fontSize: 13,
@@ -3611,7 +4321,11 @@ class _ConfigPageState extends State<ConfigPage>
               ),
               decoration: _fieldDecoration(
                 labelText: 'Role',
-                prefixIcon: isUpdating ? null : _roleIcon(staff.role),
+                prefixIcon: isUpdating
+                    ? null
+                    : currentRoleIsAssignable
+                    ? _roleIcon(staff.role)
+                    : Icons.admin_panel_settings_outlined,
                 suffixIcon: isUpdating
                     ? const Padding(
                         padding: EdgeInsets.all(13),
@@ -3623,7 +4337,7 @@ class _ConfigPageState extends State<ConfigPage>
                       )
                     : null,
               ),
-              items: _roles
+              items: assignableRoles
                   .map(
                     (role) => DropdownMenuItem(
                       value: role,
@@ -3870,6 +4584,78 @@ class _ConfigSection extends StatelessWidget {
   }
 }
 
+class _LsgSectionHeader extends StatelessWidget {
+  const _LsgSectionHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.count,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
+            color: _ConfigPageState._softAccentColor,
+            borderRadius: AppRadius.sm,
+          ),
+          child: Icon(icon, size: 18, color: _ConfigPageState._primaryColor),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Container(
+          constraints: const BoxConstraints(minWidth: 30),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: const BoxDecoration(
+            color: _ConfigPageState._softAccentColor,
+            borderRadius: AppRadius.button,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            count.toString(),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: _ConfigPageState._primaryColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   const _SectionCard({required this.child, this.margin = EdgeInsets.zero});
 
@@ -3893,16 +4679,16 @@ class _AddInlineField extends StatelessWidget {
     required this.hintText,
     required this.onSubmitted,
     this.enabled = true,
+    this.compact = false,
     this.keyboardType,
-    this.inputFormatters,
   });
 
   final TextEditingController controller;
   final String hintText;
   final VoidCallback onSubmitted;
   final bool enabled;
+  final bool compact;
   final TextInputType? keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -3913,7 +4699,6 @@ class _AddInlineField extends StatelessWidget {
             controller: controller,
             enabled: enabled,
             keyboardType: keyboardType,
-            inputFormatters: inputFormatters,
             decoration: _ConfigPageState._fieldDecoration(
               hintText: hintText,
               prefixIcon: Icons.edit_outlined,
@@ -3923,8 +4708,8 @@ class _AddInlineField extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.xs),
         SizedBox(
-          width: 50,
-          height: 50,
+          width: compact ? 44 : 50,
+          height: compact ? 44 : 50,
           child: IconButton.filledTonal(
             tooltip: hintText,
             onPressed: enabled ? onSubmitted : null,
@@ -3937,7 +4722,7 @@ class _AddInlineField extends StatelessWidget {
                 borderRadius: AppRadius.input,
               ),
             ),
-            icon: const Icon(Icons.add_rounded, size: 24),
+            icon: Icon(Icons.add_rounded, size: compact ? 21 : 24),
           ),
         ),
       ],
@@ -4081,15 +4866,21 @@ class _MetricPill extends StatelessWidget {
 }
 
 class _EmptyInlineState extends StatelessWidget {
-  const _EmptyInlineState({required this.label});
+  const _EmptyInlineState({required this.label, this.compact = false});
 
   final String label;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: AppInsets.md,
+      padding: compact
+          ? const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            )
+          : AppInsets.md,
       decoration: const BoxDecoration(
         color: AppColors.surface1,
         borderRadius: AppRadius.input,
@@ -4097,9 +4888,10 @@ class _EmptyInlineState extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppColors.textSecondary,
+          fontSize: compact ? 12.5 : null,
+        ),
       ),
     );
   }
@@ -4121,6 +4913,845 @@ class _ErrorState extends StatelessWidget {
         label: 'Retry',
         icon: Icons.refresh,
         onPressed: onRetry,
+      ),
+    );
+  }
+}
+
+class _SettingsItem {
+  const _SettingsItem({
+    required this.title,
+    this.subtitle,
+    required this.icon,
+    this.trailingText,
+    required this.onTap,
+  });
+
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final String? trailingText;
+  final VoidCallback onTap;
+}
+
+class _CareWardsSettingsPage extends StatefulWidget {
+  const _CareWardsSettingsPage({required this.configState});
+
+  final _ConfigPageState configState;
+
+  @override
+  State<_CareWardsSettingsPage> createState() => _CareWardsSettingsPageState();
+}
+
+class _CareWardsSettingsPageState extends State<_CareWardsSettingsPage> {
+  bool _isLoading = false;
+  List<Ward> _wards = [];
+  List<WardPatientCount> _counts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _wards = widget.configState._careWards;
+    _loadWards();
+  }
+
+  Future<void> _loadWards() async {
+    setState(() => _isLoading = true);
+    try {
+      final results = await Future.wait([
+        WardService.getWards(includeInactive: true, forceRefresh: true),
+        WardService.getPatientCounts().catchError((_) => <WardPatientCount>[]),
+      ]);
+      if (mounted) {
+        setState(() {
+          _wards = results[0] as List<Ward>;
+          _counts = results[1] as List<WardPatientCount>;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _showWardEditor([Ward? existing]) async {
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final codeCtrl = TextEditingController(text: existing?.code ?? '');
+    final isEdit = existing != null;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isEdit ? 'Edit Care Ward' : 'Add Care Ward'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Ward Name *',
+                hintText: 'e.g. Ward 1',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: codeCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Ward Code (Optional)',
+                hintText: 'e.g. W1',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (nameCtrl.text.trim().isNotEmpty) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: Text(isEdit ? 'Save' : 'Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && nameCtrl.text.trim().isNotEmpty) {
+      try {
+        if (isEdit) {
+          await WardService.updateWard(
+            existing.id,
+            name: nameCtrl.text.trim(),
+            code: codeCtrl.text.trim().isEmpty ? null : codeCtrl.text.trim(),
+          );
+        } else {
+          await WardService.createWard(
+            name: nameCtrl.text.trim(),
+            code: codeCtrl.text.trim().isEmpty ? null : codeCtrl.text.trim(),
+          );
+        }
+        await _loadWards();
+        await widget.configState._fetchConfig();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+      }
+    }
+    nameCtrl.dispose();
+    codeCtrl.dispose();
+  }
+
+  Future<void> _deactivateWard(Ward ward) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Deactivate Care Ward'),
+        content: Text('Are you sure you want to deactivate "${ward.label}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await WardService.deactivateWard(ward.id);
+        await _loadWards();
+        await widget.configState._fetchConfig();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final careWards = _wards;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text(
+          'Care Wards',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Add care ward',
+            icon: const Icon(
+              Icons.add_circle_outline,
+              color: _ConfigPageState._primaryColor,
+            ),
+            onPressed: () => _showWardEditor(),
+          ),
+        ],
+      ),
+      body: _isLoading && careWards.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: _ConfigPageState._softAccentColor.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _ConfigPageState._primaryColor.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: _ConfigPageState._primaryColor,
+                        size: 20,
+                      ),
+                      SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'Operational care wards are assigned to patients and staff for duty assignments.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: _ConfigPageState._primaryColor,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'ACTIVE WARDS (${careWards.where((w) => w.isActive).length})',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                if (careWards.isEmpty)
+                  const _EmptyInlineState(label: 'No care wards created yet')
+                else
+                  ...careWards.map(
+                    (ward) {
+                      final activeCount = _counts
+                          .where((row) => row.ward?.id == ward.id)
+                          .fold(0, (total, row) => total + row.active);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.border.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: ListTile(
+                          leading: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: ward.isActive
+                                  ? _ConfigPageState._softAccentColor
+                                  : AppColors.surface1,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              ward.isActive
+                                  ? Icons.local_hospital_outlined
+                                  : Icons.block_outlined,
+                              color: ward.isActive
+                                  ? _ConfigPageState._primaryColor
+                                  : AppColors.textMuted,
+                              size: 18,
+                            ),
+                          ),
+                          title: Text(
+                            ward.label,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            ward.isActive
+                                ? '$activeCount active patient(s)'
+                                : 'Inactive',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: ward.isActive
+                                  ? AppColors.textSecondary
+                                  : AppColors.textMuted,
+                            ),
+                          ),
+                          trailing: Wrap(
+                            spacing: 4,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edit ward',
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                onPressed: () => _showWardEditor(ward),
+                              ),
+                              if (ward.isActive)
+                                IconButton(
+                                  tooltip: 'Deactivate ward',
+                                  icon: const Icon(
+                                    Icons.block_outlined,
+                                    size: 18,
+                                    color: AppColors.warning,
+                                  ),
+                                  onPressed: () => _deactivateWard(ward),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: FilledButton.icon(
+            onPressed: () => _showWardEditor(),
+            style: FilledButton.styleFrom(
+              backgroundColor: _ConfigPageState._primaryColor,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: const RoundedRectangleBorder(
+                borderRadius: AppRadius.button,
+              ),
+            ),
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text(
+              'Add Care Ward',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MasterListSettingsPage extends StatefulWidget {
+  const _MasterListSettingsPage({
+    required this.title,
+    required this.icon,
+    required this.listName,
+    required this.hintText,
+    required this.configState,
+  });
+
+  final String title;
+  final IconData icon;
+  final String listName;
+  final String hintText;
+  final _ConfigPageState configState;
+
+  @override
+  State<_MasterListSettingsPage> createState() =>
+      _MasterListSettingsPageState();
+}
+
+class _MasterListSettingsPageState extends State<_MasterListSettingsPage> {
+  final TextEditingController _addController = TextEditingController();
+  String _filter = '';
+
+  @override
+  void dispose() {
+    _addController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _items {
+    final cfg = widget.configState._config;
+    if (cfg == null) return [];
+    return widget.listName == 'diseases' ? cfg.diseases : cfg.plans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _items;
+    final filtered = items
+        .where((item) => item.toLowerCase().contains(_filter.toLowerCase()))
+        .toList();
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(
+          widget.title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.7),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _addController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: widget.hintText,
+                      hintStyle: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                    ),
+                    onSubmitted: (_) async {
+                      if (_addController.text.trim().isNotEmpty) {
+                        widget.configState._addItem(
+                          widget.listName,
+                          _addController,
+                        );
+                        await widget.configState._saveConfig();
+                        if (mounted) setState(() {});
+                      }
+                    },
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () async {
+                    if (_addController.text.trim().isNotEmpty) {
+                      widget.configState._addItem(
+                        widget.listName,
+                        _addController,
+                      );
+                      await widget.configState._saveConfig();
+                      if (mounted) setState(() {});
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: AppColors.primaryLight,
+                    foregroundColor: AppColors.primary,
+                  ),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (items.length > 5) ...[
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface1,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.5),
+                ),
+              ),
+              child: TextField(
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  hintText: 'Filter items...',
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textMuted,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    size: 18,
+                    color: AppColors.textMuted,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+                onChanged: (val) => setState(() => _filter = val.trim()),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'ALL ITEMS (${items.length})',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          if (filtered.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              alignment: Alignment.center,
+              child: Text(
+                items.isEmpty
+                    ? 'No items added yet'
+                    : 'No items matching "$_filter"',
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 13,
+                ),
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.7),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < filtered.length; i++) ...[
+                      if (i > 0)
+                        Divider(
+                          height: 1,
+                          indent: 48,
+                          color: AppColors.border.withValues(alpha: 0.5),
+                        ),
+                      ListTile(
+                        dense: true,
+                        leading: Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.surface1,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            widget.icon,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          filtered[i],
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: AppColors.danger,
+                          ),
+                          tooltip: 'Remove',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Confirm removal'),
+                                content: Text(
+                                  'Remove "${filtered[i]}" from ${widget.title.toLowerCase()}?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(ctx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.danger,
+                                    ),
+                                    onPressed: () =>
+                                        Navigator.pop(ctx, true),
+                                    child: const Text('Remove'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true && mounted) {
+                              widget.configState._removeItem(
+                                widget.listName,
+                                filtered[i],
+                              );
+                              await widget.configState._saveConfig();
+                              if (mounted) setState(() {});
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransferSettingsPage extends StatefulWidget {
+  const _TransferSettingsPage({required this.configState});
+
+  final _ConfigPageState configState;
+
+  @override
+  State<_TransferSettingsPage> createState() => _TransferSettingsPageState();
+}
+
+class _TransferSettingsPageState extends State<_TransferSettingsPage> {
+  static const _checks = [
+    (key: 'identity_verified', label: 'Identity verified'),
+    (key: 'address_verified', label: 'Address verified'),
+    (key: 'consent_confirmed', label: 'Consent confirmed'),
+    (key: 'records_reviewed', label: 'Records reviewed'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final config = widget.configState._config;
+    if (config == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Patient Transfer Review')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final settings = config.transferSettings;
+    final expiryOptions = <int>{
+      3,
+      7,
+      14,
+      30,
+      60,
+      90,
+      settings.expiryDays,
+    }.toList()..sort();
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text(
+          'Patient Transfer Review',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.text,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: _ConfigPageState._softAccentColor.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _ConfigPageState._primaryColor.withValues(alpha: 0.2),
+              ),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: _ConfigPageState._primaryColor,
+                  size: 20,
+                ),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Configure rules and checklists required when patients are transferred between care units.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: _ConfigPageState._primaryColor,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.7),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pending Request Expiry',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Number of days before an unaccepted transfer request expires.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<int>(
+                  initialValue: settings.expiryDays,
+                  isExpanded: true,
+                  style: const TextStyle(
+                    color: _ConfigPageState._inkColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.timer_outlined, size: 20),
+                    border: OutlineInputBorder(borderRadius: AppRadius.sm),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    isDense: true,
+                  ),
+                  items: expiryOptions
+                      .map(
+                        (days) => DropdownMenuItem(
+                          value: days,
+                          child: Text(
+                            '$days days',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) async {
+                    if (value != null) {
+                      setState(() => settings.expiryDays = value);
+                      await widget.configState._saveConfig();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.7),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Required Acceptance Checks',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Destination administrator must complete these checks before accepting a patient.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _checks.map((check) {
+                    final selected =
+                        settings.requiredChecks.contains(check.key);
+                    return FilterChip(
+                      selected: selected,
+                      showCheckmark: true,
+                      label: Text(check.label),
+                      onSelected: (value) async {
+                        setState(() {
+                          if (value) {
+                            settings.requiredChecks.add(check.key);
+                          } else {
+                            settings.requiredChecks.remove(check.key);
+                          }
+                        });
+                        await widget.configState._saveConfig();
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

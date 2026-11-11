@@ -394,15 +394,7 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        if (!settings.hasPaymentMethod)
-          const _PaymentInfoCard(
-            icon: Icons.info_outline_rounded,
-            color: AppColors.warning,
-            title: 'Payment instructions unavailable',
-            message:
-                'The superadmin has not configured bank or UPI payment details yet.',
-          )
-        else ...[
+        if (settings.hasPaymentMethod) ...[
           if (settings.hasBankTransfer)
             _section(
               title: 'Bank transfer',

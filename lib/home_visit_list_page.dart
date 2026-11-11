@@ -188,14 +188,26 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
     final now = DateTime.now();
     final isToday = _isSameDay(_selectedDate, now);
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isSmall = screenWidth < 440;
+    final actionGap = isSmall ? 3.0 : AppSpacing.xs;
+    final actionEndPadding = isSmall ? AppSpacing.xs : AppSpacing.md;
+    final actionSize = isSmall ? 36.0 : 44.0;
+    final actionIconSize = isSmall ? 19.0 : AppIcons.large;
+
     return AdaptiveAppScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        toolbarHeight: 72,
-        titleSpacing: AppSpacing.md,
+        toolbarHeight: isSmall ? 64 : 72,
+        titleSpacing: isSmall ? AppSpacing.xs : AppSpacing.md,
         title: Text(
           "Home Visits",
-          style: Theme.of(context).textTheme.titleLarge,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: (isSmall
+                  ? Theme.of(context).textTheme.titleMedium
+                  : Theme.of(context).textTheme.titleLarge)
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -204,12 +216,14 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
         actions: [
           if (!isToday)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              padding: EdgeInsets.only(right: actionGap),
               child: _HomeVisitTodayButton(onPressed: _goToToday),
             ),
           Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.xs),
+            padding: EdgeInsets.only(right: actionGap),
             child: _HomeVisitIconButton(
+              size: actionSize,
+              iconSize: actionIconSize,
               icon: Icons.search,
               onPressed: () async {
                 await Navigator.push(
@@ -223,8 +237,10 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.md),
+            padding: EdgeInsets.only(right: actionEndPadding),
             child: _HomeVisitIconButton(
+              size: actionSize,
+              iconSize: actionIconSize,
               icon: Icons.refresh,
               onPressed: _refreshVisits,
             ),
@@ -885,23 +901,34 @@ class _HomeVisitListPageState extends State<HomeVisitListPage> {
 }
 
 class _HomeVisitIconButton extends StatelessWidget {
-  const _HomeVisitIconButton({required this.icon, required this.onPressed});
+  const _HomeVisitIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 44,
+    this.iconSize,
+  });
 
   final IconData icon;
   final VoidCallback onPressed;
+  final double size;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface1,
-      borderRadius: AppRadius.md,
+      borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
       child: InkWell(
-        borderRadius: AppRadius.md,
+        borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
         onTap: onPressed,
         child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Icon(icon, color: AppColors.text, size: AppIcons.large),
+          width: size,
+          height: size,
+          child: Icon(
+            icon,
+            color: AppColors.text,
+            size: iconSize ?? (size <= 38 ? 19.0 : AppIcons.large),
+          ),
         ),
       ),
     );

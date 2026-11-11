@@ -375,7 +375,11 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              padding: EdgeInsets.only(
+                right: MediaQuery.sizeOf(context).width < 440
+                    ? AppSpacing.xs
+                    : AppSpacing.sm,
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -383,6 +387,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                     Tooltip(
                       message: 'Equipment supply report',
                       child: _EquipmentSupplyIconButton(
+                        size: MediaQuery.sizeOf(context).width < 440 ? 36 : 40,
                         icon: Icons.assessment_outlined,
                         onPressed: () => openReports(
                           context,
@@ -390,11 +395,16 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                         ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.xxs),
+                    SizedBox(
+                      width: MediaQuery.sizeOf(context).width < 440
+                          ? 3.0
+                          : AppSpacing.xxs,
+                    ),
                   ],
                   Tooltip(
                     message: 'Refresh',
                     child: _EquipmentSupplyIconButton(
+                      size: MediaQuery.sizeOf(context).width < 440 ? 36 : 40,
                       icon: Icons.refresh,
                       onPressed: _loadData,
                     ),
@@ -1320,26 +1330,28 @@ class _EquipmentSupplyIconButton extends StatelessWidget {
   const _EquipmentSupplyIconButton({
     required this.icon,
     required this.onPressed,
+    this.size = 40,
   });
 
   final IconData icon;
   final VoidCallback? onPressed;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface1,
-      borderRadius: AppRadius.md,
+      borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
       child: InkWell(
-        borderRadius: AppRadius.md,
+        borderRadius: size <= 38 ? AppRadius.sm : AppRadius.md,
         onTap: onPressed,
         child: SizedBox(
-          width: 40,
-          height: 40,
+          width: size,
+          height: size,
           child: Icon(
             icon,
             color: onPressed == null ? AppColors.textMuted : AppColors.text,
-            size: AppIcons.normal,
+            size: size <= 38 ? 18.0 : AppIcons.normal,
           ),
         ),
       ),

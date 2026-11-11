@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_typography.dart';
 import 'package:oruma_app/core/theme/app_colors.dart';
+import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/medicine_stock_entry_page.dart';
 import 'package:oruma_app/medicine_stock_history_page.dart';
 import 'package:oruma_app/medicine_supply_list_page.dart';
@@ -654,6 +655,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
         actions: [
           if (auth.canAccessReports)
             IconButton(
+              visualDensity: VisualDensity.compact,
               tooltip: 'Medicine stock report',
               onPressed: () =>
                   openReports(context, initialReport: ReportType.medicineStock),
@@ -661,16 +663,19 @@ class _MedicineListPageState extends State<MedicineListPage> {
             ),
           if (auth.canAccessMedicineStock)
             IconButton(
+              visualDensity: VisualDensity.compact,
               tooltip: 'Stock history',
               onPressed: _openStockHistory,
               icon: const Icon(Icons.history_outlined),
             ),
           if (auth.canCreate && auth.canAccessMedicineMaster)
             IconButton(
+              visualDensity: VisualDensity.compact,
               tooltip: 'Add medicine',
               onPressed: () => _openForm(),
               icon: const Icon(Icons.add_circle_outline),
             ),
+          const SizedBox(width: AppSpacing.xxs),
         ],
       ),
       floatingActionButton: auth.canCreate && auth.canAccessMedicineStock

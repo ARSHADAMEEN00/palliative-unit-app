@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
+import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/patient_enquiry.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/patient_enquiry_service.dart';
@@ -199,8 +200,13 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                       FilterChip(
                         selected: _statusFilter == 'pending',
                         label: const Text('Pending Verification'),
-                        avatar: const Icon(Icons.pending_actions_rounded, size: 16),
-                        selectedColor: AppColors.warning.withValues(alpha: 0.12),
+                        avatar: const Icon(
+                          Icons.pending_actions_rounded,
+                          size: 16,
+                        ),
+                        selectedColor: AppColors.warning.withValues(
+                          alpha: 0.12,
+                        ),
                         checkmarkColor: AppColors.warning,
                         labelStyle: TextStyle(
                           color: _statusFilter == 'pending'
@@ -244,9 +250,7 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
             const Divider(height: 1, color: AppColors.border),
 
             // Content Body
-            Expanded(
-              child: _buildBody(auth),
-            ),
+            Expanded(child: _buildBody(auth)),
           ],
         ),
       ),
@@ -265,7 +269,11 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+              const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: AppColors.danger,
+              ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 _errorMessage!,
@@ -353,8 +361,8 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
     final statusBg = enquiry.isVerified
         ? AppColors.success.withValues(alpha: 0.12)
         : (enquiry.isRejected
-            ? AppColors.danger.withValues(alpha: 0.1)
-            : AppColors.warning.withValues(alpha: 0.12));
+              ? AppColors.danger.withValues(alpha: 0.1)
+              : AppColors.warning.withValues(alpha: 0.12));
 
     return Card(
       elevation: 0,
@@ -404,7 +412,9 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     enquiry.status.toUpperCase(),
@@ -441,8 +451,11 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
                           value: 'verify',
                           child: Row(
                             children: [
-                              Icon(Icons.check_circle_outline,
-                                  color: AppColors.success, size: 18),
+                              Icon(
+                                Icons.check_circle_outline,
+                                color: AppColors.success,
+                                size: 18,
+                              ),
                               SizedBox(width: 8),
                               Text('Mark as Verified'),
                             ],
@@ -516,7 +529,7 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
             _buildDetailRow(
               Icons.location_on_outlined,
               'Village & Ward',
-              '${enquiry.village}${enquiry.ward != null && enquiry.ward!.isNotEmpty ? ' • Ward ${enquiry.ward}' : ''}',
+              '${enquiry.village}${enquiry.ward != null && enquiry.ward!.isNotEmpty ? ' • ${formatWardLabel(enquiry.ward)}' : ''}',
             ),
             if (enquiry.address.trim().isNotEmpty)
               _buildDetailRow(
@@ -614,7 +627,10 @@ class _PatientEnquiryListPageState extends State<PatientEnquiryListPage> {
             ),
           ),
           const SizedBox(width: 4),
-          const Text(':', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          const Text(
+            ':',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: Text(

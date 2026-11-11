@@ -3,15 +3,57 @@ final RegExp _naturalSortPattern = RegExp(r'\d+|\D+');
 String normalizeWardNumberValue(dynamic raw) {
   if (raw == null) return '';
 
-  final text = raw.toString().trim();
+  var text = raw.toString().trim().replaceAll(RegExp(r'\s+'), ' ');
   if (text.isEmpty) return '';
 
-  final digits = RegExp(r'\d+').allMatches(text).map((m) => m.group(0)!).join();
-  if (digits.isNotEmpty) {
-    return digits.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+  if (RegExp(r'^ward\s+', caseSensitive: false).hasMatch(text)) {
+    text =
+        text.replaceFirst(RegExp(r'^ward\s+', caseSensitive: false), '').trim();
+  }
+
+  if (text.contains(':')) {
+    final parts = text.split(':');
+    final numPart = normalizeWardNumberValue(parts[0]);
+    final namePart = parts.sublist(1).join(':').trim();
+    if (namePart.isNotEmpty) {
+      return '$numPart : $namePart';
+    } else {
+      return numPart;
+    }
+  }
+
+  if (RegExp(r'^\d+$').hasMatch(text)) {
+    return text.replaceFirst(RegExp(r'^0+(?=\d)'), '');
   }
 
   return text;
+}
+
+String formatWardLabel(dynamic raw) {
+  final value = normalizeWardNumberValue(raw);
+  if (value.isEmpty) return '';
+  if (RegExp(r'^ward\b', caseSensitive: false).hasMatch(value)) return value;
+  return 'Ward $value';
+}
+
+String wardKey(String value) {
+  final normalized = normalizeWardNumberValue(value);
+  if (normalized.contains(':')) {
+    return normalized.split(':')[0].trim().toLowerCase();
+  }
+  return normalized.toLowerCase();
+}
+
+List<String> parseWardInput(dynamic raw) {
+  if (raw == null) return const [];
+
+  final seen = <String>{};
+  return raw
+      .toString()
+      .split(',')
+      .map(normalizeWardNumberValue)
+      .where((ward) => ward.isNotEmpty && seen.add(wardKey(ward)))
+      .toList(growable: false);
 }
 
 int compareNaturally(String a, String b) {

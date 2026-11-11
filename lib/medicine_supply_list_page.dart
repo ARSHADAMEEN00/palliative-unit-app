@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/medicine_supply_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/models/medicine_supply_activity.dart';
@@ -174,6 +175,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
         actions: [
           if (auth.canAccessReports)
             IconButton(
+              visualDensity: VisualDensity.compact,
               tooltip: 'Medicine supply report',
               icon: const Icon(Icons.assessment_outlined),
               onPressed: () => openReports(
@@ -182,10 +184,12 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
               ),
             ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
             onPressed: () => _loadData(forceRefresh: true),
           ),
+          const SizedBox(width: AppSpacing.xxs),
         ],
       ),
       floatingActionButton: auth.canCreate && auth.canAccessMedicineSupply

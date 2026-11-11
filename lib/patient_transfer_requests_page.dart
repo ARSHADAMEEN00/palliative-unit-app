@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme/app_design_system.dart';
+import 'core/utils/format_utils.dart';
 import 'models/patient_transfer.dart';
 import 'patient_transfer_review_page.dart';
 import 'services/auth_service.dart';
@@ -368,7 +369,7 @@ class _CountBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        count > 99 ? '99+' : '$count',
+        FormatUtils.formatCompactCount(count),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.w700,

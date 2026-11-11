@@ -95,8 +95,9 @@ class _VolunteerPatientRegistrationPageState
     _tabController = TabController(
       length: widget.showRegistrationHistory ? 2 : 1,
       vsync: this,
-      initialIndex:
-          widget.showRegistrationHistory && widget.initialTabIndex > 0 ? 1 : 0,
+      initialIndex: widget.showRegistrationHistory && widget.initialTabIndex > 0
+          ? 1
+          : 0,
     );
     _tabController.addListener(() {
       if (mounted) setState(() {});
@@ -169,8 +170,7 @@ class _VolunteerPatientRegistrationPageState
 
   Future<void> _loadMyEnquiries() async {
     final auth = context.read<AuthService>();
-    if (!auth.isAuthenticated ||
-        !auth.canAccessPatients) {
+    if (!auth.isAuthenticated || !auth.canAccessPatients) {
       return;
     }
 
@@ -378,7 +378,8 @@ class _VolunteerPatientRegistrationPageState
 
   void _showSuccessDialog() {
     final auth = context.read<AuthService>();
-    final isUserOrVolunteer = auth.isVolunteer || auth.isPublicUser || !auth.isAdmin;
+    final isUserOrVolunteer =
+        auth.isVolunteer || auth.isPublicUser || !auth.isAdmin;
 
     showDialog<void>(
       context: context,
@@ -659,7 +660,10 @@ class _VolunteerPatientRegistrationPageState
                       ? 'Please verify your email address to submit a patient registration enquiry.'
                       : 'Only email-verified volunteers can add new patient enquiries.\nPlease verify your email to unlock patient registration.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppPrimaryButton(
@@ -811,401 +815,403 @@ class _VolunteerPatientRegistrationPageState
                   if (activePending != null) ...[
                     _buildPendingEnquiryAlertCard(context, activePending),
                     const SizedBox(height: AppSpacing.md),
-                  ] else if (widget.showRegistrationHistory && _myEnquiries.isNotEmpty) ...[
-                  InkWell(
-                    onTap: () => _tabController.animateTo(1),
-                    borderRadius: AppRadius.card,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.sm,
+                  ] else if (widget.showRegistrationHistory &&
+                      _myEnquiries.isNotEmpty) ...[
+                    InkWell(
+                      onTap: () => _tabController.animateTo(1),
+                      borderRadius: AppRadius.card,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.sm,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: AppRadius.card,
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(AppSpacing.xs),
+                              decoration: BoxDecoration(
+                                color: AppColors.primarySoft,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.list_alt_rounded,
+                                color: AppColors.primary,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'You have registered ${_myEnquiries.length} patient${_myEnquiries.length == 1 ? '' : 's'}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              'View list →',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+
+                  // Informational Header Card
+                  _buildHeaderCard(isAuthenticated, auth),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // Error Banner
+                  if (_errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: AppColors.danger.withValues(alpha: 0.1),
                         borderRadius: AppRadius.card,
                         border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.25),
+                          color: AppColors.danger.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(AppSpacing.xs),
-                            decoration: BoxDecoration(
-                              color: AppColors.primarySoft,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.list_alt_rounded,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
+                          const Icon(
+                            Icons.error_outline,
+                            color: AppColors.danger,
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
-                              'You have registered ${_myEnquiries.length} patient${_myEnquiries.length == 1 ? '' : 's'}',
+                              _errorMessage!,
                               style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                                color: AppColors.danger,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
-                          const Text(
-                            'View list →',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
+                    const SizedBox(height: AppSpacing.md),
+                  ],
 
-                // Informational Header Card
-                _buildHeaderCard(isAuthenticated, auth),
-                const SizedBox(height: AppSpacing.md),
-
-                // Error Banner
-                if (_errorMessage != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.1),
-                      borderRadius: AppRadius.card,
-                      border: Border.all(
-                        color: AppColors.danger.withValues(alpha: 0.3),
-                      ),
+                  // Unit Selector (Only if unauthenticated public form)
+                  if (!isAuthenticated) ...[
+                    _buildSectionHeader(
+                      'Care Unit Selection',
+                      Icons.apartment_rounded,
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: AppColors.danger,
+                    const SizedBox(height: AppSpacing.xs),
+                    if (_loadingUnits)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(AppSpacing.md),
+                          child: CircularProgressIndicator(),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                              color: AppColors.danger,
-                              fontWeight: FontWeight.w500,
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        key: ValueKey(_selectedUnitId),
+                        initialValue: _selectedUnitId,
+                        isExpanded: true,
+                        dropdownColor: AppColors.surface,
+                        style: AppTypography.dropdownTextStyle(context),
+                        decoration: _buildDecoration(
+                          label: 'Select Palliative Care Unit *',
+                          icon: Icons.apartment_rounded,
+                        ),
+                        items: _units.map((unit) {
+                          return DropdownMenuItem<String>(
+                            value: unit.id,
+                            child: Text(
+                              unit.locationLabel.isEmpty
+                                  ? '${unit.name} (${unit.code})'
+                                  : '${unit.name} • ${unit.locationLabel}',
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
+                          );
+                        }).toList(),
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Please select a care unit'
+                            : null,
+                        onChanged: (val) {
+                          if (val != null && val != _selectedUnitId) {
+                            final unit = _units.firstWhere((u) => u.id == val);
+                            setState(() {
+                              _selectedUnitId = val;
+                              _selectedUnitName = unit.name;
+                            });
+                            _loadPublicConfig(val);
+                          }
+                        },
+                      ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
 
-                // Unit Selector (Only if unauthenticated public form)
-                if (!isAuthenticated) ...[
-                  _buildSectionHeader(
-                    'Care Unit Selection',
-                    Icons.apartment_rounded,
-                  ),
+                  // Form Fields Section (Strictly the 7 user requested inputs)
+                  _buildSectionHeader('Patient Details', Icons.person_rounded),
                   const SizedBox(height: AppSpacing.xs),
-                  if (_loadingUnits)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(AppSpacing.md),
-                        child: CircularProgressIndicator(),
-                      ),
-                    )
-                  else
-                    DropdownButtonFormField<String>(
-                      key: ValueKey(_selectedUnitId),
-                      initialValue: _selectedUnitId,
-                      isExpanded: true,
-                      dropdownColor: AppColors.surface,
-                      style: AppTypography.dropdownTextStyle(context),
-                      decoration: _buildDecoration(
-                        label: 'Select Palliative Care Unit *',
-                        icon: Icons.apartment_rounded,
-                      ),
-                      items: _units.map((unit) {
-                        return DropdownMenuItem<String>(
-                          value: unit.id,
-                          child: Text(
-                            unit.locationLabel.isEmpty
-                                ? '${unit.name} (${unit.code})'
-                                : '${unit.name} • ${unit.locationLabel}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      validator: (val) => val == null || val.isEmpty
-                          ? 'Please select a care unit'
-                          : null,
-                      onChanged: (val) {
-                        if (val != null && val != _selectedUnitId) {
-                          final unit = _units.firstWhere((u) => u.id == val);
-                          setState(() {
-                            _selectedUnitId = val;
-                            _selectedUnitName = unit.name;
-                          });
-                          _loadPublicConfig(val);
-                        }
-                      },
+
+                  Card(
+                    elevation: 0,
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.card,
+                      side: const BorderSide(color: AppColors.border),
                     ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
-
-                // Form Fields Section (Strictly the 7 user requested inputs)
-                _buildSectionHeader('Patient Details', Icons.person_rounded),
-                const SizedBox(height: AppSpacing.xs),
-
-                Card(
-                  elevation: 0,
-                  color: AppColors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.card,
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 1. Name : required
-                        TextFormField(
-                          controller: _nameController,
-                          textCapitalization: TextCapitalization.words,
-                          inputFormatters: [CapitalizeWordsInputFormatter()],
-                          decoration: _buildDecoration(
-                            label: 'Patient Full Name *',
-                            icon: Icons.person_outline_rounded,
-                            hint: 'Enter full name of patient',
-                          ),
-                          validator: (val) => val == null || val.trim().isEmpty
-                              ? 'Patient name is required'
-                              : null,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // 2. Age
-                        TextFormField(
-                          controller: _ageController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: _buildDecoration(
-                            label: 'Age',
-                            icon: Icons.cake_outlined,
-                            hint: 'e.g. 65',
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // 3. Address
-                        TextFormField(
-                          controller: _addressController,
-                          maxLines: 2,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: _buildDecoration(
-                            label: 'Address',
-                            icon: Icons.home_outlined,
-                            hint: 'House name, landmark, etc.',
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // 4. 2 Phone Numbers: Primary (Required), Secondary (Optional)
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9+ ()-]'),
-                            ),
-                          ],
-                          decoration: _buildDecoration(
-                            label: 'Primary Phone Number *',
-                            icon: Icons.phone_outlined,
-                            hint: 'e.g. 9876543210',
-                          ),
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) {
-                              return 'Primary phone number is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        TextFormField(
-                          controller: _phone2Controller,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9+ ()-]'),
-                            ),
-                          ],
-                          decoration: _buildDecoration(
-                            label: 'Secondary Phone Number (Optional)',
-                            icon: Icons.phone_android_outlined,
-                            hint: 'Alternative contact number',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // Location Details: Village (Select) & Ward (Select + Type)
-                _buildSectionHeader(
-                  'Location Details',
-                  Icons.location_on_rounded,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-
-                Card(
-                  elevation: 0,
-                  color: AppColors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.card,
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_loadingConfig) ...[
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(AppSpacing.md),
-                              child: CircularProgressIndicator(),
-                            ),
-                          ),
-                        ] else ...[
-                          // 5. Village select
-                          DropdownButtonFormField<String>(
-                            key: ValueKey(_selectedVillage),
-                            initialValue: _selectedVillage,
-                            isExpanded: true,
-                            dropdownColor: AppColors.surface,
-                            style: AppTypography.dropdownTextStyle(context),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. Name : required
+                          TextFormField(
+                            controller: _nameController,
+                            textCapitalization: TextCapitalization.words,
+                            inputFormatters: [CapitalizeWordsInputFormatter()],
                             decoration: _buildDecoration(
-                              label: 'Village *',
-                              icon: Icons.location_city_rounded,
+                              label: 'Patient Full Name *',
+                              icon: Icons.person_outline_rounded,
+                              hint: 'Enter full name of patient',
                             ),
-                            hint: const Text('Select Village'),
-                            items: _villages.map((v) {
-                              return DropdownMenuItem<String>(
-                                value: v,
-                                child: Text(v),
-                              );
-                            }).toList(),
-                            validator: (val) => val == null || val.isEmpty
-                                ? 'Village is required'
+                            validator: (val) =>
+                                val == null || val.trim().isEmpty
+                                ? 'Patient name is required'
                                 : null,
-                            onChanged: _onVillageChanged,
                           ),
                           const SizedBox(height: AppSpacing.md),
 
-                          // 6. Ward select + type
-                          _buildWardSelectAndTypeWidget(),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // Referred By: Name & Phone
-                _buildSectionHeader(
-                  'Referred By',
-                  Icons.person_pin_circle_rounded,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-
-                Card(
-                  elevation: 0,
-                  color: AppColors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.card,
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Referred By Name
-                        TextFormField(
-                          controller: _referredByNameController,
-                          textCapitalization: TextCapitalization.words,
-                          inputFormatters: [CapitalizeWordsInputFormatter()],
-                          decoration: _buildDecoration(
-                            label: 'Name',
-                            icon: Icons.person_outline_rounded,
-                            hint: 'Name',
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // Referred By Phone
-                        TextFormField(
-                          controller: _referredByPhoneController,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9+ ()-]'),
+                          // 2. Age
+                          TextFormField(
+                            controller: _ageController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: _buildDecoration(
+                              label: 'Age',
+                              icon: Icons.cake_outlined,
+                              hint: 'e.g. 65',
                             ),
-                          ],
-                          decoration: _buildDecoration(
-                            label: 'Phone',
-                            icon: Icons.phone_outlined,
-                            hint: 'Phone',
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: AppSpacing.md),
+
+                          // 3. Address
+                          TextFormField(
+                            controller: _addressController,
+                            maxLines: 2,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: _buildDecoration(
+                              label: 'Address',
+                              icon: Icons.home_outlined,
+                              hint: 'House name, landmark, etc.',
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          // 4. 2 Phone Numbers: Primary (Required), Secondary (Optional)
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9+ ()-]'),
+                              ),
+                            ],
+                            decoration: _buildDecoration(
+                              label: 'Primary Phone Number *',
+                              icon: Icons.phone_outlined,
+                              hint: 'e.g. 9876543210',
+                            ),
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) {
+                                return 'Primary phone number is required';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          TextFormField(
+                            controller: _phone2Controller,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9+ ()-]'),
+                              ),
+                            ],
+                            decoration: _buildDecoration(
+                              label: 'Secondary Phone Number (Optional)',
+                              icon: Icons.phone_android_outlined,
+                              hint: 'Alternative contact number',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
 
-                // Submit Action Button or Pending Lock Card
-                if (activePending != null) ...[
-                  _buildPendingSubmissionLockedCard(context, activePending),
-                ] else ...[
-                  AppPrimaryButton(
-                    label: 'Submit Patient Enquiry',
-                    icon: Icons.send_rounded,
-                    loading: _isSubmitting,
-                    onPressed: _isSubmitting ? null : _submit,
+                  // Location Details: Village (Select) & Ward (Select + Type)
+                  _buildSectionHeader(
+                    'Location Details',
+                    Icons.location_on_rounded,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Note: This submission does not directly create a patient. It will appear in the Admin Panel for verification before manual registration.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                      height: 1.3,
+                  const SizedBox(height: AppSpacing.xs),
+
+                  Card(
+                    elevation: 0,
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.card,
+                      side: const BorderSide(color: AppColors.border),
                     ),
-                    textAlign: TextAlign.center,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_loadingConfig) ...[
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(AppSpacing.md),
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          ] else ...[
+                            // 5. Village select
+                            DropdownButtonFormField<String>(
+                              key: ValueKey(_selectedVillage),
+                              initialValue: _selectedVillage,
+                              isExpanded: true,
+                              dropdownColor: AppColors.surface,
+                              style: AppTypography.dropdownTextStyle(context),
+                              decoration: _buildDecoration(
+                                label: 'Village *',
+                                icon: Icons.location_city_rounded,
+                              ),
+                              hint: const Text('Select Village'),
+                              items: _villages.map((v) {
+                                return DropdownMenuItem<String>(
+                                  value: v,
+                                  child: Text(v),
+                                );
+                              }).toList(),
+                              validator: (val) => val == null || val.isEmpty
+                                  ? 'Village is required'
+                                  : null,
+                              onChanged: _onVillageChanged,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+
+                            // 6. Ward select + type
+                            _buildWardSelectAndTypeWidget(),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Referred By: Name & Phone
+                  _buildSectionHeader(
+                    'Referred By',
+                    Icons.person_pin_circle_rounded,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+
+                  Card(
+                    elevation: 0,
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.card,
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Referred By Name
+                          TextFormField(
+                            controller: _referredByNameController,
+                            textCapitalization: TextCapitalization.words,
+                            inputFormatters: [CapitalizeWordsInputFormatter()],
+                            decoration: _buildDecoration(
+                              label: 'Name',
+                              icon: Icons.person_outline_rounded,
+                              hint: 'Name',
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          // Referred By Phone
+                          TextFormField(
+                            controller: _referredByPhoneController,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9+ ()-]'),
+                              ),
+                            ],
+                            decoration: _buildDecoration(
+                              label: 'Phone',
+                              icon: Icons.phone_outlined,
+                              hint: 'Phone',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // Submit Action Button or Pending Lock Card
+                  if (activePending != null) ...[
+                    _buildPendingSubmissionLockedCard(context, activePending),
+                  ] else ...[
+                    AppPrimaryButton(
+                      label: 'Submit Patient Enquiry',
+                      icon: Icons.send_rounded,
+                      loading: _isSubmitting,
+                      onPressed: _isSubmitting ? null : _submit,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Note: This submission does not directly create a patient. It will appear in the Admin Panel for verification before manual registration.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                        height: 1.3,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.xl),
                 ],
-                const SizedBox(height: AppSpacing.xl),
-              ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildPendingEnquiryAlertCard(
     BuildContext context,
@@ -1216,9 +1222,7 @@ class _VolunteerPatientRegistrationPageState
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.08),
         borderRadius: AppRadius.card,
-        border: Border.all(
-          color: AppColors.warning.withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1301,9 +1305,7 @@ class _VolunteerPatientRegistrationPageState
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.08),
         borderRadius: AppRadius.card,
-        border: Border.all(
-          color: AppColors.warning.withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1350,9 +1352,7 @@ class _VolunteerPatientRegistrationPageState
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: AppRadius.button,
-                ),
+                shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
                 padding: const EdgeInsets.symmetric(
                   vertical: AppSpacing.sm,
                   horizontal: AppSpacing.md,
@@ -1728,7 +1728,7 @@ class _VolunteerPatientRegistrationPageState
                 Expanded(
                   child: Text(
                     item.ward != null && item.ward!.trim().isNotEmpty
-                        ? '${item.village}, Ward ${item.ward}'
+                        ? '${item.village}, ${formatWardLabel(item.ward)}'
                         : item.village,
                     style: const TextStyle(
                       fontSize: 13,
@@ -1857,7 +1857,9 @@ class _VolunteerPatientRegistrationPageState
                     foregroundColor: Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: AppRadius.button),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.button,
+                    ),
                   ),
                   icon: const Icon(Icons.share_rounded, size: 16),
                   label: const Text(
