@@ -35,5 +35,21 @@ void main() {
     expect(tx.status, TransactionStatus.pending);
     expect(tx.status.shouldShowPill, isTrue);
   });
+
+  test('BillingTransaction identifies discount/offer correctly and never shows pending badge', () {
+    final offerJson = {
+      'id': 'tx-offer-1',
+      'type': 'offer',
+      'title': 'Discounted',
+      'status': 'paid',
+      'amount': 5000.0,
+      'offer_amount': 5000.0,
+    };
+
+    final tx = BillingTransaction.fromJson(offerJson);
+    expect(tx.isOffer, isTrue);
+    expect(tx.isClientPayment, isFalse);
+    expect(tx.status, TransactionStatus.paid);
+  });
 }
 

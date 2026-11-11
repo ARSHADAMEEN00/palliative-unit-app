@@ -294,7 +294,12 @@ class BillingTransaction {
   final bool isPayment;
   final String? recordType;
 
-  bool get isOffer => type == TransactionType.offer;
+  bool get isOffer =>
+      type == TransactionType.offer ||
+      amount < 0 ||
+      recordType?.toLowerCase() == 'offer' ||
+      title.toLowerCase().contains('discount') ||
+      title.toLowerCase().contains('offer');
 
   bool get isClientPayment =>
       isPayment ||
@@ -303,7 +308,8 @@ class BillingTransaction {
       (status == TransactionStatus.paid &&
           (title.toLowerCase().contains('payment') ||
               title.toLowerCase().contains('fee') ||
-              title.toLowerCase().contains('clearance')));
+              title.toLowerCase().contains('clearance')) &&
+          type != TransactionType.server);
 
   factory BillingTransaction.fromJson(Map<String, dynamic> json) {
     final typeStr = json['type']?.toString();

@@ -780,7 +780,7 @@ class PaymentRow extends StatelessWidget {
                     color: amountColor,
                   ),
                 ),
-                if (transaction.status.shouldShowPill) ...[
+                if (!isOffer && transaction.status.shouldShowPill) ...[
                   const SizedBox(height: 4),
                   StatusPill(
                     label: transaction.status.label,

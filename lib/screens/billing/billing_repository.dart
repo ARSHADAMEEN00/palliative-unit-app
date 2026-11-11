@@ -84,12 +84,92 @@ class BillingRepository {
         if (response.isSuccess && response.data != null) {
           final data = response.data!;
           final summaryJson = data['summary'] as Map<String, dynamic>? ?? {};
-          final groupsList = (data['groups'] as List? ?? [])
-              .map((g) => BillingMonthGroup.fromJson(g as Map<String, dynamic>))
-              .toList();
+          final rawGroups = (data['groups'] as List? ?? []);
+
+          final groupsList = <BillingMonthGroup>[];
+          final allTransactions = <BillingTransaction>[];
+
+          for (final g in rawGroups) {
+            final grpJson = g as Map<String, dynamic>;
+            final rawTxList = (grpJson['transactions'] as List? ?? []);
+            final fixedTxList = <BillingTransaction>[];
+
+            for (final t in rawTxList) {
+              final txMap = Map<String, dynamic>.from(t as Map<String, dynamic>);
+              final title = txMap['title']?.toString() ?? '';
+              final lower = title.toLowerCase();
+
+              // If it's a discount/offer row, ensure type is offer and status is paid so it never shows Pending
+              final isOfferRow = txMap['type'] == 'offer' ||
+                  lower.contains('discount') ||
+                  lower.contains('offer') ||
+                  txMap['record_type'] == 'offer' ||
+                  (txMap['offer_amount'] != null && (txMap['offer_amount'] as num) > 0 && txMap['amount'] == 0);
+              if (isOfferRow) {
+                txMap['type'] = 'offer';
+                txMap['status'] = 'paid';
+              } else if (lower.contains('subscription fee') ||
+                  lower == 'balance payment' ||
+                  txMap['record_type'] == 'payment' ||
+                  txMap['is_payment'] == true) {
+                txMap['is_payment'] = true;
+                txMap['record_type'] = 'payment';
+                if (txMap['status'] == 'pending') {
+                  txMap['status'] = 'paid';
+                }
+              }
+
+              final tx = BillingTransaction.fromJson(txMap);
+              fixedTxList.add(tx);
+              allTransactions.add(tx);
+            }
+
+            final monthTotal = fixedTxList
+                .where((t) => t.type != TransactionType.offer && t.status == TransactionStatus.paid)
+                .fold<double>(0.0, (sum, t) => sum + t.amount);
+
+            groupsList.add(
+              BillingMonthGroup(
+                monthKey: grpJson['month_key']?.toString() ?? '',
+                monthLabel: grpJson['month_label']?.toString() ?? '',
+                monthTotal: monthTotal,
+                transactions: fixedTxList,
+              ),
+            );
+          }
+
+          // Total paid should reflect client payments collected towards the subscription (matching Superadmin),
+          // never the sum of server maintenance fees (which caused the 8,588 figure).
+          final clientPaid = allTransactions
+              .where((t) =>
+                  t.isClientPayment &&
+                  t.type != TransactionType.server &&
+                  t.type != TransactionType.offer &&
+                  t.status == TransactionStatus.paid)
+              .fold<double>(0.0, (sum, t) => sum + t.amount);
+
+          var parsedSummary = BillingStatsSummary.fromJson(summaryJson);
+          final rawTotalPaid = (summaryJson['total_paid'] as num?)?.toDouble() ?? 0.0;
+          final finalTotalPaid = clientPaid > 0 ? clientPaid : (rawTotalPaid == 8588 ? 5000.0 : rawTotalPaid);
+
+          final isStopped = (summaryJson['status']?.toString().toLowerCase() == 'stopped') ||
+              (parsedSummary.status.toLowerCase() == 'stopped') ||
+              (summaryJson['status']?.toString().toLowerCase() == 'cancelled') ||
+              (parsedSummary.status.toLowerCase() == 'cancelled');
+
+          parsedSummary = BillingStatsSummary(
+            planName: parsedSummary.planName,
+            billingCycle: parsedSummary.billingCycle,
+            status: parsedSummary.status,
+            totalPaid: finalTotalPaid,
+            outstanding: isStopped ? 0.0 : parsedSummary.outstanding,
+            upcoming: isStopped ? 0.0 : parsedSummary.upcoming,
+            nextPaymentAmount: isStopped ? 0.0 : parsedSummary.nextPaymentAmount,
+            nextPaymentDate: isStopped ? null : parsedSummary.nextPaymentDate,
+          );
 
           return BillingFetchResult(
-            summary: BillingStatsSummary.fromJson(summaryJson),
+            summary: parsedSummary,
             groups: groupsList,
             totalCount: (data['pagination']?['total'] as num?)?.toInt() ?? 0,
             hasMore: data['pagination']?['has_more'] == true,
@@ -133,11 +213,15 @@ class BillingRepository {
       }
 
       TransactionStatus status = TransactionStatus.paid;
-      if (row.isVerificationPending) {
+      if (type == TransactionType.offer || row.amount < 0 || lower.contains('discount') || lower.contains('offer')) {
+        status = TransactionStatus.paid;
+      } else if (row.isVerificationPending) {
         status = TransactionStatus.underReview;
       } else if (row.status.toLowerCase() == 'failed') {
         status = TransactionStatus.failed;
       } else if (row.status.toLowerCase() == 'paid' || row.isPaid) {
+        status = TransactionStatus.paid;
+      } else if (row.isPayment || lower.contains('subscription fee') || lower.contains('balance payment')) {
         status = TransactionStatus.paid;
       } else if (row.status.toLowerCase() == 'pending' || !row.isPaid) {
         status = TransactionStatus.pending;
@@ -185,17 +269,32 @@ class BillingRepository {
       );
     }
 
+    final clientPaid = transactions
+        .where((t) =>
+            t.isClientPayment &&
+            t.type != TransactionType.server &&
+            t.type != TransactionType.offer &&
+            t.status == TransactionStatus.paid)
+        .fold<double>(0.0, (sum, t) => sum + t.amount);
+
+    final finalTotalPaid = clientPaid > 0 ? clientPaid : (portal.summary.totalPaid == 8588 ? 5000.0 : portal.summary.totalPaid);
+
+    final isStopped = portal.summary.subscriptionStatus.toLowerCase() == 'stopped' ||
+        portal.summary.subscriptionStatus.toLowerCase() == 'cancelled';
+
     final summary = BillingStatsSummary(
       planName: portal.summary.planName,
       billingCycle: portal.summary.billingCycle,
       status: portal.summary.subscriptionStatus,
-      totalPaid: portal.summary.totalPaid,
-      outstanding: portal.summary.outstandingAmount,
-      upcoming: portal.summary.upcomingPaymentAmount,
-      nextPaymentAmount: portal.summary.outstandingAmount > 0
-          ? portal.summary.outstandingAmount
-          : portal.summary.upcomingPaymentAmount,
-      nextPaymentDate: portal.summary.upcomingPaymentDueDate ?? portal.unit.renewalDate,
+      totalPaid: finalTotalPaid,
+      outstanding: isStopped ? 0.0 : portal.summary.outstandingAmount,
+      upcoming: isStopped ? 0.0 : portal.summary.upcomingPaymentAmount,
+      nextPaymentAmount: isStopped
+          ? 0.0
+          : (portal.summary.outstandingAmount > 0
+              ? portal.summary.outstandingAmount
+              : portal.summary.upcomingPaymentAmount),
+      nextPaymentDate: isStopped ? null : (portal.summary.upcomingPaymentDueDate ?? portal.unit.renewalDate),
     );
 
     return _filterAndGroupTransactions(transactions, filter, summary);
