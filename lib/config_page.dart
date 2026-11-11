@@ -312,9 +312,10 @@ class _ConfigPageState extends State<ConfigPage>
       );
     } catch (e) {
       if (!mounted) return;
+      final message = e.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save: $e'),
+          content: Text('Failed to save: $message'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -984,6 +985,345 @@ class _ConfigPageState extends State<ConfigPage>
     return localBodies.isEmpty ? null : localBodies.first;
   }
 
+  Future<void> _showStaffWardSelectionSheet({
+    required String? initialLocalBody,
+    required Set<String> selectedWardIds,
+    required ValueChanged<String?> onLocalBodyChanged,
+    required ValueChanged<String> onWardToggled,
+  }) async {
+    final localBodies = _wardLocalBodies;
+    if (localBodies.isEmpty) return;
+
+    var activeLocalBody = localBodies.contains(initialLocalBody)
+        ? initialLocalBody!
+        : localBodies.first;
+    var searchQuery = '';
+    final searchController = TextEditingController();
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        useRootNavigator: true,
+        useSafeArea: true,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (pickerContext) => StatefulBuilder(
+          builder: (context, setPickerState) {
+            final localBodyWards =
+                _careWards
+                    .where(
+                      (ward) =>
+                          ward.isActive &&
+                          ward.localBody?.trim().toLowerCase() ==
+                              activeLocalBody.trim().toLowerCase(),
+                    )
+                    .toList()
+                  ..sort((a, b) => compareNaturally(a.label, b.label));
+            final visibleWards = localBodyWards.where((ward) {
+              final query = searchQuery.trim().toLowerCase();
+              return query.isEmpty ||
+                  ward.label.toLowerCase().contains(query) ||
+                  (ward.lsgWardValue ?? '').toLowerCase().contains(query);
+            }).toList();
+            final allLocalBodySelected =
+                localBodyWards.isNotEmpty &&
+                localBodyWards.every(
+                  (ward) => selectedWardIds.contains(ward.id),
+                );
+
+            void toggleWard(String wardId) {
+              onWardToggled(wardId);
+              setPickerState(() {});
+            }
+
+            return FractionallySizedBox(
+              heightFactor: 0.90,
+              child: Material(
+                color: AppColors.surfaceModal,
+                clipBehavior: Clip.antiAlias,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: AppSpacing.xs),
+                    Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppColors.borderStrong,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.map_outlined,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Choose assigned wards',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                Text(
+                                  '${selectedWardIds.length} selected across all local bodies',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            onPressed: () => Navigator.pop(pickerContext),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                      child: Column(
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: activeLocalBody,
+                            isExpanded: true,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.normal,
+                              color: AppColors.text,
+                            ),
+                            decoration: _fieldDecoration(
+                              labelText: 'Local body / Village',
+                              prefixIcon: Icons.location_city_outlined,
+                            ),
+                            items: localBodies
+                                .map(
+                                  (localBody) => DropdownMenuItem(
+                                    value: localBody,
+                                    child: Text(
+                                      localBody,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.normal,
+                                        color: AppColors.text,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              searchController.clear();
+                              onLocalBodyChanged(value);
+                              setPickerState(() {
+                                activeLocalBody = value;
+                                searchQuery = '';
+                              });
+                            },
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          TextField(
+                            controller: searchController,
+                            onChanged: (value) =>
+                                setPickerState(() => searchQuery = value),
+                            decoration:
+                                _fieldDecoration(
+                                  labelText: 'Search ward name or number',
+                                  prefixIcon: Icons.search,
+                                ).copyWith(
+                                  suffixIcon: searchQuery.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          tooltip: 'Clear search',
+                                          onPressed: () {
+                                            searchController.clear();
+                                            setPickerState(
+                                              () => searchQuery = '',
+                                            );
+                                          },
+                                          icon: const Icon(Icons.close),
+                                        ),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${localBodyWards.length} wards in $activeLocalBody',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: localBodyWards.isEmpty
+                                ? null
+                                : () {
+                                    for (final ward in localBodyWards) {
+                                      final selected = selectedWardIds.contains(
+                                        ward.id,
+                                      );
+                                      if (allLocalBodySelected && selected) {
+                                        onWardToggled(ward.id);
+                                      } else if (!allLocalBodySelected &&
+                                          !selected) {
+                                        onWardToggled(ward.id);
+                                      }
+                                    }
+                                    setPickerState(() {});
+                                  },
+                            child: Text(
+                              allLocalBodySelected
+                                  ? 'Deselect local body'
+                                  : 'Select all',
+                            ),
+                          ),
+                          if (selectedWardIds.isNotEmpty)
+                            TextButton(
+                              onPressed: () {
+                                for (final id in selectedWardIds.toList()) {
+                                  onWardToggled(id);
+                                }
+                                setPickerState(() {});
+                              },
+                              child: const Text(
+                                'Clear all',
+                                style: TextStyle(color: AppColors.danger),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: visibleWards.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.lg),
+                                child: Text(
+                                  localBodyWards.isEmpty
+                                      ? 'No linked wards are available for this local body.'
+                                      : 'No wards match your search.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
+                              itemCount: visibleWards.length,
+                              separatorBuilder: (context, index) =>
+                                  const Divider(height: 1, indent: 48, thickness: 0.5),
+                              itemBuilder: (context, index) {
+                                final ward = visibleWards[index];
+                                final selected = selectedWardIds.contains(
+                                  ward.id,
+                                );
+                                return CheckboxListTile(
+                                  value: selected,
+                                  onChanged: (_) => toggleWard(ward.id),
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                  activeColor: AppColors.primary,
+                                  dense: true,
+                                  visualDensity: const VisualDensity(
+                                    horizontal: -2,
+                                    vertical: -3,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 0,
+                                  ),
+                                  title: Text(
+                                    ward.label,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: selected
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                      color: AppColors.text,
+                                    ),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                      decoration: const BoxDecoration(
+                        color: AppColors.surface,
+                        border: Border(
+                          top: BorderSide(color: AppColors.border),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${selectedWardIds.length} ward${selectedWardIds.length == 1 ? '' : 's'} selected',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.text,
+                              ),
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () => Navigator.pop(pickerContext),
+                            icon: const Icon(Icons.check, size: 18),
+                            label: const Text('Done'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      searchController.dispose();
+    }
+  }
+
   Widget _buildStaffWardPicker({
     required String? selectedLocalBody,
     required Set<String> selectedWardIds,
@@ -992,20 +1332,19 @@ class _ConfigPageState extends State<ConfigPage>
     required ValueChanged<String?> onLocalBodyChanged,
     required ValueChanged<String> onWardToggled,
   }) {
-    final localBodies = _wardLocalBodies;
-    final currentLocalBody = selectedLocalBody ?? (localBodies.isNotEmpty ? localBodies.first : null);
-    final visibleWards = _careWards
-        .where(
-          (ward) =>
-              ward.isActive &&
-              ward.localBody != null &&
-              ward.localBody!.trim().toLowerCase() == (currentLocalBody?.trim().toLowerCase() ?? ''),
-        )
-        .toList()
-      ..sort((a, b) => compareNaturally(a.label, b.label));
-
-    final allVisibleSelected = visibleWards.isNotEmpty &&
-        visibleWards.every((w) => selectedWardIds.contains(w.id));
+    final linkedWards = _careWards.where((ward) => ward.isActive).toList();
+    final configuredWardCount = _config?.wards.length ?? 0;
+    final selectedWards = linkedWards
+        .where((ward) => selectedWardIds.contains(ward.id))
+        .toList();
+    final selectedLocalBodies =
+        selectedWards
+            .map((ward) => ward.localBody?.trim())
+            .whereType<String>()
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort(compareNaturally);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1029,185 +1368,131 @@ class _ConfigPageState extends State<ConfigPage>
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        if (localBodies.isEmpty)
+        if (linkedWards.isEmpty)
           Text(
-            required
+            configuredWardCount > 0
+                ? '$configuredWardCount LSG wards are waiting to be linked. Save LSGs & Wards, then refresh.'
+                : required
                 ? 'Add wards under LSGs & Wards before adding staff.'
                 : 'No LSG wards are available yet.',
             style: TextStyle(
               color: required ? AppColors.danger : AppColors.textSecondary,
             ),
           )
-        else ...[
-          DropdownButtonFormField<String>(
-            initialValue: localBodies.contains(currentLocalBody)
-                ? currentLocalBody
-                : null,
-            isExpanded: true,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.normal,
-              color: AppColors.text,
-            ),
-            decoration: _fieldDecoration(
-              labelText: 'Local body / Village',
-              prefixIcon: Icons.location_city_outlined,
-            ),
-            items: localBodies
-                .map(
-                  (localBody) => DropdownMenuItem(
-                    value: localBody,
-                    child: Text(
-                      localBody,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.normal,
-                        color: AppColors.text,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+        else
+          InkWell(
+            onTap: disabled
+                ? null
+                : () => _showStaffWardSelectionSheet(
+                    initialLocalBody: selectedLocalBody,
+                    selectedWardIds: selectedWardIds,
+                    onLocalBodyChanged: onLocalBodyChanged,
+                    onWardToggled: onWardToggled,
                   ),
-                )
-                .toList(),
-            onChanged: disabled ? null : onLocalBodyChanged,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          if (visibleWards.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                'No wards configured under this local body.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            borderRadius: AppRadius.input,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.sm,
               ),
-            )
-          else ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Wards in ${currentLocalBody ?? 'Local Body'}:',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextButton(
-                  onPressed: disabled
-                      ? null
-                      : () {
-                          if (allVisibleSelected) {
-                            for (final w in visibleWards) {
-                              if (selectedWardIds.contains(w.id)) {
-                                onWardToggled(w.id);
-                              }
-                            }
-                          } else {
-                            for (final w in visibleWards) {
-                              if (!selectedWardIds.contains(w.id)) {
-                                onWardToggled(w.id);
-                              }
-                            }
-                          }
-                        },
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  child: Text(
-                    allVisibleSelected ? 'Deselect all' : 'Select all',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xxs),
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: visibleWards.map((ward) {
-                final selected = selectedWardIds.contains(ward.id);
-                return FilterChip(
-                  label: Text(ward.label),
-                  selected: selected,
-                  onSelected: disabled ? null : (_) => onWardToggled(ward.id),
-                );
-              }).toList(),
-            ),
-          ],
-          if (selectedWardIds.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.xs),
               decoration: BoxDecoration(
                 color: AppColors.surface1,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+                borderRadius: AppRadius.input,
+                border: Border.all(
+                  color: selectedWardIds.isEmpty
+                      ? AppColors.borderStrong
+                      : AppColors.primary,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle_outline, size: 14, color: AppColors.primary),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Total Selected: ${selectedWardIds.length} ward(s)',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text,
-                        ),
-                      ),
-                      const Spacer(),
-                      InkWell(
-                        onTap: disabled
-                            ? null
-                            : () {
-                                for (final id in selectedWardIds.toList()) {
-                                  onWardToggled(id);
-                                }
-                              },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          child: Text(
-                            'Clear all',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.danger,
-                              fontWeight: FontWeight.w600,
-                            ),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.map_outlined,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedWardIds.isEmpty
+                              ? 'Choose wards'
+                              : '${selectedWardIds.length} ward${selectedWardIds.length == 1 ? '' : 's'} selected',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: selectedWardIds.map((id) {
-                      final ward = _careWards.firstWhere(
-                        (w) => w.id == id,
-                        orElse: () => Ward(id: id, name: 'Ward'),
-                      );
-                      return Chip(
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        label: Text(
-                          ward.fullLabel,
-                          style: const TextStyle(fontSize: 11),
+                        const SizedBox(height: 2),
+                        Text(
+                          selectedWardIds.isEmpty
+                              ? 'Tap to search by ward name or number'
+                              : selectedLocalBodies.isEmpty
+                              ? 'Tap to review the selection'
+                              : selectedLocalBodies.join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                        deleteIcon: const Icon(Icons.close, size: 12),
-                        onDeleted: disabled ? null : () => onWardToggled(id),
-                      );
-                    }).toList(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Icon(
+                    Icons.chevron_right,
+                    color: disabled ? AppColors.textMuted : AppColors.primary,
                   ),
                 ],
               ),
             ),
-          ],
+          ),
+        if (linkedWards.isEmpty && configuredWardCount > 0) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: disabled
+                  ? null
+                  : () async {
+                      try {
+                        final wards = await WardService.getWards(
+                          forceRefresh: true,
+                        );
+                        if (!mounted) return;
+                        setState(() => _careWards = wards);
+                        onLocalBodyChanged(
+                          _defaultWardLocalBody(selectedWardIds),
+                        );
+                      } catch (error) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Could not refresh ward links: $error',
+                            ),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                      }
+                    },
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Refresh ward links'),
+            ),
+          ),
         ],
       ],
     );
@@ -1223,6 +1508,7 @@ class _ConfigPageState extends State<ConfigPage>
         if (mounted) setState(() => _careWards = wards);
       } catch (_) {}
     }
+    if (!mounted) return;
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final assignableRoles = _assignableRoles;
     final nameController = TextEditingController();
@@ -1236,7 +1522,8 @@ class _ConfigPageState extends State<ConfigPage>
     var selectedRole = defaultRole;
     var selectedModules = <String>{..._modulesForRole(defaultRole)};
     var selectedWardIds = <String>{};
-    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds) ??
+    var selectedWardLocalBody =
+        _defaultWardLocalBody(selectedWardIds) ??
         (_wardLocalBodies.isNotEmpty ? _wardLocalBodies.first : null);
     var obscurePassword = true;
     var isSubmitting = false;
@@ -1676,6 +1963,7 @@ class _ConfigPageState extends State<ConfigPage>
         if (mounted) setState(() => _careWards = wards);
       } catch (_) {}
     }
+    if (!mounted) return;
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final assignableRoles = _assignableRoles;
     final nameController = TextEditingController(text: staff.name);
@@ -1689,7 +1977,8 @@ class _ConfigPageState extends State<ConfigPage>
           : _modulesForRole(selectedRole.isEmpty ? staff.role : selectedRole)),
     };
     var selectedWardIds = staff.assignedWards.map((ward) => ward.id).toSet();
-    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds) ??
+    var selectedWardLocalBody =
+        _defaultWardLocalBody(selectedWardIds) ??
         (_wardLocalBodies.isNotEmpty ? _wardLocalBodies.first : null);
     var obscurePassword = true;
     var saving = false;
@@ -2201,9 +2490,9 @@ class _ConfigPageState extends State<ConfigPage>
           : _buildAccessDenied(),
       floatingActionButton:
           auth.isAdmin &&
-                  !(activeIndex == 1 && _selectedStaffSection == 'role') &&
-                  widget.mode != ConfigPageMode.settings
-              ? widget.mode == ConfigPageMode.lsg
+              !(activeIndex == 1 && _selectedStaffSection == 'role') &&
+              widget.mode != ConfigPageMode.settings
+          ? widget.mode == ConfigPageMode.lsg
                 ? FloatingActionButton.extended(
                     onPressed:
                         _isLoadingConfig || _config == null || _isSavingConfig
@@ -2396,7 +2685,10 @@ class _ConfigPageState extends State<ConfigPage>
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search settings',
-          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13.5),
+          hintStyle: const TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 13.5,
+          ),
           prefixIcon: const Icon(
             Icons.search_rounded,
             color: AppColors.textMuted,
@@ -2416,8 +2708,10 @@ class _ConfigPageState extends State<ConfigPage>
                 )
               : null,
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 11,
+          ),
         ),
         onChanged: (val) =>
             setState(() => _settingsSearchQuery = val.trim().toLowerCase()),
@@ -2885,7 +3179,8 @@ class _ConfigPageState extends State<ConfigPage>
                       label: 'Start time',
                       value: start,
                       onTap: () async {
-                        final initial = _parseTimeOfDay(start) ??
+                        final initial =
+                            _parseTimeOfDay(start) ??
                             const TimeOfDay(hour: 9, minute: 30);
                         final picked = await showTimePicker(
                           context: context,
@@ -2903,7 +3198,8 @@ class _ConfigPageState extends State<ConfigPage>
                       label: 'End time',
                       value: end,
                       onTap: () async {
-                        final initial = _parseTimeOfDay(end) ??
+                        final initial =
+                            _parseTimeOfDay(end) ??
                             const TimeOfDay(hour: 15, minute: 30);
                         final picked = await showTimePicker(
                           context: context,
@@ -2973,9 +3269,7 @@ class _ConfigPageState extends State<ConfigPage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => _TransferSettingsPage(
-          configState: this,
-        ),
+        builder: (context) => _TransferSettingsPage(configState: this),
       ),
     );
   }
@@ -5329,16 +5623,14 @@ class _MasterListSettingsPageState extends State<_MasterListSettingsPage> {
                                 ),
                                 actions: [
                                   TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(ctx, false),
+                                    onPressed: () => Navigator.pop(ctx, false),
                                     child: const Text('Cancel'),
                                   ),
                                   FilledButton(
                                     style: FilledButton.styleFrom(
                                       backgroundColor: AppColors.danger,
                                     ),
-                                    onPressed: () =>
-                                        Navigator.pop(ctx, true),
+                                    onPressed: () => Navigator.pop(ctx, true),
                                     child: const Text('Remove'),
                                   ),
                                 ],
@@ -5462,10 +5754,7 @@ class _TransferSettingsPageState extends State<_TransferSettingsPage> {
               children: [
                 const Text(
                   'Pending Request Expiry',
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -5529,10 +5818,7 @@ class _TransferSettingsPageState extends State<_TransferSettingsPage> {
               children: [
                 const Text(
                   'Required Acceptance Checks',
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -5547,8 +5833,9 @@ class _TransferSettingsPageState extends State<_TransferSettingsPage> {
                   spacing: 8,
                   runSpacing: 8,
                   children: _checks.map((check) {
-                    final selected =
-                        settings.requiredChecks.contains(check.key);
+                    final selected = settings.requiredChecks.contains(
+                      check.key,
+                    );
                     return FilterChip(
                       selected: selected,
                       showCheckmark: true,

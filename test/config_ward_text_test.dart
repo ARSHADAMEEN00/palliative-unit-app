@@ -5,7 +5,8 @@ import 'package:oruma_app/models/ward.dart';
 void main() {
   test('ward normalization preserves text and alphanumeric names', () {
     expect(normalizeWardNumberValue('North Ward'), 'North Ward');
-    expect(normalizeWardNumberValue('Ward 12A'), 'Ward 12A');
+    expect(normalizeWardNumberValue('Ward 12A'), '12A');
+    expect(formatWardLabel('Ward 12A'), 'Ward 12A');
     expect(normalizeWardNumberValue('007'), '7');
   });
 
@@ -45,9 +46,6 @@ void main() {
     expect(ward.localBody, 'Koyilandy Municipality');
     expect(ward.lsgWardValue, '1 : Pathirikkad');
     expect(ward.managedByLsg, isTrue);
-    expect(
-      ward.fullLabel,
-      'Koyilandy Municipality • Ward 1 : Pathirikkad',
-    );
+    expect(ward.fullLabel, 'Koyilandy Municipality • Ward 1 : Pathirikkad');
   });
 }
