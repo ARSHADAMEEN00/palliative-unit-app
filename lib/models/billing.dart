@@ -263,6 +263,9 @@ class BillingSummary {
     required this.planName,
     required this.billingCycle,
     required this.subscriptionStatus,
+    this.planAmount = 0,
+    this.totalOffers = 0,
+    this.netPayable = 0,
     this.outstandingAmount = 0,
     this.upcomingPaymentAmount = 0,
     this.totalPaid = 0,
@@ -276,6 +279,9 @@ class BillingSummary {
   final String planName;
   final String billingCycle;
   final String subscriptionStatus;
+  final double planAmount;
+  final double totalOffers;
+  final double netPayable;
   final double outstandingAmount;
   final double upcomingPaymentAmount;
   final double totalPaid;
@@ -293,6 +299,9 @@ class BillingSummary {
         json['subscriptionStatus'],
         fallback: 'trial',
       ),
+      planAmount: _number(json['planAmount'] ?? json['totalInvoiced']),
+      totalOffers: _number(json['totalOffers'] ?? json['offerAmount']),
+      netPayable: _number(json['netPayable'] ?? json['totalInvoiced']),
       outstandingAmount: _number(json['outstandingAmount']),
       upcomingPaymentAmount: _number(json['upcomingPaymentAmount']),
       totalPaid: _number(json['totalPaid']),
@@ -308,6 +317,9 @@ class BillingSummary {
     String? planName,
     String? billingCycle,
     String? subscriptionStatus,
+    double? planAmount,
+    double? totalOffers,
+    double? netPayable,
     double? outstandingAmount,
     double? upcomingPaymentAmount,
     double? totalPaid,
@@ -321,6 +333,9 @@ class BillingSummary {
       planName: planName ?? this.planName,
       billingCycle: billingCycle ?? this.billingCycle,
       subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+      planAmount: planAmount ?? this.planAmount,
+      totalOffers: totalOffers ?? this.totalOffers,
+      netPayable: netPayable ?? this.netPayable,
       outstandingAmount: outstandingAmount ?? this.outstandingAmount,
       upcomingPaymentAmount: upcomingPaymentAmount ?? this.upcomingPaymentAmount,
       totalPaid: totalPaid ?? this.totalPaid,
@@ -381,6 +396,10 @@ class PaymentHistoryRow {
     required this.status,
     this.dueDate,
     this.paidAt,
+    this.baseAmount = 0,
+    this.offerAmount = 0,
+    this.offerNote,
+    this.netPayable,
     this.amount = 0,
     this.paidAmount = 0,
     this.remainingAmount,
@@ -395,6 +414,10 @@ class PaymentHistoryRow {
   final String label;
   final String recordType;
   final DateTime? dueDate;
+  final double baseAmount;
+  final double offerAmount;
+  final String? offerNote;
+  final double? netPayable;
   final double amount;
   final double paidAmount;
   final double? remainingAmount;
@@ -432,6 +455,10 @@ class PaymentHistoryRow {
       label: _string(json['label']),
       recordType: _string(json['recordType'], fallback: 'invoice'),
       dueDate: _date(json['dueDate']),
+      baseAmount: _number(json['baseAmount'] ?? json['base_amount'] ?? json['amount']),
+      offerAmount: _number(json['offerAmount'] ?? json['offer_amount']),
+      offerNote: _nullableString(json['offerNote'] ?? json['offer_note']),
+      netPayable: json.containsKey('netPayable') ? _number(json['netPayable']) : null,
       amount: _number(json['amount']),
       paidAmount: _number(json['paidAmount']),
       remainingAmount: json.containsKey('remainingAmount')

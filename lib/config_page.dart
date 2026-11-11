@@ -182,9 +182,7 @@ class _ConfigPageState extends State<ConfigPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (context.read<AuthService>().isAdmin) {
-        if (widget.mode != ConfigPageMode.staff) {
-          _fetchConfig();
-        }
+        _fetchConfig();
         if (widget.mode != ConfigPageMode.settings &&
             widget.mode != ConfigPageMode.lsg) {
           _fetchStaff();
@@ -954,14 +952,25 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   List<String> get _wardLocalBodies {
-    final values = _careWards
-        .where((ward) => ward.isActive)
-        .map((ward) => ward.localBody?.trim() ?? '')
-        .where((value) => value.isNotEmpty)
-        .toSet()
-        .toList();
-    values.sort(compareNaturally);
-    return values;
+    final values = <String>{};
+    for (final ward in _careWards) {
+      if (ward.isActive &&
+          ward.localBody != null &&
+          ward.localBody!.trim().isNotEmpty) {
+        values.add(ward.localBody!.trim());
+      }
+    }
+    if (_config != null) {
+      for (final village in _config!.villages) {
+        if (village.trim().isNotEmpty) values.add(village.trim());
+      }
+      for (final ward in _config!.wards) {
+        if (ward.village.trim().isNotEmpty) values.add(ward.village.trim());
+      }
+    }
+    final list = values.toList();
+    list.sort(compareNaturally);
+    return list;
   }
 
   String? _defaultWardLocalBody(Set<String> selectedWardIds) {
@@ -984,14 +993,19 @@ class _ConfigPageState extends State<ConfigPage>
     required ValueChanged<String> onWardToggled,
   }) {
     final localBodies = _wardLocalBodies;
-    final visibleWards =
-        _careWards
-            .where(
-              (ward) =>
-                  ward.isActive && ward.localBody?.trim() == selectedLocalBody,
-            )
-            .toList()
-          ..sort((a, b) => compareNaturally(a.name, b.name));
+    final currentLocalBody = selectedLocalBody ?? (localBodies.isNotEmpty ? localBodies.first : null);
+    final visibleWards = _careWards
+        .where(
+          (ward) =>
+              ward.isActive &&
+              ward.localBody != null &&
+              ward.localBody!.trim().toLowerCase() == (currentLocalBody?.trim().toLowerCase() ?? ''),
+        )
+        .toList()
+      ..sort((a, b) => compareNaturally(a.label, b.label));
+
+    final allVisibleSelected = visibleWards.isNotEmpty &&
+        visibleWards.every((w) => selectedWardIds.contains(w.id));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1026,31 +1040,88 @@ class _ConfigPageState extends State<ConfigPage>
           )
         else ...[
           DropdownButtonFormField<String>(
-            initialValue: localBodies.contains(selectedLocalBody)
-                ? selectedLocalBody
+            initialValue: localBodies.contains(currentLocalBody)
+                ? currentLocalBody
                 : null,
             isExpanded: true,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.normal,
+              color: AppColors.text,
+            ),
             decoration: _fieldDecoration(
-              labelText: 'Local body',
+              labelText: 'Local body / Village',
               prefixIcon: Icons.location_city_outlined,
             ),
             items: localBodies
                 .map(
                   (localBody) => DropdownMenuItem(
                     value: localBody,
-                    child: Text(localBody, overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      localBody,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.normal,
+                        color: AppColors.text,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 )
                 .toList(),
             onChanged: disabled ? null : onLocalBodyChanged,
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: AppSpacing.sm),
           if (visibleWards.isEmpty)
-            const Text(
-              'No wards are available for this local body.',
-              style: TextStyle(color: AppColors.textSecondary),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                'No wards configured under this local body.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
             )
-          else
+          else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Wards in ${currentLocalBody ?? 'Local Body'}:',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                TextButton(
+                  onPressed: disabled
+                      ? null
+                      : () {
+                          if (allVisibleSelected) {
+                            for (final w in visibleWards) {
+                              if (selectedWardIds.contains(w.id)) {
+                                onWardToggled(w.id);
+                              }
+                            }
+                          } else {
+                            for (final w in visibleWards) {
+                              if (!selectedWardIds.contains(w.id)) {
+                                onWardToggled(w.id);
+                              }
+                            }
+                          }
+                        },
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: Text(
+                    allVisibleSelected ? 'Deselect all' : 'Select all',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xxs),
             Wrap(
               spacing: AppSpacing.xs,
               runSpacing: AppSpacing.xs,
@@ -1063,12 +1134,95 @@ class _ConfigPageState extends State<ConfigPage>
                 );
               }).toList(),
             ),
+          ],
+          if (selectedWardIds.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              decoration: BoxDecoration(
+                color: AppColors.surface1,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Total Selected: ${selectedWardIds.length} ward(s)',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: disabled
+                            ? null
+                            : () {
+                                for (final id in selectedWardIds.toList()) {
+                                  onWardToggled(id);
+                                }
+                              },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Text(
+                            'Clear all',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.danger,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: selectedWardIds.map((id) {
+                      final ward = _careWards.firstWhere(
+                        (w) => w.id == id,
+                        orElse: () => Ward(id: id, name: 'Ward'),
+                      );
+                      return Chip(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        label: Text(
+                          ward.fullLabel,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        deleteIcon: const Icon(Icons.close, size: 12),
+                        onDeleted: disabled ? null : () => onWardToggled(id),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ],
     );
   }
 
   Future<void> _showAddStaffSheet([String? initialRole]) async {
+    if (_config == null) {
+      await _fetchConfig();
+    }
+    if (_careWards.isEmpty) {
+      try {
+        final wards = await WardService.getWards(forceRefresh: true);
+        if (mounted) setState(() => _careWards = wards);
+      } catch (_) {}
+    }
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final assignableRoles = _assignableRoles;
     final nameController = TextEditingController();
@@ -1082,7 +1236,8 @@ class _ConfigPageState extends State<ConfigPage>
     var selectedRole = defaultRole;
     var selectedModules = <String>{..._modulesForRole(defaultRole)};
     var selectedWardIds = <String>{};
-    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds);
+    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds) ??
+        (_wardLocalBodies.isNotEmpty ? _wardLocalBodies.first : null);
     var obscurePassword = true;
     var isSubmitting = false;
     var modulesExpanded = false;
@@ -1302,7 +1457,11 @@ class _ConfigPageState extends State<ConfigPage>
                                       value: role,
                                       child: Text(
                                         _roleLabel(role),
-                                        style: const TextStyle(fontSize: 13),
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.normal,
+                                          color: _inkColor,
+                                        ),
                                       ),
                                     ),
                                   )
@@ -1511,6 +1670,12 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   Future<void> _showEditStaffDialog(StaffUser staff) async {
+    if (_careWards.isEmpty) {
+      try {
+        final wards = await WardService.getWards(forceRefresh: true);
+        if (mounted) setState(() => _careWards = wards);
+      } catch (_) {}
+    }
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final assignableRoles = _assignableRoles;
     final nameController = TextEditingController(text: staff.name);
@@ -1524,7 +1689,8 @@ class _ConfigPageState extends State<ConfigPage>
           : _modulesForRole(selectedRole.isEmpty ? staff.role : selectedRole)),
     };
     var selectedWardIds = staff.assignedWards.map((ward) => ward.id).toSet();
-    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds);
+    var selectedWardLocalBody = _defaultWardLocalBody(selectedWardIds) ??
+        (_wardLocalBodies.isNotEmpty ? _wardLocalBodies.first : null);
     var obscurePassword = true;
     var saving = false;
     var modulesExpanded = false;
@@ -1705,7 +1871,11 @@ class _ConfigPageState extends State<ConfigPage>
                                   value: role,
                                   child: Text(
                                     _roleLabel(role),
-                                    style: const TextStyle(fontSize: 13),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.normal,
+                                      color: _inkColor,
+                                    ),
                                   ),
                                 ),
                               )
@@ -2147,18 +2317,11 @@ class _ConfigPageState extends State<ConfigPage>
               header: 'CARE STRUCTURE & WARDS',
               items: [
                 _SettingsItem(
-                  title: 'Care wards',
-                  subtitle: 'Operational wards for patient & staff access',
-                  icon: Icons.local_hospital_outlined,
-                  trailingText:
-                      '${_careWards.where((w) => w.isActive).length} active',
-                  onTap: _openCareWardsPage,
-                ),
-                _SettingsItem(
                   title: 'LSGs & Wards',
                   subtitle: 'Villages, municipalities & ward numbers',
                   icon: Icons.holiday_village_outlined,
-                  trailingText: '${config.villages.length} local bodies',
+                  trailingText:
+                      '${config.villages.length} local bodies • ${config.wards.length} wards',
                   onTap: () {
                     Navigator.push(
                       context,
@@ -2421,17 +2584,11 @@ class _ConfigPageState extends State<ConfigPage>
         onTap: _openWorkingDaysDialog,
       ),
       _SettingsItem(
-        title: 'Care wards',
-        subtitle: 'Operational wards for patient & staff access',
-        icon: Icons.local_hospital_outlined,
-        trailingText: '${_careWards.where((w) => w.isActive).length} active',
-        onTap: _openCareWardsPage,
-      ),
-      _SettingsItem(
         title: 'LSGs & Wards',
         subtitle: 'Villages, municipalities & ward numbers',
         icon: Icons.holiday_village_outlined,
-        trailingText: '${config.villages.length} local bodies',
+        trailingText:
+            '${config.villages.length} local bodies • ${config.wards.length} wards',
         onTap: () {
           Navigator.push(
             context,
@@ -2792,17 +2949,6 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
-  void _openCareWardsPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => _CareWardsSettingsPage(
-          configState: this,
-        ),
-      ),
-    );
-  }
-
   void _openMasterListPage({
     required String title,
     required IconData icon,
@@ -3028,7 +3174,11 @@ class _ConfigPageState extends State<ConfigPage>
                 key: ValueKey(_selectedWardVillage),
                 initialValue: _selectedWardVillage,
                 isExpanded: true,
-                style: AppTypography.dropdownTextStyle(context),
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.normal,
+                  color: AppColors.text,
+                ),
                 decoration: _fieldDecoration(
                   labelText: 'Local body',
                   prefixIcon: Icons.location_city_outlined,
@@ -3039,6 +3189,11 @@ class _ConfigPageState extends State<ConfigPage>
                         value: localBody,
                         child: Text(
                           localBody,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.normal,
+                            color: AppColors.text,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -4932,343 +5087,6 @@ class _SettingsItem {
   final IconData icon;
   final String? trailingText;
   final VoidCallback onTap;
-}
-
-class _CareWardsSettingsPage extends StatefulWidget {
-  const _CareWardsSettingsPage({required this.configState});
-
-  final _ConfigPageState configState;
-
-  @override
-  State<_CareWardsSettingsPage> createState() => _CareWardsSettingsPageState();
-}
-
-class _CareWardsSettingsPageState extends State<_CareWardsSettingsPage> {
-  bool _isLoading = false;
-  List<Ward> _wards = [];
-  List<WardPatientCount> _counts = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _wards = widget.configState._careWards;
-    _loadWards();
-  }
-
-  Future<void> _loadWards() async {
-    setState(() => _isLoading = true);
-    try {
-      final results = await Future.wait([
-        WardService.getWards(includeInactive: true, forceRefresh: true),
-        WardService.getPatientCounts().catchError((_) => <WardPatientCount>[]),
-      ]);
-      if (mounted) {
-        setState(() {
-          _wards = results[0] as List<Ward>;
-          _counts = results[1] as List<WardPatientCount>;
-          _isLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _showWardEditor([Ward? existing]) async {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final codeCtrl = TextEditingController(text: existing?.code ?? '');
-    final isEdit = existing != null;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'Edit Care Ward' : 'Add Care Ward'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Ward Name *',
-                hintText: 'e.g. Ward 1',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: codeCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Ward Code (Optional)',
-                hintText: 'e.g. W1',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                Navigator.pop(ctx, true);
-              }
-            },
-            child: Text(isEdit ? 'Save' : 'Add'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && nameCtrl.text.trim().isNotEmpty) {
-      try {
-        if (isEdit) {
-          await WardService.updateWard(
-            existing.id,
-            name: nameCtrl.text.trim(),
-            code: codeCtrl.text.trim().isEmpty ? null : codeCtrl.text.trim(),
-          );
-        } else {
-          await WardService.createWard(
-            name: nameCtrl.text.trim(),
-            code: codeCtrl.text.trim().isEmpty ? null : codeCtrl.text.trim(),
-          );
-        }
-        await _loadWards();
-        await widget.configState._fetchConfig();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: AppColors.danger,
-            ),
-          );
-        }
-      }
-    }
-    nameCtrl.dispose();
-    codeCtrl.dispose();
-  }
-
-  Future<void> _deactivateWard(Ward ward) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Deactivate Care Ward'),
-        content: Text('Are you sure you want to deactivate "${ward.label}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Deactivate'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await WardService.deactivateWard(ward.id);
-        await _loadWards();
-        await widget.configState._fetchConfig();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: AppColors.danger,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final careWards = _wards;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Care Wards',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.text,
-        elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Add care ward',
-            icon: const Icon(
-              Icons.add_circle_outline,
-              color: _ConfigPageState._primaryColor,
-            ),
-            onPressed: () => _showWardEditor(),
-          ),
-        ],
-      ),
-      body: _isLoading && careWards.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: _ConfigPageState._softAccentColor.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _ConfigPageState._primaryColor.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        color: _ConfigPageState._primaryColor,
-                        size: 20,
-                      ),
-                      SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          'Operational care wards are assigned to patients and staff for duty assignments.',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: _ConfigPageState._primaryColor,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    'ACTIVE WARDS (${careWards.where((w) => w.isActive).length})',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-                if (careWards.isEmpty)
-                  const _EmptyInlineState(label: 'No care wards created yet')
-                else
-                  ...careWards.map(
-                    (ward) {
-                      final activeCount = _counts
-                          .where((row) => row.ward?.id == ward.id)
-                          .fold(0, (total, row) => total + row.active);
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.border.withValues(alpha: 0.6),
-                          ),
-                        ),
-                        child: ListTile(
-                          leading: Container(
-                            width: 36,
-                            height: 36,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: ward.isActive
-                                  ? _ConfigPageState._softAccentColor
-                                  : AppColors.surface1,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              ward.isActive
-                                  ? Icons.local_hospital_outlined
-                                  : Icons.block_outlined,
-                              color: ward.isActive
-                                  ? _ConfigPageState._primaryColor
-                                  : AppColors.textMuted,
-                              size: 18,
-                            ),
-                          ),
-                          title: Text(
-                            ward.label,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            ward.isActive
-                                ? '$activeCount active patient(s)'
-                                : 'Inactive',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ward.isActive
-                                  ? AppColors.textSecondary
-                                  : AppColors.textMuted,
-                            ),
-                          ),
-                          trailing: Wrap(
-                            spacing: 4,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edit ward',
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                onPressed: () => _showWardEditor(ward),
-                              ),
-                              if (ward.isActive)
-                                IconButton(
-                                  tooltip: 'Deactivate ward',
-                                  icon: const Icon(
-                                    Icons.block_outlined,
-                                    size: 18,
-                                    color: AppColors.warning,
-                                  ),
-                                  onPressed: () => _deactivateWard(ward),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: FilledButton.icon(
-            onPressed: () => _showWardEditor(),
-            style: FilledButton.styleFrom(
-              backgroundColor: _ConfigPageState._primaryColor,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: const RoundedRectangleBorder(
-                borderRadius: AppRadius.button,
-              ),
-            ),
-            icon: const Icon(Icons.add, size: 20),
-            label: const Text(
-              'Add Care Ward',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _MasterListSettingsPage extends StatefulWidget {

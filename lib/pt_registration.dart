@@ -119,7 +119,7 @@ class _patientrigisterState extends State<patientrigister> {
       final results = await Future.wait([
         ConfigService.getConfig(),
         _loadVolunteersSafely(),
-        WardService.getTransferTargets(),
+        WardService.getWards(forceRefresh: true),
       ]);
       final config = results[0] as Config;
       final loadedVolunteers = results[1] as List<Volunteer>;
@@ -188,10 +188,15 @@ class _patientrigisterState extends State<patientrigister> {
   }
 
   List<Ward> get _wardsForSelectedLocalBody {
-    final selected = _selectedVillage;
-    if (selected == null) return const [];
+    final selected = _selectedVillage?.trim().toLowerCase();
+    if (selected == null || selected.isEmpty) return const [];
     return careWards
-        .where((ward) => ward.isActive && ward.localBody == selected)
+        .where(
+          (ward) =>
+              ward.isActive &&
+              ward.localBody != null &&
+              ward.localBody!.trim().toLowerCase() == selected,
+        )
         .toList()
       ..sort((a, b) => compareNaturally(a.name, b.name));
   }
@@ -221,15 +226,19 @@ class _patientrigisterState extends State<patientrigister> {
 
     final legacyWard = normalizeWardNumberValue(_selectedWardTitle);
     if (_selectedVillage != null && legacyWard.isNotEmpty) {
+      final selectedV = _selectedVillage!.trim().toLowerCase();
       for (final ward in careWards) {
-        if (ward.localBody == _selectedVillage &&
-            normalizeWardNumberValue(
-                  ward.lsgWardValue ?? ward.name,
-                ).toLowerCase() ==
-                legacyWard.toLowerCase()) {
-          _selectedCurrentWardId = ward.id;
-          _selectedWardTitle = ward.lsgWardValue ?? legacyWard;
-          return;
+        if (ward.localBody != null &&
+            ward.localBody!.trim().toLowerCase() == selectedV) {
+          final wardVal = normalizeWardNumberValue(
+            ward.lsgWardValue ?? ward.name,
+          ).toLowerCase();
+          if (wardVal == legacyWard.toLowerCase() ||
+              wardKey(wardVal) == wardKey(legacyWard)) {
+            _selectedCurrentWardId = ward.id;
+            _selectedWardTitle = ward.lsgWardValue ?? legacyWard;
+            return;
+          }
         }
       }
     }
@@ -804,9 +813,25 @@ class _patientrigisterState extends State<patientrigister> {
                     ),
                     key: ValueKey(_selectedVillage),
                     initialValue: _selectedVillage,
-                    style: AppTypography.dropdownTextStyle(context),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.normal,
+                      color: AppColors.text,
+                    ),
                     items: villages
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(
+                              v,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.normal,
+                                color: AppColors.text,
+                              ),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) {
                       setState(() {
@@ -833,13 +858,22 @@ class _patientrigisterState extends State<patientrigister> {
                         ? _selectedCurrentWardId
                         : null,
                     isExpanded: true,
-                    style: AppTypography.dropdownTextStyle(context),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.normal,
+                      color: AppColors.text,
+                    ),
                     hint: Text(
                       _selectedVillage == null
                           ? 'Select a local body first'
                           : _wardsForSelectedLocalBody.isEmpty
                           ? 'No wards configured for this local body'
                           : 'Select ward',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.normal,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     items: _wardsForSelectedLocalBody
                         .map(
@@ -847,6 +881,11 @@ class _patientrigisterState extends State<patientrigister> {
                             value: ward.id,
                             child: Text(
                               ward.label,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.normal,
+                                color: AppColors.text,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -892,9 +931,25 @@ class _patientrigisterState extends State<patientrigister> {
                       Icons.assignment_outlined,
                     ),
                     initialValue: _selectedPlan,
-                    style: AppTypography.dropdownTextStyle(context),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.normal,
+                      color: AppColors.text,
+                    ),
                     items: plans
-                        .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                        .map(
+                          (p) => DropdownMenuItem(
+                            value: p,
+                            child: Text(
+                              p,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.normal,
+                                color: AppColors.text,
+                              ),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) => setState(() => _selectedPlan = v),
                     validator: (val) => val == null ? "Required" : null,
