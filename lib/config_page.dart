@@ -78,6 +78,7 @@ class _ConfigPageState extends State<ConfigPage>
   final TextEditingController _staffSearchController = TextEditingController();
   final Set<String> _updatingStaffIds = <String>{};
   final Set<String> _expandedStaffModuleCardIds = <String>{};
+  final Set<String> _expandedStaffWardCardIds = <String>{};
 
   bool _isLoadingConfig = true;
   bool _isLoadingStaff = true;
@@ -1247,7 +1248,11 @@ class _ConfigPageState extends State<ConfigPage>
                               padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
                               itemCount: visibleWards.length,
                               separatorBuilder: (context, index) =>
-                                  const Divider(height: 1, indent: 48, thickness: 0.5),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 48,
+                                    thickness: 0.5,
+                                  ),
                               itemBuilder: (context, index) {
                                 final ward = visibleWards[index];
                                 final selected = selectedWardIds.contains(
@@ -4322,6 +4327,83 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  Widget _buildStaffSearchField() {
+    return TextFormField(
+      controller: _staffSearchController,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        hintText: 'Search by name, email, or role...',
+        hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+        prefixIcon: const Icon(
+          Icons.search,
+          size: 18,
+          color: AppColors.textMuted,
+        ),
+        suffixIcon: _staffSearchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                onPressed: () {
+                  _staffSearchController.clear();
+                  setState(() => _staffSearchQuery = '');
+                },
+              )
+            : null,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        filled: true,
+        fillColor: _ConfigPageState._fieldFillColor,
+        border: const OutlineInputBorder(
+          borderRadius: AppRadius.sm,
+          borderSide: BorderSide(color: _ConfigPageState._lineColor),
+        ),
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: AppRadius.sm,
+          borderSide: BorderSide(color: _ConfigPageState._lineColor),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: AppRadius.sm,
+          borderSide: BorderSide(color: _primaryColor, width: 1.4),
+        ),
+      ),
+      onChanged: (value) => setState(() => _staffSearchQuery = value.trim()),
+    );
+  }
+
+  Widget _buildStaffWardFilter() {
+    return DropdownButtonFormField<String>(
+      initialValue: _staffWardFilter,
+      isExpanded: true,
+      style: const TextStyle(
+        color: _inkColor,
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
+      ),
+      decoration: _fieldDecoration(
+        labelText: 'Filter by ward',
+        prefixIcon: Icons.local_hospital_outlined,
+      ),
+      items: [
+        const DropdownMenuItem(
+          value: 'all',
+          child: Text('All wards', style: TextStyle(fontSize: 13)),
+        ),
+        ..._careWards
+            .where((ward) => ward.isActive)
+            .map(
+              (ward) => DropdownMenuItem(
+                value: ward.id,
+                child: Text(
+                  ward.fullLabel,
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+      ],
+      onChanged: (value) => setState(() => _staffWardFilter = value ?? 'all'),
+    );
+  }
+
   Widget _buildStaffView() {
     if (_isLoadingStaff && _staff.isEmpty) {
       return _buildLoadingList();
@@ -4354,7 +4436,10 @@ class _ConfigPageState extends State<ConfigPage>
         if (!matchesName && !matchesEmail && !matchesRole) return false;
       }
       return true;
-    }).toList();
+    }).toList()..sort(_compareStaffUsers);
+    final mediaSize = MediaQuery.sizeOf(context);
+    final useTableLayout =
+        mediaSize.shortestSide >= 600 || mediaSize.width >= 1000;
 
     return RefreshIndicator(
       onRefresh: _fetchStaff,
@@ -4413,95 +4498,20 @@ class _ConfigPageState extends State<ConfigPage>
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  TextFormField(
-                    controller: _staffSearchController,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Search by name, email, or role...',
-                      hintStyle: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textMuted,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        size: 18,
-                        color: AppColors.textMuted,
-                      ),
-                      suffixIcon: _staffSearchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.close, size: 16),
-                              onPressed: () {
-                                _staffSearchController.clear();
-                                setState(() => _staffSearchQuery = '');
-                              },
-                            )
-                          : null,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      filled: true,
-                      fillColor: _ConfigPageState._fieldFillColor,
-                      border: const OutlineInputBorder(
-                        borderRadius: AppRadius.sm,
-                        borderSide: BorderSide(
-                          color: _ConfigPageState._lineColor,
-                        ),
-                      ),
-                      enabledBorder: const OutlineInputBorder(
-                        borderRadius: AppRadius.sm,
-                        borderSide: BorderSide(
-                          color: _ConfigPageState._lineColor,
-                        ),
-                      ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderRadius: AppRadius.sm,
-                        borderSide: BorderSide(
-                          color: _primaryColor,
-                          width: 1.4,
-                        ),
-                      ),
-                    ),
-                    onChanged: (val) =>
-                        setState(() => _staffSearchQuery = val.trim()),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  DropdownButtonFormField<String>(
-                    initialValue: _staffWardFilter,
-                    isExpanded: true,
-                    style: const TextStyle(
-                      color: _inkColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    decoration: _fieldDecoration(
-                      labelText: 'Filter by ward',
-                      prefixIcon: Icons.local_hospital_outlined,
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: 'all',
-                        child: Text(
-                          'All wards',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                      ),
-                      ..._careWards
-                          .where((ward) => ward.isActive)
-                          .map(
-                            (ward) => DropdownMenuItem(
-                              value: ward.id,
-                              child: Text(
-                                ward.fullLabel,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          ),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _staffWardFilter = value ?? 'all'),
-                  ),
+                  if (useTableLayout)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 3, child: _buildStaffSearchField()),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(flex: 2, child: _buildStaffWardFilter()),
+                      ],
+                    )
+                  else ...[
+                    _buildStaffSearchField(),
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildStaffWardFilter(),
+                  ],
                 ],
               ),
             ),
@@ -4521,11 +4531,327 @@ class _ConfigPageState extends State<ConfigPage>
                   ),
                 ),
               )
+            else if (useTableLayout)
+              _buildStaffTable(filteredStaff)
             else
               ...filteredStaff.map(_buildStaffCard),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildStaffTable(List<StaffUser> staffUsers) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      surfaceLevel: AppSurfaceLevel.elevated,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Scrollbar(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(AppColors.surface1),
+                  headingRowHeight: 46,
+                  dataRowMinHeight: 72,
+                  dataRowMaxHeight: 84,
+                  horizontalMargin: AppSpacing.md,
+                  columnSpacing: AppSpacing.lg,
+                  dividerThickness: 1,
+                  columns: const [
+                    DataColumn(label: _StaffTableHeading('Staff member')),
+                    DataColumn(label: _StaffTableHeading('Role')),
+                    DataColumn(label: _StaffTableHeading('Assigned wards')),
+                    DataColumn(label: _StaffTableHeading('Modules')),
+                    DataColumn(label: _StaffTableHeading('Joined')),
+                    DataColumn(label: _StaffTableHeading('Actions')),
+                  ],
+                  rows: staffUsers.map(_buildStaffTableRow).toList(),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  DataRow _buildStaffTableRow(StaffUser staff) {
+    final isUpdating = _updatingStaffIds.contains(staff.id);
+    final assignableRoles = _assignableRoles;
+    final visibleModules = staff.hasExplicitModulePermissions
+        ? staff.permittedModuleIds
+        : _modulesForRole(staff.role);
+    final localBodies =
+        staff.assignedWards
+            .map((ward) => ward.localBody?.trim())
+            .whereType<String>()
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort(compareNaturally);
+    final wardPreview = staff.assignedWards
+        .take(2)
+        .map((ward) => ward.label)
+        .join(' • ');
+    final allWardLabels = staff.assignedWards
+        .map((ward) => ward.fullLabel)
+        .join('\n');
+    final joined = staff.createdAt == null
+        ? 'Unavailable'
+        : DateFormat('dd MMM yyyy').format(staff.createdAt!.toLocal());
+
+    return DataRow(
+      cells: [
+        DataCell(
+          SizedBox(
+            width: 220,
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _roleColor(staff.role).withValues(alpha: 0.10),
+                    borderRadius: AppRadius.sm,
+                  ),
+                  child: Text(
+                    staff.name.isNotEmpty ? staff.name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: _roleColor(staff.role),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        staff.name.isEmpty ? 'Unnamed staff' : staff.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        staff.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          onTap: () => _showEditStaffDialog(staff),
+        ),
+        DataCell(
+          PopupMenuButton<String>(
+            enabled: !isUpdating,
+            tooltip: 'Change role',
+            onSelected: (role) => _updateStaffRole(staff, role),
+            itemBuilder: (context) => assignableRoles
+                .map(
+                  (role) => PopupMenuItem(
+                    value: role,
+                    child: Row(
+                      children: [
+                        Icon(
+                          _roleIcon(role),
+                          size: 18,
+                          color: _roleColor(role),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(_roleLabel(role)),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 118),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: _roleColor(staff.role).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: _roleColor(staff.role).withValues(alpha: 0.20),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isUpdating)
+                    const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Icon(
+                      _roleIcon(staff.role),
+                      size: 16,
+                      color: _roleColor(staff.role),
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _roleLabel(staff.role),
+                    style: TextStyle(
+                      color: _roleColor(staff.role),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 18,
+                    color: _roleColor(staff.role),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          Tooltip(
+            message: allWardLabels.isEmpty ? 'No ward assigned' : allWardLabels,
+            child: SizedBox(
+              width: 270,
+              child: staff.assignedWards.isEmpty
+                  ? Text(
+                      staff.role == 'staff'
+                          ? 'No ward assigned'
+                          : 'Not required',
+                      style: TextStyle(
+                        color: staff.role == 'staff'
+                            ? AppColors.warning
+                            : AppColors.textMuted,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${staff.assignedWards.length} ward${staff.assignedWards.length == 1 ? '' : 's'}'
+                          '${localBodies.isEmpty ? '' : ' • ${localBodies.join(', ')}'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$wardPreview${staff.assignedWards.length > 2 ? '  +${staff.assignedWards.length - 2} more' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+          onTap: () => _showEditStaffDialog(staff),
+        ),
+        DataCell(
+          SizedBox(
+            width: 82,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${visibleModules.length}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const Text(
+                  'enabled',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          onTap: () => _showEditStaffDialog(staff),
+        ),
+        DataCell(
+          SizedBox(
+            width: 98,
+            child: Text(
+              joined,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          Builder(
+            builder: (buttonContext) {
+              final auth = buttonContext.watch<AuthService>();
+              final isSelf =
+                  staff.id == auth.userId ||
+                  (auth.userEmail != null &&
+                      auth.userEmail!.isNotEmpty &&
+                      staff.email.toLowerCase() ==
+                          auth.userEmail!.toLowerCase());
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Edit access and permissions',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: isUpdating
+                        ? null
+                        : () => _showEditStaffDialog(staff),
+                    icon: const Icon(Icons.edit_outlined, size: 19),
+                  ),
+                  if (!isSelf && staff.role != 'admin')
+                    IconButton(
+                      tooltip: 'Delete user',
+                      visualDensity: VisualDensity.compact,
+                      color: AppColors.danger,
+                      onPressed: isUpdating
+                          ? null
+                          : () => _confirmDeleteStaff(staff),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -4634,39 +4960,120 @@ class _ConfigPageState extends State<ConfigPage>
           final isModulesExpanded = _expandedStaffModuleCardIds.contains(
             staff.id,
           );
+          final isWardsExpanded = _expandedStaffWardCardIds.contains(staff.id);
+          final hasWards = staff.assignedWards.isNotEmpty;
 
-          final permissions = Column(
+          final assignedWardsSection = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (staff.assignedWards.isNotEmpty) ...[
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: staff.assignedWards
-                      .map(
-                        (ward) => Chip(
-                          avatar: const Icon(
-                            Icons.local_hospital_outlined,
-                            size: 15,
-                          ),
-                          label: Text(ward.fullLabel),
-                          visualDensity: VisualDensity.compact,
+              InkWell(
+                borderRadius: AppRadius.sm,
+                onTap: () {
+                  setState(() {
+                    if (isWardsExpanded) {
+                      _expandedStaffWardCardIds.remove(staff.id);
+                    } else {
+                      _expandedStaffWardCardIds.add(staff.id);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isWardsExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Assigned wards',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
                         ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-              ] else if (staff.role == 'staff') ...[
-                const Text(
-                  'No ward assigned',
-                  style: TextStyle(
-                    color: AppColors.warning,
-                    fontWeight: FontWeight.w600,
+                        decoration: BoxDecoration(
+                          color: hasWards
+                              ? AppColors.primarySoft
+                              : AppColors.surface2,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          hasWards
+                              ? '${staff.assignedWards.length} assigned'
+                              : 'No ward',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: hasWards
+                                ? AppColors.primary
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        isWardsExpanded ? 'Hide' : 'Show',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
+              if (isWardsExpanded) ...[
                 const SizedBox(height: AppSpacing.xs),
+                if (!hasWards)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 4),
+                    child: Text(
+                      staff.role == 'staff'
+                          ? 'No ward assigned'
+                          : 'No wards assigned',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: staff.assignedWards
+                        .map(
+                          (ward) => Chip(
+                            avatar: const Icon(
+                              Icons.local_hospital_outlined,
+                              size: 15,
+                            ),
+                            label: Text(ward.label),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        )
+                        .toList(),
+                  ),
               ],
-              const SizedBox(height: AppSpacing.xs),
+            ],
+          );
+
+          final permittedModulesSection = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               InkWell(
                 borderRadius: AppRadius.sm,
                 onTap: () {
@@ -4812,7 +5219,10 @@ class _ConfigPageState extends State<ConfigPage>
                 profile,
                 const SizedBox(height: 14),
                 roleControl,
-                permissions,
+                const SizedBox(height: 12),
+                assignedWardsSection,
+                const SizedBox(height: 6),
+                permittedModulesSection,
               ],
             );
           }
@@ -4828,7 +5238,10 @@ class _ConfigPageState extends State<ConfigPage>
                   roleControl,
                 ],
               ),
-              permissions,
+              const SizedBox(height: 12),
+              assignedWardsSection,
+              const SizedBox(height: 6),
+              permittedModulesSection,
             ],
           );
         },
@@ -4903,6 +5316,25 @@ class _ConfigPageState extends State<ConfigPage>
       default:
         return const Color(0xFF656A73);
     }
+  }
+}
+
+class _StaffTableHeading extends StatelessWidget {
+  const _StaffTableHeading(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.35,
+        color: AppColors.textSecondary,
+      ),
+    );
   }
 }
 
