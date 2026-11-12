@@ -4855,7 +4855,223 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  Future<void> _showMobileStaffDetailsSheet(StaffUser staff) async {
+    _expandedStaffWardCardIds.add(staff.id);
+    _expandedStaffModuleCardIds.add(staff.id);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final staffIndex = _staff.indexWhere((item) => item.id == staff.id);
+          if (staffIndex == -1) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
+            });
+            return const SizedBox.shrink();
+          }
+          final currentStaff = _staff[staffIndex];
+
+          void refreshSheet() {
+            if (!mounted) return;
+            if (!_staff.any((item) => item.id == staff.id)) {
+              Navigator.pop(sheetContext);
+              return;
+            }
+            setSheetState(() {});
+          }
+
+          return FractionallySizedBox(
+            heightFactor: 0.90,
+            child: Material(
+              color: AppColors.surfaceModal,
+              clipBehavior: Clip.antiAlias,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: AppSpacing.xs),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderStrong,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 10, 12),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Staff details',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.text,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: AppInsets.md,
+                      child: _buildStaffDetailsCard(
+                        currentStaff,
+                        onChanged: refreshSheet,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildStaffCard(StaffUser staff) {
+    final hasWards = staff.assignedWards.isNotEmpty;
+    final needsWard = staff.role == 'staff' && !hasWards;
+
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: EdgeInsets.zero,
+      surfaceLevel: AppSurfaceLevel.elevated,
+      child: InkWell(
+        borderRadius: AppRadius.card,
+        onTap: () => _showMobileStaffDetailsSheet(staff),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _roleColor(staff.role).withValues(alpha: 0.10),
+                  borderRadius: AppRadius.sm,
+                ),
+                child: Text(
+                  staff.name.isNotEmpty ? staff.name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    color: _roleColor(staff.role),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            staff.name.isEmpty ? 'Unnamed staff' : staff.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.text,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _roleColor(
+                              staff.role,
+                            ).withValues(alpha: 0.09),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            _roleLabel(staff.role),
+                            style: TextStyle(
+                              color: _roleColor(staff.role),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            staff.email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        if (needsWard)
+                          const _StaffWardStatus(
+                            label: 'Unassigned',
+                            color: AppColors.warning,
+                            showDot: true,
+                          )
+                        else if (hasWards)
+                          _StaffWardStatus(
+                            label:
+                                '${staff.assignedWards.length} ward${staff.assignedWards.length == 1 ? '' : 's'}',
+                            color: AppColors.primary,
+                          )
+                        else
+                          const _StaffWardStatus(
+                            label: 'No ward',
+                            color: AppColors.textMuted,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textMuted,
+                size: 21,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStaffDetailsCard(StaffUser staff, {VoidCallback? onChanged}) {
     final isUpdating = _updatingStaffIds.contains(staff.id);
     final assignableRoles = _assignableRoles;
     final currentRoleIsAssignable = assignableRoles.contains(staff.role);
@@ -4926,7 +5142,10 @@ class _ConfigPageState extends State<ConfigPage>
                 tooltip: 'Edit access and permissions',
                 onPressed: isUpdating
                     ? null
-                    : () => _showEditStaffDialog(staff),
+                    : () async {
+                        await _showEditStaffDialog(staff);
+                        onChanged?.call();
+                      },
                 icon: const Icon(Icons.edit_outlined),
               ),
               Builder(
@@ -4946,7 +5165,10 @@ class _ConfigPageState extends State<ConfigPage>
                     color: AppColors.danger,
                     onPressed: isUpdating
                         ? null
-                        : () => _confirmDeleteStaff(staff),
+                        : () async {
+                            await _confirmDeleteStaff(staff);
+                            onChanged?.call();
+                          },
                     icon: const Icon(Icons.delete_outline_rounded),
                   );
                 },
@@ -5206,8 +5428,11 @@ class _ConfigPageState extends State<ConfigPage>
                   .toList(),
               onChanged: isUpdating
                   ? null
-                  : (role) {
-                      if (role != null) _updateStaffRole(staff, role);
+                  : (role) async {
+                      if (role != null) {
+                        await _updateStaffRole(staff, role);
+                        onChanged?.call();
+                      }
                     },
             ),
           );
@@ -5316,6 +5541,50 @@ class _ConfigPageState extends State<ConfigPage>
       default:
         return const Color(0xFF656A73);
     }
+  }
+}
+
+class _StaffWardStatus extends StatelessWidget {
+  const _StaffWardStatus({
+    required this.label,
+    required this.color,
+    this.showDot = false,
+  });
+
+  final String label;
+  final Color color;
+  final bool showDot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showDot) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

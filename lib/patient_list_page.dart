@@ -737,17 +737,47 @@ class _PatientListPageState extends State<PatientListPage> {
           ),
           if (_careWards.isNotEmpty || _selectedCareWardIds.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _showCareWardFilter,
-                icon: const Icon(Icons.local_hospital_outlined),
-                label: Text(
-                  _selectedCareWardIds.isEmpty
-                      ? 'Filter by care ward'
-                      : '${_selectedCareWardIds.length} care ward filter(s)',
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: _selectedCareWardIds.isNotEmpty
+                        ? OutlinedButton.styleFrom(
+                            backgroundColor: AppColors.primarySoft,
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                          )
+                        : null,
+                    onPressed: _showCareWardFilter,
+                    icon: Icon(
+                      _selectedCareWardIds.isNotEmpty
+                          ? Icons.filter_alt_rounded
+                          : Icons.local_hospital_outlined,
+                      size: 18,
+                    ),
+                    label: Text(
+                      _selectedCareWardIds.isEmpty
+                          ? 'Filter by care ward'
+                          : '${_selectedCareWardIds.length} care ward filter(s)',
+                    ),
+                  ),
                 ),
-              ),
+                if (_selectedCareWardIds.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  IconButton(
+                    tooltip: 'Clear ward filter',
+                    onPressed: () {
+                      setState(() => _selectedCareWardIds.clear());
+                      _loadPatients();
+                    },
+                    icon: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ],
@@ -757,57 +787,444 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Future<void> _showCareWardFilter() async {
     var selected = <String>{..._selectedCareWardIds};
-    final applied = await showDialog<Set<String>>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Filter by care ward'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CheckboxListTile(
-                    value: selected.contains('unassigned'),
-                    title: const Text('Unassigned'),
-                    onChanged: (checked) => setDialogState(() {
-                      checked == true
-                          ? selected.add('unassigned')
-                          : selected.remove('unassigned');
-                    }),
-                  ),
-                  ..._careWards.map(
-                    (ward) => CheckboxListTile(
-                      value: selected.contains(ward.id),
-                      title: Text(ward.label),
-                      onChanged: (checked) => setDialogState(() {
-                        checked == true
-                            ? selected.add(ward.id)
-                            : selected.remove(ward.id);
-                      }),
-                    ),
-                  ),
-                ],
+    var searchQuery = '';
+    final searchController = TextEditingController();
+
+    // Natural sort: 1, 2, ..., 42, 43, 44
+    final allWardsSorted = _careWards.toList()
+      ..sort((a, b) => compareNaturally(a.label, b.label));
+
+    final localBodies = _careWards
+        .map((w) => w.localBody?.trim() ?? '')
+        .where((lb) => lb.isNotEmpty)
+        .toSet();
+    final hasMultipleLocalBodies = localBodies.length > 1;
+
+    try {
+      final applied = await showDialog<Set<String>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            final query = searchQuery.trim().toLowerCase();
+            final unassignedMatches = query.isEmpty ||
+                'unassigned'.contains(query) ||
+                'no ward'.contains(query);
+
+            final visibleWards = allWardsSorted.where((ward) {
+              if (query.isEmpty) return true;
+              return ward.label.toLowerCase().contains(query) ||
+                  (ward.localBody ?? '').toLowerCase().contains(query) ||
+                  (ward.lsgWardValue ?? '').toLowerCase().contains(query);
+            }).toList();
+
+            final visibleWardIds = visibleWards.map((w) => w.id).toSet();
+            if (unassignedMatches) visibleWardIds.add('unassigned');
+
+            final allVisibleSelected = visibleWardIds.isNotEmpty &&
+                visibleWardIds.every((id) => selected.contains(id));
+
+            final mediaSize = MediaQuery.sizeOf(context);
+            final dialogWidth = (mediaSize.width - 32.0).clamp(0.0, 420.0);
+            final dialogHeight = (mediaSize.height * 0.80).clamp(360.0, 620.0);
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, <String>{}),
-              child: const Text('Clear'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, selected),
-              child: const Text('Apply'),
-            ),
-          ],
+              backgroundColor: AppColors.surfaceModal,
+              clipBehavior: Clip.antiAlias,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: SizedBox(
+                width: dialogWidth,
+                height: dialogHeight,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.local_hospital_outlined,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Filter by care ward',
+                                  style: TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                Text(
+                                  selected.isEmpty
+                                      ? 'All wards showing'
+                                      : '${selected.length} of ${allWardsSorted.length} selected',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: selected.isEmpty
+                                        ? AppColors.textSecondary
+                                        : AppColors.primary,
+                                    fontWeight: selected.isEmpty
+                                        ? FontWeight.normal
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () => Navigator.pop(dialogContext),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Search input
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: TextField(
+                        controller: searchController,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search ward name or number...',
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textMuted,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            size: 18,
+                            color: AppColors.textMuted,
+                          ),
+                          suffixIcon: searchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.close, size: 16),
+                                  onPressed: () {
+                                    searchController.clear();
+                                    setDialogState(() => searchQuery = '');
+                                  },
+                                ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.surface2,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (val) =>
+                            setDialogState(() => searchQuery = val.trim()),
+                      ),
+                    ),
+
+                    // Quick Actions Row
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${visibleWards.length + (unassignedMatches ? 1 : 0)} wards',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 0,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: visibleWardIds.isEmpty
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      if (allVisibleSelected) {
+                                        selected.removeAll(visibleWardIds);
+                                      } else {
+                                        selected.addAll(visibleWardIds);
+                                      }
+                                    });
+                                  },
+                            child: Text(
+                              allVisibleSelected
+                                  ? 'Deselect all'
+                                  : 'Select all',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          if (selected.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 0,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () {
+                                setDialogState(() => selected.clear());
+                              },
+                              child: const Text(
+                                'Clear all',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.danger,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, thickness: 0.5),
+
+                    // List of care wards
+                    Expanded(
+                      child: visibleWards.isEmpty && !unassignedMatches
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.lg),
+                                child: Text(
+                                  'No care wards match "$searchQuery"',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : ListView(
+                              padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
+                              children: [
+                                if (unassignedMatches) ...[
+                                  CheckboxListTile(
+                                    value: selected.contains('unassigned'),
+                                    onChanged: (checked) {
+                                      setDialogState(() {
+                                        if (checked == true) {
+                                          selected.add('unassigned');
+                                        } else {
+                                          selected.remove('unassigned');
+                                        }
+                                      });
+                                    },
+                                    controlAffinity:
+                                        ListTileControlAffinity.leading,
+                                    dense: true,
+                                    visualDensity: const VisualDensity(
+                                      horizontal: -2,
+                                      vertical: -3,
+                                    ),
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 0,
+                                        ),
+                                    activeColor: AppColors.primary,
+                                    checkboxShape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    tileColor: selected.contains('unassigned')
+                                        ? AppColors.primarySoft.withValues(
+                                            alpha: 0.5,
+                                          )
+                                        : null,
+                                    title: Text(
+                                      'Unassigned (no care ward)',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight:
+                                            selected.contains('unassigned')
+                                                ? FontWeight.w600
+                                                : FontWeight.w500,
+                                        color: AppColors.text,
+                                      ),
+                                    ),
+                                  ),
+                                  const Divider(
+                                    height: 1,
+                                    indent: 44,
+                                    thickness: 0.5,
+                                  ),
+                                ],
+                                for (
+                                  int i = 0;
+                                  i < visibleWards.length;
+                                  i++
+                                ) ...[
+                                  () {
+                                    final ward = visibleWards[i];
+                                    final isSelected = selected.contains(
+                                      ward.id,
+                                    );
+                                    return CheckboxListTile(
+                                      value: isSelected,
+                                      onChanged: (checked) {
+                                        setDialogState(() {
+                                          if (checked == true) {
+                                            selected.add(ward.id);
+                                          } else {
+                                            selected.remove(ward.id);
+                                          }
+                                        });
+                                      },
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      dense: true,
+                                      visualDensity: const VisualDensity(
+                                        horizontal: -2,
+                                        vertical: -3,
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 0,
+                                          ),
+                                      activeColor: AppColors.primary,
+                                      checkboxShape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      tileColor: isSelected
+                                          ? AppColors.primarySoft.withValues(
+                                              alpha: 0.5,
+                                            )
+                                          : null,
+                                      title: Text(
+                                        ward.label,
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                          color: AppColors.text,
+                                        ),
+                                      ),
+                                      subtitle: hasMultipleLocalBodies &&
+                                              ward.localBody != null &&
+                                              ward.localBody!.trim().isNotEmpty
+                                          ? Text(
+                                              ward.localBody!.trim(),
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            )
+                                          : null,
+                                    );
+                                  }(),
+                                  if (i < visibleWards.length - 1)
+                                    const Divider(
+                                      height: 1,
+                                      indent: 44,
+                                      thickness: 0.5,
+                                    ),
+                                ],
+                              ],
+                            ),
+                    ),
+
+                    // Footer actions
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                      decoration: const BoxDecoration(
+                        color: AppColors.surface,
+                        border: Border(
+                          top: BorderSide(
+                            color: AppColors.border,
+                            width: 0.5,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, <String>{}),
+                            child: const Text('Clear'),
+                          ),
+                          const Spacer(),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: AppRadius.button,
+                              ),
+                            ),
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, selected),
+                            child: Text(
+                              selected.isEmpty
+                                  ? 'Apply'
+                                  : 'Apply (${selected.length})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
-      ),
-    );
-    if (applied == null || !mounted) return;
-    setState(() => _selectedCareWardIds = applied);
-    await _loadPatients();
+      );
+      if (applied == null || !mounted) return;
+      setState(() => _selectedCareWardIds = applied);
+      await _loadPatients();
+    } finally {
+      searchController.dispose();
+    }
   }
 
   Future<void> _navigateToEditPatient(Patient patient) async {
