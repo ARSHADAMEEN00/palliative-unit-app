@@ -58,6 +58,12 @@ class ModulePalettes {
     iconBackground: Color(0xFFEDE9FE),
     primary: Color(0xFF7C3AED),
   );
+
+  static const staff = ModulePalette(
+    cardBackground: Color(0xFFEEF2FF),
+    iconBackground: Color(0xFFE0E7FF),
+    primary: Color(0xFF4F46E5),
+  );
 }
 
 class ModuleTheme extends StatelessWidget {

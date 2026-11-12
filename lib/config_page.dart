@@ -2348,53 +2348,89 @@ class _ConfigPageState extends State<ConfigPage>
                 AppSpacing.lg,
               ),
               actions: [
-                Row(
-                  children: [
-                    Builder(
-                      builder: (btnContext) {
-                        final auth = btnContext.watch<AuthService>();
-                        final isSelf =
-                            staff.id == auth.userId ||
-                            (auth.userEmail != null &&
-                                auth.userEmail!.isNotEmpty &&
-                                staff.email.toLowerCase() ==
-                                    auth.userEmail!.toLowerCase());
-                        if (isSelf || staff.role == 'admin') {
-                          return const SizedBox.shrink();
-                        }
-                        return TextButton.icon(
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.danger,
-                          ),
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            size: 18,
-                          ),
-                          label: const Text('Delete user'),
+                Builder(
+                  builder: (btnContext) {
+                    final auth = btnContext.watch<AuthService>();
+                    final isSelf =
+                        staff.id == auth.userId ||
+                        (auth.userEmail != null &&
+                            auth.userEmail!.isNotEmpty &&
+                            staff.email.toLowerCase() ==
+                                auth.userEmail!.toLowerCase());
+                    final canDelete = !isSelf && staff.role != 'admin';
+                    final isNarrow =
+                        MediaQuery.sizeOf(btnContext).width < 540;
+
+                    Widget buildDeleteButton({bool fullWidth = false}) {
+                      return TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                        ),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                        ),
+                        label: const Text('Delete user'),
+                        onPressed: saving
+                            ? null
+                            : () {
+                                Navigator.pop(dialogContext);
+                                _confirmDeleteStaff(staff);
+                              },
+                      );
+                    }
+
+                    if (isNarrow) {
+                      return SizedBox(
+                        width: double.infinity,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            AppPrimaryButton(
+                              label: 'Save changes',
+                              icon: Icons.check_circle_outline_rounded,
+                              loading: saving,
+                              fullWidth: true,
+                              onPressed: saving ? null : save,
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            AppSecondaryButton(
+                              label: 'Cancel',
+                              fullWidth: true,
+                              onPressed: saving
+                                  ? null
+                                  : () => Navigator.pop(dialogContext),
+                            ),
+                            if (canDelete) ...[
+                              const SizedBox(height: AppSpacing.xs),
+                              buildDeleteButton(fullWidth: true),
+                            ],
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        if (canDelete) buildDeleteButton(),
+                        const Spacer(),
+                        AppSecondaryButton(
+                          label: 'Cancel',
                           onPressed: saving
                               ? null
-                              : () {
-                                  Navigator.pop(dialogContext);
-                                  _confirmDeleteStaff(staff);
-                                },
-                        );
-                      },
-                    ),
-                    const Spacer(),
-                    AppSecondaryButton(
-                      label: 'Cancel',
-                      onPressed: saving
-                          ? null
-                          : () => Navigator.pop(dialogContext),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    AppPrimaryButton(
-                      label: 'Save changes',
-                      icon: Icons.check_circle_outline_rounded,
-                      loading: saving,
-                      onPressed: saving ? null : save,
-                    ),
-                  ],
+                              : () => Navigator.pop(dialogContext),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        AppPrimaryButton(
+                          label: 'Save changes',
+                          icon: Icons.check_circle_outline_rounded,
+                          loading: saving,
+                          onPressed: saving ? null : save,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             );

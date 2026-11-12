@@ -68,7 +68,7 @@ import 'package:oruma_app/features/visit_assessment/presentation/screens/visit_a
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/widgets/volunteer_removed_unit_request_card.dart';
 
-const _appVersionLabel = 'Version 1.0.0 (Build 1)';
+const _appVersionLabel = 'Version 1.0.10 (Build 10)';
 const _homeBackground = Color(0xFFF3F3EF);
 const _homeInk = Color(0xFF171714);
 const _homeMuted = Color(0xFF66665F);
@@ -5013,6 +5013,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       ModulePalettes.reports,
       _openReports,
     );
+    add(
+      auth.isAdmin,
+      'Staff',
+      Icons.manage_accounts_outlined,
+      ModulePalettes.staff,
+      _openStaff,
+    );
     return actions;
   }
 
@@ -5608,6 +5615,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     _openPage(
       const ModuleTheme(palette: ModulePalettes.reports, child: ReportsPage()),
     );
+  }
+
+  void _openStaff() {
+    _openPage(const ConfigPage(mode: ConfigPageMode.staff));
   }
 
   void _openPatientEnquiries() {

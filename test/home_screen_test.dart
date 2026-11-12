@@ -833,6 +833,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('admin home includes Staff quick action chip', (tester) async {
+    await _pumpHome(tester, 'admin');
+
+    expect(find.text('Staff'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('staff home does not include Staff quick action chip', (
+    tester,
+  ) async {
+    await _pumpHome(tester, 'staff');
+
+    expect(find.text('Staff'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'member home visit card shows "Today" and today visit count when visits exist today',
     (tester) async {
