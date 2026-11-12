@@ -492,7 +492,7 @@ class _PatientListPageState extends State<PatientListPage> {
                     ),
                     itemCount: filteredPatients.length,
                     separatorBuilder: (context, index) =>
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: AppSpacing.xs),
                     itemBuilder: (context, index) {
                       final patient = filteredPatients[index];
                       return _buildPatientCard(context, patient);
@@ -1328,16 +1328,19 @@ class _PatientListPageState extends State<PatientListPage> {
     final canViewDetails = authService.canViewPatientDetails;
     final hasAssignedCareWard =
         patient.currentWardId?.trim().isNotEmpty == true;
-    final details = <String>[
+    final demographics = <String>[
       '${patient.age} years',
       patient.gender,
       patient.plan,
     ].where((item) => item.trim().isNotEmpty).join(' • ');
 
+    final placeText =
+        patient.place.isNotEmpty ? patient.place : patient.village;
+
     Widget cardContent = Stack(
       children: [
         AppCard(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
           surfaceLevel: patient.isDead
               ? AppSurfaceLevel.surface
               : AppSurfaceLevel.elevated,
@@ -1361,132 +1364,193 @@ class _PatientListPageState extends State<PatientListPage> {
                 }
               : null,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _PatientAvatar(patient: patient),
-              const SizedBox(width: AppSpacing.md),
+              _PatientAvatar(patient: patient, size: 44),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    // ROW 1: Full row for the name with REG/status pill & chevron
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
                             patient.name,
-                            style: Theme.of(context).textTheme.titleSmall,
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14.5,
+                                  color: AppColors.text,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (patient.isDead) ...[
-                          const SizedBox(width: AppSpacing.xs),
+                          const SizedBox(width: 6),
                           const _PatientStatusPill(
                             label: 'Passed away',
                             color: AppColors.danger,
                           ),
                         ] else if (patient.transferStatus ==
                             'TRANSFER_PENDING') ...[
-                          const SizedBox(width: AppSpacing.xs),
+                          const SizedBox(width: 6),
                           const _PatientStatusPill(
                             label: 'Transfer pending',
                             color: AppColors.warning,
                           ),
+                        ] else if (patient.registerId != null &&
+                            patient.registerId!.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primarySoft,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'REG ${patient.registerId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (canViewDetails) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: AppColors.textMuted,
+                            size: 18,
+                          ),
                         ],
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Wrap(
-                      spacing: AppSpacing.xs,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        if (patient.registerId != null &&
-                            patient.registerId!.isNotEmpty)
-                          _PatientMetaPill(
-                            icon: Icons.badge_outlined,
-                            label: 'REG ${patient.registerId}',
-                            color: AppColors.primary,
-                          ),
-                        if (details.isNotEmpty)
-                          _PatientMetaPill(
-                            icon: Icons.person_outline,
-                            label: details,
-                            color: AppColors.textSecondary,
-                          ),
-                        if (patient.currentWard != null)
-                          _PatientMetaPill(
-                            icon: Icons.local_hospital_outlined,
-                            label: patient.currentWard!.name,
-                            color: AppColors.primary,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: 3),
+
+                    // ROW 2: Demographics & Care Ward
                     Row(
                       children: [
-                        const Icon(
-                          Icons.place_outlined,
-                          size: AppIcons.small,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(width: AppSpacing.xxs),
-                        Expanded(
-                          child: Text(
-                            patient.place.isNotEmpty
-                                ? patient.place
-                                : patient.village,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppColors.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (canViewContacts && patient.phone.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.phone_outlined,
-                            size: AppIcons.small,
-                            color: AppColors.textMuted,
-                          ),
-                          const SizedBox(width: AppSpacing.xxs),
-                          Expanded(
+                        if (demographics.isNotEmpty) ...[
+                          Flexible(
                             child: Text(
-                              patient.phone,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
+                              demographics,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
-                      ),
-                    ],
+                        if (patient.currentWard != null) ...[
+                          if (demographics.isNotEmpty)
+                            const Text(
+                              ' • ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          const Icon(
+                            Icons.local_hospital_outlined,
+                            size: 13,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              patient.currentWard!.label,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+
+                    // ROW 3: Location & Phone
+                    Row(
+                      children: [
+                        if (placeText.isNotEmpty) ...[
+                          const Icon(
+                            Icons.place_outlined,
+                            size: 13,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              placeText,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                        if (canViewContacts && patient.phone.isNotEmpty) ...[
+                          if (placeText.isNotEmpty)
+                            const Text(
+                              ' • ',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          const Icon(
+                            Icons.phone_outlined,
+                            size: 13,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              patient.phone,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
-              if (canViewDetails) ...[
-                const SizedBox(width: AppSpacing.sm),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textMuted,
-                  size: AppIcons.large,
-                ),
-              ],
             ],
           ),
         ),
         if (!hasAssignedCareWard)
           Positioned(
-            top: 12,
-            right: 12,
+            top: 8,
+            right: 8,
             child: Semantics(
               label: 'Care ward not assigned',
               child: Container(
-                width: 9,
-                height: 9,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
                   color: AppColors.warning,
                   shape: BoxShape.circle,
@@ -1494,7 +1558,7 @@ class _PatientListPageState extends State<PatientListPage> {
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.warning.withValues(alpha: 0.3),
-                      blurRadius: 5,
+                      blurRadius: 4,
                     ),
                   ],
                 ),
@@ -1660,9 +1724,10 @@ class _PatientDropdown extends StatelessWidget {
 }
 
 class _PatientAvatar extends StatelessWidget {
-  const _PatientAvatar({required this.patient});
+  const _PatientAvatar({required this.patient, this.size = 44});
 
   final Patient patient;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -1672,17 +1737,25 @@ class _PatientAvatar extends StatelessWidget {
     final foreground = patient.isDead ? AppColors.textMuted : AppColors.primary;
 
     return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(color: background, borderRadius: AppRadius.md),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: background,
+        shape: BoxShape.circle,
+      ),
       child: Center(
         child: patient.isDead
-            ? const Icon(Icons.person_off_outlined, color: AppColors.textMuted)
+            ? Icon(
+                Icons.person_off_outlined,
+                color: AppColors.textMuted,
+                size: size * 0.45,
+              )
             : Text(
                 patient.name.isNotEmpty ? patient.name[0].toUpperCase() : '?',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: foreground,
                   fontWeight: FontWeight.w700,
+                  fontSize: size * 0.42,
                 ),
               ),
       ),

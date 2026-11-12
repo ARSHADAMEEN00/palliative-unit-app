@@ -532,7 +532,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   SliverAppBar _buildCollapsibleAppBar(AuthService auth, bool canShowMenu) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final collapsedHeight = topPadding + kToolbarHeight;
-    const expandedHeight = 300.0;
+    final expandedHeight = collapsedHeight + 155.0;
 
     return SliverAppBar(
       pinned: true,
@@ -589,7 +589,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 ),
               ),
               Positioned(
-                top: collapsedHeight + 12,
+                top: collapsedHeight + 8,
                 left: AppSpacing.md,
                 right: AppSpacing.md,
                 child: IgnorePointer(
@@ -752,27 +752,24 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.card,
         border: Border.all(color: AppColors.border),
         boxShadow: AppShadow.medium,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 78,
-            height: 78,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: _currentPatient.isDead
                   ? AppColors.surface2
                   : _patientIconBackground,
-              borderRadius: AppRadius.card,
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.border),
               boxShadow: AppShadow.small,
             ),
@@ -781,61 +778,82 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 ? const Icon(
                     Icons.person_off_outlined,
                     color: AppColors.textMuted,
-                    size: 32,
+                    size: 26,
                   )
                 : Text(
                     initial,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: _patientPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: _patientPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
           ),
-          const SizedBox(height: 13),
-          Text(
-            name,
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              height: 1.15,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16.5,
+                              color: AppColors.text,
+                            ),
+                      ),
+                    ),
+                    if (_currentPatient.isDead) ...[
+                      const SizedBox(width: 6),
+                      _lightHeaderPill(
+                        'Passed away',
+                        icon: Icons.favorite_border,
+                        color: AppColors.danger,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  secondary.join('  •  '),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (_currentPatient.currentWard != null) ...[
+                  const SizedBox(height: 5),
+                  _lightHeaderPill(
+                    _currentPatient.currentWard!.label,
+                    icon: Icons.local_hospital_outlined,
+                  ),
+                ],
+                if (!_currentPatient.isDead &&
+                    _currentPatient.disease.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: visibleConditions
+                        .map((disease) => _lightHeaderPill(disease))
+                        .followedBy([
+                          if (hiddenConditionCount > 0)
+                            _lightHeaderPill('+$hiddenConditionCount'),
+                        ])
+                        .toList(),
+                  ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            secondary.join('  •  '),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (_currentPatient.currentWard != null) ...[
-            const SizedBox(height: 10),
-            _lightHeaderPill(
-              _currentPatient.currentWard!.name,
-              icon: Icons.local_hospital_outlined,
-            ),
-          ],
-          if (_currentPatient.isDead) ...[
-            const SizedBox(height: 10),
-            _lightHeaderPill('Passed away', icon: Icons.favorite_border),
-          ] else if (_currentPatient.disease.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 7,
-              runSpacing: 7,
-              children: visibleConditions
-                  .map((disease) => _lightHeaderPill(disease))
-                  .followedBy([
-                    if (hiddenConditionCount > 0)
-                      _lightHeaderPill('+$hiddenConditionCount'),
-                  ])
-                  .toList(),
-            ),
-          ],
         ],
       ),
     );
@@ -2235,25 +2253,30 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     );
   }
 
-  Widget _lightHeaderPill(String label, {IconData? icon}) {
+  Widget _lightHeaderPill(
+    String label, {
+    IconData? icon,
+    Color? color,
+  }) {
+    final pillColor = color ?? AppColors.primary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
+        color: pillColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+        border: Border.all(color: pillColor.withValues(alpha: 0.14)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: AppColors.primary),
-            const SizedBox(width: 5),
+            Icon(icon, size: 12, color: pillColor),
+            const SizedBox(width: 4),
           ],
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.primary,
+            style: TextStyle(
+              color: pillColor,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
