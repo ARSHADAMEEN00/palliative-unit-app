@@ -922,8 +922,10 @@ class _patientrigisterState extends State<patientrigister> {
                       Icons.map,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  _volunteerSelector(),
+                  if (volunteers.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _volunteerSelector(),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
@@ -1025,31 +1027,7 @@ class _patientrigisterState extends State<patientrigister> {
 
   Widget _volunteerSelector() {
     if (volunteers.isEmpty) {
-      return Container(
-        padding: AppInsets.md,
-        decoration: BoxDecoration(
-          color: AppColors.surface1,
-          borderRadius: AppRadius.input,
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.volunteer_activism_outlined,
-              color: _patientPrimary,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                "No volunteers added yet",
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return Column(
