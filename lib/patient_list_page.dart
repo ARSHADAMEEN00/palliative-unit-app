@@ -687,6 +687,10 @@ class _PatientListPageState extends State<PatientListPage> {
   }
 
   Widget _buildSecondaryFilters() {
+    final auth = context.watch<AuthService>();
+    final isWardRestricted =
+        auth.wardRestrictionEnabled || _careWards.isNotEmpty;
+
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppInsets.screenHorizontal(context),
@@ -694,93 +698,132 @@ class _PatientListPageState extends State<PatientListPage> {
         AppInsets.screenHorizontal(context),
         AppSpacing.sm,
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _PatientDropdown(
-                  value: _selectedVillage,
-                  icon: Icons.location_on_outlined,
-                  items: _villagesList,
-                  labelBuilder: (value) =>
-                      value == 'All' ? 'All villages' : value,
-                  onChanged: (newValue) {
-                    if (newValue != null && newValue != _selectedVillage) {
-                      setState(() {
-                        _selectedVillage = newValue;
-                        _updateFilteredWardsList();
-                      });
-                      _loadPatients();
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _PatientDropdown(
-                  value: _selectedWard,
-                  icon: Icons.map_outlined,
-                  items: _filteredWardsList,
-                  labelBuilder: _wardFilterLabel,
-                  onChanged: (newValue) {
-                    if (newValue != null && newValue != _selectedWard) {
-                      setState(() {
-                        _selectedWard = newValue;
-                      });
-                      _loadPatients();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-          if (_careWards.isNotEmpty || _selectedCareWardIds.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: _selectedCareWardIds.isNotEmpty
-                        ? OutlinedButton.styleFrom(
-                            backgroundColor: AppColors.primarySoft,
-                            foregroundColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.primary),
-                          )
-                        : null,
-                    onPressed: _showCareWardFilter,
-                    icon: Icon(
-                      _selectedCareWardIds.isNotEmpty
-                          ? Icons.filter_alt_rounded
-                          : Icons.local_hospital_outlined,
-                      size: 18,
-                    ),
-                    label: Text(
-                      _selectedCareWardIds.isEmpty
-                          ? 'Filter by care ward'
-                          : '${_selectedCareWardIds.length} care ward filter(s)',
-                    ),
-                  ),
-                ),
-                if (_selectedCareWardIds.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  IconButton(
-                    tooltip: 'Clear ward filter',
-                    onPressed: () {
-                      setState(() => _selectedCareWardIds.clear());
-                      _loadPatients();
-                    },
-                    icon: const Icon(
-                      Icons.close,
-                      size: 18,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ],
+          Expanded(
+            child: _PatientDropdown(
+              value: _selectedVillage,
+              icon: Icons.location_on_outlined,
+              items: _villagesList,
+              labelBuilder: (value) =>
+                  value == 'All' ? 'All villages' : value,
+              onChanged: (newValue) {
+                if (newValue != null && newValue != _selectedVillage) {
+                  setState(() {
+                    _selectedVillage = newValue;
+                    _updateFilteredWardsList();
+                  });
+                  _loadPatients();
+                }
+              },
             ),
-          ],
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          if (isWardRestricted)
+            Expanded(
+              child: _buildCareWardFilterField(),
+            )
+          else
+            Expanded(
+              child: _PatientDropdown(
+                value: _selectedWard,
+                icon: Icons.map_outlined,
+                items: _filteredWardsList,
+                labelBuilder: _wardFilterLabel,
+                onChanged: (newValue) {
+                  if (newValue != null && newValue != _selectedWard) {
+                    setState(() {
+                      _selectedWard = newValue;
+                    });
+                    _loadPatients();
+                  }
+                },
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCareWardFilterField() {
+    final hasFilter = _selectedCareWardIds.isNotEmpty;
+    String label;
+    if (_selectedCareWardIds.isEmpty) {
+      label = 'Filter by care ward';
+    } else if (_selectedCareWardIds.length == 1) {
+      final id = _selectedCareWardIds.first;
+      if (id == 'unassigned') {
+        label = 'Unassigned';
+      } else {
+        final match = _careWards.cast<Ward?>().firstWhere(
+          (w) => w?.id == id,
+          orElse: () => null,
+        );
+        label = match != null ? match.label : '1 ward';
+      }
+    } else {
+      label = '${_selectedCareWardIds.length} care wards';
+    }
+
+    return InkWell(
+      onTap: _showCareWardFilter,
+      borderRadius: AppRadius.md,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: hasFilter ? AppColors.primarySoft : AppColors.surface,
+          borderRadius: AppRadius.md,
+          border: Border.all(
+            color: hasFilter ? AppColors.primary : AppColors.border,
+            width: hasFilter ? 1.4 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasFilter
+                  ? Icons.filter_alt_rounded
+                  : Icons.local_hospital_outlined,
+              color: AppColors.primary,
+              size: AppIcons.normal,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: hasFilter ? AppColors.primary : AppColors.text,
+                  fontWeight: hasFilter ? FontWeight.w700 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (hasFilter)
+              InkResponse(
+                onTap: () {
+                  setState(() => _selectedCareWardIds.clear());
+                  _loadPatients();
+                },
+                radius: 14,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              )
+            else
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: AppIcons.normal,
+                color: AppColors.textSecondary,
+              ),
+          ],
+        ),
       ),
     );
   }

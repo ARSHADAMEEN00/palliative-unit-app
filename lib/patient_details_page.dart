@@ -532,7 +532,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
   SliverAppBar _buildCollapsibleAppBar(AuthService auth, bool canShowMenu) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final collapsedHeight = topPadding + kToolbarHeight;
-    final expandedHeight = collapsedHeight + 155.0;
+    final expandedHeight = collapsedHeight + 118.0;
 
     return SliverAppBar(
       pinned: true,
@@ -589,7 +589,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 ),
               ),
               Positioned(
-                top: collapsedHeight + 8,
+                top: collapsedHeight + 4,
                 left: AppSpacing.md,
                 right: AppSpacing.md,
                 child: IgnorePointer(
@@ -752,7 +752,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.card,
@@ -763,13 +763,13 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: _currentPatient.isDead
                   ? AppColors.surface2
                   : _patientIconBackground,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
               boxShadow: AppShadow.small,
             ),
@@ -778,17 +778,18 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 ? const Icon(
                     Icons.person_off_outlined,
                     color: AppColors.textMuted,
-                    size: 26,
+                    size: 24,
                   )
                 : Text(
                     initial,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           color: _patientPrimary,
                           fontWeight: FontWeight.w800,
+                          fontSize: 20,
                         ),
                   ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,7 +804,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w800,
-                              fontSize: 16.5,
+                              fontSize: 15.5,
                               color: AppColors.text,
                             ),
                       ),
@@ -824,13 +825,13 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                        fontSize: 11.5,
                       ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (_currentPatient.currentWard != null) ...[
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 4),
                   _lightHeaderPill(
                     _currentPatient.currentWard!.label,
                     icon: Icons.local_hospital_outlined,
@@ -838,10 +839,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 ],
                 if (!_currentPatient.isDead &&
                     _currentPatient.disease.isNotEmpty) ...[
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 4),
                   Wrap(
-                    spacing: 5,
-                    runSpacing: 5,
+                    spacing: 4,
+                    runSpacing: 4,
                     children: visibleConditions
                         .map((disease) => _lightHeaderPill(disease))
                         .followedBy([
@@ -929,14 +930,12 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     final socialSupportCount = _details.socialSupports.length;
 
     return Container(
-      height: 52,
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.md,
-        AppSpacing.md,
-        AppSpacing.xs,
+      height: 48,
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 4,
       ),
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadius.button,
@@ -979,13 +978,20 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     );
   }
 
+  static const _tabContentPadding = EdgeInsets.fromLTRB(
+    AppSpacing.md,
+    10,
+    AppSpacing.md,
+    AppSpacing.md,
+  );
+
   Widget _buildOverviewTab() {
     final auth = context.watch<AuthService>();
     return RefreshIndicator(
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         children: [
           if (_currentPatient.transferStatus == 'TRANSFER_PENDING') ...[
             _transferPendingBanner(),
@@ -1148,7 +1154,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         children: [
           if (_detailsError != null) ...[
             _buildSyncError(),
@@ -1244,7 +1250,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         itemCount: _details.homeVisits.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
@@ -1273,7 +1279,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         itemCount: _details.equipmentSupplies.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
@@ -1304,7 +1310,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         children: [
           _assessmentActionButton(),
           const SizedBox(height: AppSpacing.md),
@@ -1340,7 +1346,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         itemCount: activities.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
@@ -1369,7 +1375,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: () => _loadDetails(showLoader: false),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         itemCount: _details.socialSupports.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
@@ -1398,7 +1404,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
       onRefresh: _refreshAll,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppInsets.page,
+        padding: _tabContentPadding,
         itemCount: _transferHistory.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
@@ -2596,10 +2602,10 @@ class _PatientTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
   const _PatientTabsHeaderDelegate({required this.child});
 
   @override
-  double get minExtent => 70;
+  double get minExtent => 56;
 
   @override
-  double get maxExtent => 70;
+  double get maxExtent => 56;
 
   @override
   Widget build(
@@ -2610,11 +2616,9 @@ class _PatientTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius: shrinkOffset == 0
-            ? const BorderRadius.vertical(top: Radius.circular(30))
-            : BorderRadius.zero,
         boxShadow: overlapsContent ? AppShadow.small : null,
       ),
+      alignment: Alignment.center,
       child: child,
     );
   }
