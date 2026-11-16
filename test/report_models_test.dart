@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/pdf/report_pdf_generator.dart';
 import 'package:oruma_app/features/reports/presentation/report_config.dart';
+import 'package:oruma_app/services/feature_permissions.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +20,14 @@ void main() {
   });
 
   test('all roles including member have access to all report types', () {
-    for (final role in ['superadmin', 'admin', 'staff', 'member', 'volunteer', null]) {
+    for (final role in [
+      'superadmin',
+      'admin',
+      'staff',
+      'member',
+      'volunteer',
+      null,
+    ]) {
       expect(
         ReportAccessPolicy.allowedForRole(role),
         containsAll(ReportType.values),
@@ -38,6 +46,63 @@ void main() {
         ReportType.medicineStock,
       );
     }
+  });
+
+  test('report types map to their owning permission modules', () {
+    expect(ReportType.patients.requiredFeatureId, AppFeature.patients);
+    expect(ReportType.patientWards.requiredFeatureId, AppFeature.patients);
+    expect(
+      ReportType.medicineStock.requiredFeatureId,
+      AppFeature.medicineStock,
+    );
+    expect(
+      ReportType.medicineSupplies.requiredFeatureId,
+      AppFeature.medicineSupply,
+    );
+    expect(ReportType.equipmentStock.requiredFeatureId, AppFeature.equipment);
+    expect(
+      ReportType.equipmentDamageHistory.requiredFeatureId,
+      AppFeature.equipment,
+    );
+    expect(
+      ReportType.equipmentSupplies.requiredFeatureId,
+      AppFeature.equipmentDistribution,
+    );
+    expect(
+      ReportType.socialSupport.requiredFeatureId,
+      AppFeature.socialSupport,
+    );
+  });
+
+  test('report access policy hides reports without module permission', () {
+    const enabled = {
+      AppFeature.patients,
+      AppFeature.medicineSupply,
+      AppFeature.socialSupport,
+    };
+
+    final allowed = ReportAccessPolicy.allowedForFeatures(enabled.contains);
+
+    expect(allowed, [
+      ReportType.patients,
+      ReportType.medicineSupplies,
+      ReportType.socialSupport,
+      ReportType.patientWards,
+    ]);
+    expect(
+      ReportAccessPolicy.resolveInitialForFeatures(
+        enabled.contains,
+        ReportType.equipmentStock,
+      ),
+      ReportType.patients,
+    );
+    expect(
+      ReportAccessPolicy.resolveInitialForFeatures(
+        enabled.contains,
+        ReportType.medicineSupplies,
+      ),
+      ReportType.medicineSupplies,
+    );
   });
 
   test('report filters serialize pagination, dates, sorting and extras', () {

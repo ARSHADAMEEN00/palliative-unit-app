@@ -1,3 +1,5 @@
+import 'package:oruma_app/services/feature_permissions.dart';
+
 enum ReportType {
   patients,
   medicineStock,
@@ -31,6 +33,16 @@ extension ReportTypeDetails on ReportType {
     ReportType.socialSupport => 'Social Support',
     ReportType.patientWards => 'Patients by Ward',
   };
+
+  String get requiredFeatureId => switch (this) {
+    ReportType.patients || ReportType.patientWards => AppFeature.patients,
+    ReportType.medicineStock => AppFeature.medicineStock,
+    ReportType.medicineSupplies => AppFeature.medicineSupply,
+    ReportType.equipmentStock ||
+    ReportType.equipmentDamageHistory => AppFeature.equipment,
+    ReportType.equipmentSupplies => AppFeature.equipmentDistribution,
+    ReportType.socialSupport => AppFeature.socialSupport,
+  };
 }
 
 class ReportAccessPolicy {
@@ -44,6 +56,23 @@ class ReportAccessPolicy {
 
   static ReportType resolveInitial(String? role, ReportType preferred) {
     return preferred;
+  }
+
+  static List<ReportType> allowedForFeatures(
+    bool Function(String featureId) hasFeature,
+  ) {
+    return ReportType.values
+        .where((type) => hasFeature(type.requiredFeatureId))
+        .toList(growable: false);
+  }
+
+  static ReportType resolveInitialForFeatures(
+    bool Function(String featureId) hasFeature,
+    ReportType preferred,
+  ) {
+    final allowed = allowedForFeatures(hasFeature);
+    if (allowed.isEmpty || allowed.contains(preferred)) return preferred;
+    return allowed.first;
   }
 }
 

@@ -64,12 +64,23 @@ class _ReportsPageState extends State<ReportsPage> {
   @override
   void initState() {
     super.initState();
-    _type = widget.initialReport;
+    final auth = context.read<AuthService>();
+    _type = ReportAccessPolicy.resolveInitialForFeatures(
+      auth.hasFeature,
+      widget.initialReport,
+    );
     _filters = _defaultFilters(_type);
     _searchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.read<AuthService>().canAccessReports) {
+      if (!mounted) return;
+      final currentAuth = context.read<AuthService>();
+      final currentReportTypes = ReportAccessPolicy.allowedForFeatures(
+        currentAuth.hasFeature,
+      );
+      if (currentAuth.canAccessReports && currentReportTypes.isNotEmpty) {
         _load();
+      }
+      if (currentAuth.canAccessReports && currentAuth.canAccessPatients) {
         WardService.getWards()
             .then((wards) {
               if (mounted) setState(() => _wardChoices = wards);
@@ -87,7 +98,10 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Future<void> _load({int? page}) async {
-    if (_loading) return;
+    if (_loading ||
+        !context.read<AuthService>().hasFeature(_type.requiredFeatureId)) {
+      return;
+    }
     if (page != null) _filters = _filters.copyWith(page: page);
     setState(() {
       _loading = true;
@@ -128,7 +142,10 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Future<void> _exportPdf() async {
-    if (_exporting) return;
+    if (_exporting ||
+        !context.read<AuthService>().hasFeature(_type.requiredFeatureId)) {
+      return;
+    }
     setState(() => _exporting = true);
     try {
       final report = await ReportService.fetch(_type, _filters, export: true);
@@ -164,30 +181,29 @@ class _ReportsPageState extends State<ReportsPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     if (!auth.canAccessReports) {
-      return AdaptiveAppScaffold(
-        appBar: AppBar(title: const Text('Reports')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.lock_outline,
-                  size: 48,
-                  color: AppColors.textMuted,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  auth.isAdmin || auth.isMember
-                      ? 'Advanced Reports is not enabled for this unit.'
-                      : 'Reports are available only to administrators and members.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
+      return _buildUnavailablePage(
+        icon: Icons.lock_outline,
+        message: auth.isAdmin || auth.isMember
+            ? 'Advanced Reports is not enabled for this unit.'
+            : 'Reports are available only to administrators and members.',
+      );
+    }
+
+    final reportTypes = ReportAccessPolicy.allowedForFeatures(auth.hasFeature);
+    if (reportTypes.isEmpty) {
+      return _buildUnavailablePage(
+        icon: Icons.visibility_off_outlined,
+        message: 'No report modules are permitted for your account.',
+      );
+    }
+    if (!reportTypes.contains(_type)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _selectReport(reportTypes.first);
+      });
+      return const AdaptiveAppScaffold(
+        backgroundColor: AppColors.background,
+        contentMaxWidth: 1280,
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -222,13 +238,35 @@ class _ReportsPageState extends State<ReportsPage> {
       body: Column(
         children: [
           _ReportSelector(
-            types: ReportType.values,
+            types: reportTypes,
             selected: _type,
             onSelected: _selectReport,
           ),
           _buildToolbar(),
           Expanded(child: _buildContent()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUnavailablePage({
+    required IconData icon,
+    required String message,
+  }) {
+    return AdaptiveAppScaffold(
+      appBar: AppBar(title: const Text('Reports')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 48, color: AppColors.textMuted),
+              const SizedBox(height: AppSpacing.md),
+              Text(message, textAlign: TextAlign.center),
+            ],
+          ),
+        ),
       ),
     );
   }
