@@ -48,4 +48,43 @@ class ConfigService {
       throw Exception(result.error ?? 'Failed to update configuration');
     }
   }
+
+  static Future<Config> renameLocalBody({
+    required String currentName,
+    required String newName,
+  }) {
+    return _renameLsgEntry({
+      'type': 'localBody',
+      'currentName': currentName,
+      'newName': newName,
+    });
+  }
+
+  static Future<Config> renameWard({
+    required String localBody,
+    required String wardNumber,
+    required String newName,
+  }) {
+    return _renameLsgEntry({
+      'type': 'ward',
+      'localBody': localBody,
+      'wardNumber': wardNumber,
+      'newName': newName,
+    });
+  }
+
+  static Future<Config> _renameLsgEntry(Map<String, dynamic> body) async {
+    final result = await ApiService.patch<Config>(
+      '${ApiConfig.baseUrl}/config/lsg-name',
+      body: body,
+      fromJson: (json) => Config.fromJson(json),
+    );
+    if (result.isSuccess && result.data != null) {
+      AppCache.invalidate(_keyConfig);
+      AppCache.invalidatePrefix('wards:');
+      AppCache.invalidatePrefix('patients:');
+      return result.data!;
+    }
+    throw Exception(result.error ?? 'Failed to rename LSG entry');
+  }
 }

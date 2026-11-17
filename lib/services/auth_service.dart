@@ -44,6 +44,23 @@ class UsernameUpdateResult {
   final String? username;
 }
 
+class AccountDeletionResult {
+  const AccountDeletionResult._({
+    required this.isSuccess,
+    required this.message,
+  });
+
+  const AccountDeletionResult.success([
+    String message = 'Account deleted successfully',
+  ]) : this._(isSuccess: true, message: message);
+
+  const AccountDeletionResult.failure(String message)
+    : this._(isSuccess: false, message: message);
+
+  final bool isSuccess;
+  final String message;
+}
+
 class AuthService with ChangeNotifier {
   // Use ApiConfig to get the correct base URL
   String get _baseUrl => '${ApiConfig.baseUrl}/auth';
@@ -407,6 +424,14 @@ class AuthService with ChangeNotifier {
     return value?.toString().toLowerCase() == 'true';
   }
 
+  bool get lsgWardStructureReadOnly {
+    final value =
+        unit?['lsgWardStructureReadOnly'] ??
+        unit?['lsg_ward_structure_read_only'];
+    if (value is bool) return value;
+    return value?.toString().toLowerCase() == 'true';
+  }
+
   String get unitName => _firstText([
     unit?['name'],
     _user?['unitName'],
@@ -629,6 +654,39 @@ class AuthService with ChangeNotifier {
       await prefs.remove(_cachedUserKey);
     } catch (_) {}
     notifyListeners();
+  }
+
+  Future<AccountDeletionResult> deleteAccount() async {
+    if (_token == null) {
+      return const AccountDeletionResult.failure('Please sign in again.');
+    }
+
+    try {
+      final response = await http
+          .delete(Uri.parse(ApiConfig.deleteAccountEndpoint), headers: headers)
+          .timeout(ApiConfig.timeout);
+      Map<String, dynamic> data = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) data = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final message =
+            data['message']?.toString() ?? 'Account deleted successfully';
+        await logout();
+        return AccountDeletionResult.success(message);
+      }
+
+      return AccountDeletionResult.failure(
+        data['error']?.toString() ?? 'Unable to delete account',
+      );
+    } catch (error) {
+      if (kDebugMode) debugPrint('Account deletion error: $error');
+      return const AccountDeletionResult.failure(
+        'Unable to connect. Please try again.',
+      );
+    }
   }
 
   // Helper to get headers for other services

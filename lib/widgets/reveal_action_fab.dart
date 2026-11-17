@@ -107,7 +107,7 @@ class _RevealActionFabState extends State<RevealActionFab> {
                     opacity: animation,
                     child: SizeTransition(
                       axis: Axis.horizontal,
-                      axisAlignment: -1,
+                      alignment: AlignmentDirectional.topStart,
                       sizeFactor: animation,
                       child: child,
                     ),

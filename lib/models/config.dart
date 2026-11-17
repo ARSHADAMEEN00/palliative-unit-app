@@ -173,6 +173,7 @@ class TransferSettings {
 
 class Config {
   final String? id;
+  final bool lsgWardStructureReadOnly;
   final List<String> villages;
   final List<String> diseases;
   final List<String> plans;
@@ -187,6 +188,7 @@ class Config {
 
   Config({
     this.id,
+    this.lsgWardStructureReadOnly = false,
     required this.villages,
     required this.diseases,
     required this.plans,
@@ -213,6 +215,9 @@ class Config {
   factory Config.fromJson(Map<String, dynamic> json) {
     return Config(
       id: json['id'] as String?,
+      lsgWardStructureReadOnly:
+          json['lsgWardStructureReadOnly'] == true ||
+          json['lsg_ward_structure_read_only'] == true,
       villages:
           (json['villages'] as List<dynamic>?)
               ?.map((e) => e.toString())

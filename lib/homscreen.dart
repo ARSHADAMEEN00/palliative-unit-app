@@ -1409,7 +1409,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 icon: Icons.settings_outlined,
                                 title: 'Settings',
                                 onTap: () {
-                                  Navigator.of(pageContext, rootNavigator: true).push(
+                                  Navigator.of(
+                                    pageContext,
+                                    rootNavigator: true,
+                                  ).push(
                                     MaterialPageRoute(
                                       builder: (context) => const ConfigPage(
                                         mode: ConfigPageMode.settings,
@@ -1423,7 +1426,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'Staff Management',
                                 subtitle: 'Manage staff and permissions',
                                 onTap: () {
-                                  Navigator.of(pageContext, rootNavigator: true).push(
+                                  Navigator.of(
+                                    pageContext,
+                                    rootNavigator: true,
+                                  ).push(
                                     MaterialPageRoute(
                                       builder: (context) => const ConfigPage(
                                         mode: ConfigPageMode.staff,
@@ -1437,7 +1443,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'LSGs & Wards',
                                 subtitle: 'Manage villages and ward numbers',
                                 onTap: () {
-                                  Navigator.of(pageContext, rootNavigator: true).push(
+                                  Navigator.of(
+                                    pageContext,
+                                    rootNavigator: true,
+                                  ).push(
                                     MaterialPageRoute(
                                       builder: (context) => const ConfigPage(
                                         mode: ConfigPageMode.lsg,
@@ -1451,7 +1460,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'Billing & Plan',
                                 subtitle: _billingProfileSubtitle(),
                                 onTap: () {
-                                  Navigator.of(pageContext, rootNavigator: true).push(
+                                  Navigator.of(
+                                    pageContext,
+                                    rootNavigator: true,
+                                  ).push(
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const BillingPlanScreen(),
@@ -1464,7 +1476,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 title: 'Invoices',
                                 subtitle: 'View and download billing invoices',
                                 onTap: () {
-                                  Navigator.of(pageContext, rootNavigator: true).push(
+                                  Navigator.of(
+                                    pageContext,
+                                    rootNavigator: true,
+                                  ).push(
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const InvoicesScreen(),
@@ -1525,7 +1540,10 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                               icon: Icons.privacy_tip_outlined,
                               title: 'Privacy & Data Use',
                               onTap: () {
-                                Navigator.of(pageContext, rootNavigator: true).push(
+                                Navigator.of(
+                                  pageContext,
+                                  rootNavigator: true,
+                                ).push(
                                   MaterialPageRoute(
                                     builder: (context) => PrivacyPolicyScreen(
                                       supportEmail: auth.unitSupportEmail,
@@ -3873,11 +3891,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             onPressed: () async {
               Navigator.pop(dialogContext);
               final auth = context.read<AuthService>();
-              await auth.logout();
+              final result = await auth.deleteAccount();
               if (!context.mounted) return;
+              if (!result.isSuccess) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(result.message),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Your account has been deleted.'),
+                SnackBar(
+                  content: Text(result.message),
                   duration: Duration(seconds: 3),
                   behavior: SnackBarBehavior.floating,
                 ),

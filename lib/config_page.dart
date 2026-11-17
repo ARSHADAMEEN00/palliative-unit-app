@@ -325,6 +325,156 @@ class _ConfigPageState extends State<ConfigPage>
     }
   }
 
+  Future<String?> _showLsgRenameDialog({
+    required String title,
+    required String fieldLabel,
+    required String initialValue,
+    String? helperText,
+    bool allowEmpty = false,
+  }) async {
+    final controller = TextEditingController(text: initialValue);
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: fieldLabel,
+              helperText: helperText,
+              helperMaxLines: 2,
+              prefixIcon: const Icon(Icons.edit_outlined),
+            ),
+            onSubmitted: (_) {
+              final value = controller.text.trim();
+              if (allowEmpty || value.isNotEmpty) {
+                Navigator.pop(dialogContext, value);
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (allowEmpty || value.isNotEmpty) {
+                  Navigator.pop(dialogContext, value);
+                }
+              },
+              child: const Text('Save name'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _renameLocalBody(String currentName) async {
+    final newName = await _showLsgRenameDialog(
+      title: 'Rename local body',
+      fieldLabel: 'Local body name',
+      initialValue: currentName,
+      helperText: 'Existing ward and patient links will be preserved.',
+    );
+    if (newName == null ||
+        newName.trim().isEmpty ||
+        newName.trim() == currentName) {
+      return;
+    }
+
+    setState(() => _isSavingConfig = true);
+    try {
+      final updated = await ConfigService.renameLocalBody(
+        currentName: currentName,
+        newName: newName,
+      );
+      final syncedWards = await WardService.getWards(forceRefresh: true);
+      if (!mounted) return;
+      setState(() {
+        _config = updated;
+        _careWards = syncedWards;
+        if (_selectedWardVillage == currentName) {
+          _selectedWardVillage = newName;
+        }
+        _ensureSelectedWardVillage(updated);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Local body renamed successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to rename: $message'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSavingConfig = false);
+    }
+  }
+
+  Future<void> _renameWard(WardConfig ward) async {
+    final parts = normalizeWardNumberValue(ward.number).split(':');
+    final currentName = parts.length > 1
+        ? parts.sublist(1).join(':').trim()
+        : '';
+    final identity = parts.first.trim();
+    final newName = await _showLsgRenameDialog(
+      title: 'Rename Ward $identity',
+      fieldLabel: 'Ward name',
+      initialValue: currentName,
+      helperText: 'The ward number and existing assignments will not change.',
+      allowEmpty: true,
+    );
+    if (newName == null || newName.trim() == currentName) return;
+
+    setState(() => _isSavingConfig = true);
+    try {
+      final updated = await ConfigService.renameWard(
+        localBody: ward.village,
+        wardNumber: ward.number,
+        newName: newName,
+      );
+      final syncedWards = await WardService.getWards(forceRefresh: true);
+      if (!mounted) return;
+      setState(() {
+        _config = updated;
+        _careWards = syncedWards;
+        _ensureSelectedWardVillage(updated);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ward name updated successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to rename: $message'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSavingConfig = false);
+    }
+  }
+
   void _addItem(String listName, TextEditingController controller) {
     if (controller.text.trim().isEmpty || _config == null) return;
     final item = controller.text.trim();
@@ -2358,8 +2508,7 @@ class _ConfigPageState extends State<ConfigPage>
                             staff.email.toLowerCase() ==
                                 auth.userEmail!.toLowerCase());
                     final canDelete = !isSelf && staff.role != 'admin';
-                    final isNarrow =
-                        MediaQuery.sizeOf(btnContext).width < 540;
+                    final isNarrow = MediaQuery.sizeOf(btnContext).width < 540;
 
                     Widget buildDeleteButton({bool fullWidth = false}) {
                       return TextButton.icon(
@@ -3315,6 +3464,8 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildLsgNavigationCard(Config config) {
     return _SectionCard(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -3451,6 +3602,7 @@ class _ConfigPageState extends State<ConfigPage>
 
   Widget _buildLsgManagementCard(Config config) {
     final wards = sortWardConfigs(config.wards);
+    final namesOnly = config.lsgWardStructureReadOnly;
     final selectedLocalBody = _selectedWardVillage;
     final selectedWards = selectedLocalBody == null
         ? const <WardConfig>[]
@@ -3460,20 +3612,58 @@ class _ConfigPageState extends State<ConfigPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (namesOnly) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: AppRadius.sm,
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.28),
+                ),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Names-only mode is enabled by Superadmin. Tap an existing local body or ward to rename it. Adding and removing are disabled.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           _LsgSectionHeader(
             icon: Icons.location_city_outlined,
             title: 'Local bodies',
             subtitle: 'Village, municipality, or corporation',
             count: config.villages.length,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _AddInlineField(
-            controller: _villageController,
-            hintText: 'Add local body',
-            compact: true,
-            onSubmitted: () => _addItem('villages', _villageController),
-          ),
-          const SizedBox(height: AppSpacing.xs),
+          if (!namesOnly) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _AddInlineField(
+              controller: _villageController,
+              hintText: 'Add local body',
+              compact: true,
+              onSubmitted: () => _addItem('villages', _villageController),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ] else
+            const SizedBox(height: AppSpacing.sm),
           if (config.villages.isEmpty)
             const _EmptyInlineState(
               label: 'No local bodies added yet',
@@ -3487,7 +3677,10 @@ class _ConfigPageState extends State<ConfigPage>
                 return _ConfigChip(
                   label: Text(localBody),
                   icon: Icons.location_city_outlined,
-                  onDeleted: () => _removeItem('villages', localBody),
+                  onPressed: () => _renameLocalBody(localBody),
+                  onDeleted: namesOnly
+                      ? null
+                      : () => _removeItem('villages', localBody),
                 );
               }).toList(),
             ),
@@ -3539,16 +3732,18 @@ class _ConfigPageState extends State<ConfigPage>
                     ? null
                     : (value) => setState(() => _selectedWardVillage = value),
               );
-              final wardField = _AddInlineField(
-                controller: _wardController,
-                hintText: 'Add wards, separated by commas',
-                compact: true,
-                enabled: config.villages.isNotEmpty,
-                keyboardType: TextInputType.text,
-                onSubmitted: _addWard,
-              );
+              final wardField = namesOnly
+                  ? null
+                  : _AddInlineField(
+                      controller: _wardController,
+                      hintText: 'Add wards, separated by commas',
+                      compact: true,
+                      enabled: config.villages.isNotEmpty,
+                      keyboardType: TextInputType.text,
+                      onSubmitted: _addWard,
+                    );
 
-              if (constraints.maxWidth >= 560) {
+              if (constraints.maxWidth >= 560 && wardField != null) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3561,8 +3756,10 @@ class _ConfigPageState extends State<ConfigPage>
               return Column(
                 children: [
                   localBodyField,
-                  const SizedBox(height: AppSpacing.xs),
-                  wardField,
+                  if (wardField != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    wardField,
+                  ],
                 ],
               );
             },
@@ -3586,7 +3783,8 @@ class _ConfigPageState extends State<ConfigPage>
                 return _ConfigChip(
                   label: Text(formatWardLabel(ward.number)),
                   icon: Icons.map_outlined,
-                  onDeleted: () => _removeWard(ward),
+                  onPressed: () => _renameWard(ward),
+                  onDeleted: namesOnly ? null : () => _removeWard(ward),
                 );
               }).toList(),
             ),
@@ -3595,6 +3793,8 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildOverviewHeader(Config config) {
     return _SectionCard(
       child: Column(
@@ -3688,6 +3888,8 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildUnitWorkingTimeSection() {
     final current = _config?.workingTime?.trim();
     final isConfigured = current != null && current.isNotEmpty;
@@ -3967,6 +4169,8 @@ class _ConfigPageState extends State<ConfigPage>
     await _saveConfig();
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildTransferSettingsSection() {
     final settings = _config!.transferSettings;
     const checks = [
@@ -4060,6 +4264,8 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildWorkingDaysSection() {
     const days = [
       (value: DateTime.monday, label: 'Monday'),
@@ -4110,6 +4316,8 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildAvailabilityTimeSection() {
     final startTime = _config?.volunteerAvailabilityStartTime.isNotEmpty == true
         ? _config!.volunteerAvailabilityStartTime
@@ -4265,6 +4473,8 @@ class _ConfigPageState extends State<ConfigPage>
     return '${hour.toString().padLeft(2, '0')}:$minute $period';
   }
 
+  // Retained for the compact configuration layout.
+  // ignore: unused_element
   Widget _buildListSection({
     required String title,
     required IconData icon,
@@ -5921,23 +6131,39 @@ class _ConfigChip extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onDeleted,
+    this.onPressed,
   });
 
   final Widget label;
   final IconData icon;
-  final VoidCallback onDeleted;
+  final VoidCallback? onDeleted;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return InputChip(
-      label: DefaultTextStyle.merge(
-        style: const TextStyle(
-          color: _ConfigPageState._inkColor,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
-        child: label,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DefaultTextStyle.merge(
+            style: const TextStyle(
+              color: _ConfigPageState._inkColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            child: label,
+          ),
+          if (onPressed != null && onDeleted == null) ...[
+            const SizedBox(width: 5),
+            const Icon(
+              Icons.edit_outlined,
+              size: 14,
+              color: _ConfigPageState._primaryColor,
+            ),
+          ],
+        ],
       ),
+      onPressed: onPressed,
       avatar: Icon(
         icon,
         size: 15,

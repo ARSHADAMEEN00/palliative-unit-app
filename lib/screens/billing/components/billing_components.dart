@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:oruma_app/core/theme/app_colors.dart';
-import 'package:oruma_app/core/theme/app_radius.dart';
-import 'package:oruma_app/core/theme/app_spacing.dart';
 import 'package:oruma_app/screens/billing/billing_models.dart';
 import 'package:oruma_app/screens/billing/billing_repository.dart';
 
@@ -28,7 +26,9 @@ class SummaryCard extends StatelessWidget {
     final cardBg = isDark ? AppColors.darkSurface1 : Colors.white;
     final borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB);
     final titleColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final subtitleColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final subtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
 
     return Container(
       decoration: BoxDecoration(
@@ -37,7 +37,7 @@ class SummaryCard extends StatelessWidget {
         border: Border.all(color: borderColor, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -63,11 +63,19 @@ class SummaryCard extends StatelessWidget {
               StatusPill(
                 label: summary.status.toUpperCase(),
                 bgColor: summary.status.toLowerCase() == 'active'
-                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
-                    : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+                    ? (isDark
+                          ? const Color(0xFF064E3B)
+                          : const Color(0xFFDCFCE7))
+                    : (isDark
+                          ? const Color(0xFF451A03)
+                          : const Color(0xFFFEF3C7)),
                 textColor: summary.status.toLowerCase() == 'active'
-                    ? (isDark ? const Color(0xFF34D399) : const Color(0xFF15803D))
-                    : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
+                    ? (isDark
+                          ? const Color(0xFF34D399)
+                          : const Color(0xFF15803D))
+                    : (isDark
+                          ? const Color(0xFFFBBF24)
+                          : const Color(0xFFB45309)),
               ),
             ],
           ),
@@ -115,7 +123,10 @@ class SummaryCard extends StatelessWidget {
                 onTap: onManagePlan,
                 borderRadius: BorderRadius.circular(6),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 2,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -146,7 +157,10 @@ class SummaryCard extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     visualDensity: VisualDensity.compact,
                   ),
                   child: const Text(
@@ -180,8 +194,12 @@ class BalanceStrip extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? AppColors.darkSurface1 : Colors.white;
     final borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB);
-    final dividerColor = isDark ? const Color(0xFF273244) : const Color(0xFFE5E7EB);
-    final labelColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final dividerColor = isDark
+        ? const Color(0xFF273244)
+        : const Color(0xFFE5E7EB);
+    final labelColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
     final valueColor = isDark ? AppColors.darkText : const Color(0xFF111827);
 
     return Container(
@@ -202,16 +220,28 @@ class BalanceStrip extends StatelessWidget {
                 valueColor: valueColor,
               ),
             ),
-            VerticalDivider(color: dividerColor, thickness: 1, indent: 4, endIndent: 4),
+            VerticalDivider(
+              color: dividerColor,
+              thickness: 1,
+              indent: 4,
+              endIndent: 4,
+            ),
             Expanded(
               child: _StatColumn(
                 label: 'Outstanding',
                 value: repository.formatCurrency(summary.outstanding),
                 labelColor: labelColor,
-                valueColor: summary.outstanding > 0 ? const Color(0xFFDC2626) : valueColor,
+                valueColor: summary.outstanding > 0
+                    ? const Color(0xFFDC2626)
+                    : valueColor,
               ),
             ),
-            VerticalDivider(color: dividerColor, thickness: 1, indent: 4, endIndent: 4),
+            VerticalDivider(
+              color: dividerColor,
+              thickness: 1,
+              indent: 4,
+              endIndent: 4,
+            ),
             Expanded(
               child: _StatColumn(
                 label: 'Upcoming',
@@ -336,9 +366,14 @@ class FilterChips extends StatelessWidget {
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF273244) : const Color(0xFFF3F4F6),
+                  color: isDark
+                      ? const Color(0xFF273244)
+                      : const Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -347,7 +382,9 @@ class FilterChips extends StatelessWidget {
                     Icon(
                       Icons.close,
                       size: 14,
-                      color: isDark ? AppColors.darkTextSecondary : const Color(0xFF4B5563),
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : const Color(0xFF4B5563),
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -355,7 +392,9 @@ class FilterChips extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.darkTextSecondary : const Color(0xFF4B5563),
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : const Color(0xFF4B5563),
                       ),
                     ),
                   ],
@@ -395,9 +434,21 @@ class FilterChips extends StatelessWidget {
                   final isSelected = filter.type == type;
                   return ListTile(
                     dense: true,
-                    leading: Icon(type.icon, color: isSelected ? AppColors.primary : null),
-                    title: Text(type.label, style: TextStyle(fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
-                    trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
+                    leading: Icon(
+                      type.icon,
+                      color: isSelected ? AppColors.primary : null,
+                    ),
+                    title: Text(
+                      type.label,
+                      style: TextStyle(
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check, color: AppColors.primary)
+                        : null,
                     onTap: () {
                       Navigator.pop(ctx);
                       onFilterChanged(filter.copyWith(type: type));
@@ -441,8 +492,17 @@ class FilterChips extends StatelessWidget {
                   final isSelected = filter.status == status;
                   return ListTile(
                     dense: true,
-                    title: Text(status.label, style: TextStyle(fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
-                    trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
+                    title: Text(
+                      status.label,
+                      style: TextStyle(
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check, color: AppColors.primary)
+                        : null,
                     onTap: () {
                       Navigator.pop(ctx);
                       onFilterChanged(filter.copyWith(status: status));
@@ -486,9 +546,17 @@ class FilterChips extends StatelessWidget {
                   final isSelected = filter.dateFilter == df;
                   return ListTile(
                     dense: true,
-                    title: Text(df == DateFilter.all ? 'All time' : df.label,
-                        style: TextStyle(fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
-                    trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
+                    title: Text(
+                      df == DateFilter.all ? 'All time' : df.label,
+                      style: TextStyle(
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check, color: AppColors.primary)
+                        : null,
                     onTap: () async {
                       Navigator.pop(ctx);
                       if (df == DateFilter.custom) {
@@ -496,8 +564,13 @@ class FilterChips extends StatelessWidget {
                           context: context,
                           firstDate: DateTime(2024),
                           lastDate: DateTime(2030),
-                          initialDateRange: filter.customFrom != null && filter.customTo != null
-                              ? DateTimeRange(start: filter.customFrom!, end: filter.customTo!)
+                          initialDateRange:
+                              filter.customFrom != null &&
+                                  filter.customTo != null
+                              ? DateTimeRange(
+                                  start: filter.customFrom!,
+                                  end: filter.customTo!,
+                                )
                               : null,
                         );
                         if (picked != null) {
@@ -577,11 +650,7 @@ class _FilterChipDropdown extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 18,
-              color: textColor,
-            ),
+            Icon(Icons.arrow_drop_down, size: 18, color: textColor),
           ],
         ),
       ),
@@ -597,7 +666,7 @@ class _BottomSheetHandle extends StatelessWidget {
         width: 36,
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.4),
+          color: Colors.grey.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -624,7 +693,9 @@ class MonthHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final labelColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final totalColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF4B5563);
+    final totalColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF4B5563);
 
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12, left: 4, right: 4),
@@ -673,7 +744,9 @@ class PaymentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final dateColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final dateColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
 
     final isOffer = transaction.isOffer;
     final isClientPayment = transaction.isClientPayment;
@@ -721,17 +794,8 @@ class PaymentRow extends StatelessWidget {
             Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(
-                color: iconBg,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(
-                  iconData,
-                  size: 22,
-                  color: iconColor,
-                ),
-              ),
+              decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+              child: Center(child: Icon(iconData, size: 22, color: iconColor)),
             ),
             const SizedBox(width: 14),
 
@@ -754,7 +818,9 @@ class PaymentRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    repository.formatDate(transaction.paidAt ?? transaction.dueDate),
+                    repository.formatDate(
+                      transaction.paidAt ?? transaction.dueDate,
+                    ),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
@@ -846,15 +912,17 @@ class ReceiptDetailSheet extends StatelessWidget {
   final BillingTransaction transaction;
   final BillingRepository repository;
 
-  static void show(BuildContext context, BillingTransaction transaction, BillingRepository repository) {
+  static void show(
+    BuildContext context,
+    BillingTransaction transaction,
+    BillingRepository repository,
+  ) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => ReceiptDetailSheet(
-        transaction: transaction,
-        repository: repository,
-      ),
+      builder: (ctx) =>
+          ReceiptDetailSheet(transaction: transaction, repository: repository),
     );
   }
 
@@ -865,7 +933,9 @@ class ReceiptDetailSheet extends StatelessWidget {
     final cardBg = isDark ? AppColors.darkSurface1 : const Color(0xFFF9FAFB);
     final borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB);
     final titleColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final subtitleColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final subtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
 
     final isOffer = transaction.isOffer;
     final formattedAmount = isOffer
@@ -874,9 +944,18 @@ class ReceiptDetailSheet extends StatelessWidget {
 
     final hasOffer = transaction.offerAmount > 0;
     final planAmount = transaction.planAmount ?? transaction.amount;
-    final netPayable = transaction.netPayable ?? (planAmount - transaction.offerAmount);
-    final paidAmount = transaction.paidAmount ?? (transaction.status == TransactionStatus.paid ? transaction.amount : 0.0);
-    final balance = transaction.balance ?? (transaction.status == TransactionStatus.paid ? 0.0 : transaction.amount);
+    final netPayable =
+        transaction.netPayable ?? (planAmount - transaction.offerAmount);
+    final paidAmount =
+        transaction.paidAmount ??
+        (transaction.status == TransactionStatus.paid
+            ? transaction.amount
+            : 0.0);
+    final balance =
+        transaction.balance ??
+        (transaction.status == TransactionStatus.paid
+            ? 0.0
+            : transaction.amount);
 
     return Container(
       constraints: BoxConstraints(
@@ -910,8 +989,10 @@ class ReceiptDetailSheet extends StatelessWidget {
                             color: isOffer
                                 ? const Color(0xFF16A34A)
                                 : (transaction.isClientPayment
-                                    ? (isDark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A))
-                                    : titleColor),
+                                      ? (isDark
+                                            ? const Color(0xFF4ADE80)
+                                            : const Color(0xFF16A34A))
+                                      : titleColor),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -952,27 +1033,45 @@ class ReceiptDetailSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: borderColor),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Column(
                       children: [
-                        _BreakdownRow('Plan amount', repository.formatCurrency(planAmount)),
+                        _BreakdownRow(
+                          'Plan amount',
+                          repository.formatCurrency(planAmount),
+                        ),
                         if (hasOffer) ...[
                           const SizedBox(height: 8),
                           _BreakdownRow(
                             'Offer applied',
-                            repository.formatCurrency(transaction.offerAmount, isNegative: true),
+                            repository.formatCurrency(
+                              transaction.offerAmount,
+                              isNegative: true,
+                            ),
                             valueColor: const Color(0xFF16A34A),
                           ),
                         ],
                         const Divider(height: 16),
-                        _BreakdownRow('Net payable', repository.formatCurrency(netPayable), isBold: true),
+                        _BreakdownRow(
+                          'Net payable',
+                          repository.formatCurrency(netPayable),
+                          isBold: true,
+                        ),
                         const SizedBox(height: 8),
-                        _BreakdownRow('Paid', repository.formatCurrency(paidAmount)),
+                        _BreakdownRow(
+                          'Paid',
+                          repository.formatCurrency(paidAmount),
+                        ),
                         const SizedBox(height: 8),
                         _BreakdownRow(
                           'Balance',
                           repository.formatCurrency(balance),
-                          valueColor: balance > 0 ? const Color(0xFFDC2626) : null,
+                          valueColor: balance > 0
+                              ? const Color(0xFFDC2626)
+                              : null,
                         ),
                       ],
                     ),
@@ -996,31 +1095,46 @@ class ReceiptDetailSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: borderColor),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Column(
                       children: [
                         _DetailItem(
                           label: 'Payment date',
-                          value: repository.formatDate(transaction.paidAt ?? transaction.dueDate),
+                          value: repository.formatDate(
+                            transaction.paidAt ?? transaction.dueDate,
+                          ),
                         ),
                         if (transaction.invoiceNo != null) ...[
                           const Divider(height: 16),
-                          _DetailItem(label: 'Invoice number', value: transaction.invoiceNo!),
+                          _DetailItem(
+                            label: 'Invoice number',
+                            value: transaction.invoiceNo!,
+                          ),
                         ],
                         if (transaction.method != null) ...[
                           const Divider(height: 16),
-                          _DetailItem(label: 'Payment method', value: transaction.method!),
+                          _DetailItem(
+                            label: 'Payment method',
+                            value: transaction.method!,
+                          ),
                         ],
                         if ((transaction.note ?? '').isNotEmpty) ...[
                           const Divider(height: 16),
-                          _DetailItem(label: 'Note / Reason', value: transaction.note!),
+                          _DetailItem(
+                            label: 'Note / Reason',
+                            value: transaction.note!,
+                          ),
                         ],
                       ],
                     ),
                   ),
 
                   // Verification Timeline Tracker (if under review)
-                  if (transaction.status == TransactionStatus.underReview || transaction.timeline != null) ...[
+                  if (transaction.status == TransactionStatus.underReview ||
+                      transaction.timeline != null) ...[
                     const SizedBox(height: 20),
                     Text(
                       'VERIFICATION STATUS',
@@ -1042,16 +1156,37 @@ class ReceiptDetailSheet extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _TimelineTracker(timeline: transaction.timeline ?? [
-                            TimelineStep(step: 'submitted', label: 'Submitted', completed: true),
-                            TimelineStep(step: 'under_review', label: 'Under review', completed: false, isCurrent: true),
-                            TimelineStep(step: 'approved', label: 'Approved', completed: false),
-                          ]),
+                          _TimelineTracker(
+                            timeline:
+                                transaction.timeline ??
+                                [
+                                  TimelineStep(
+                                    step: 'submitted',
+                                    label: 'Submitted',
+                                    completed: true,
+                                  ),
+                                  TimelineStep(
+                                    step: 'under_review',
+                                    label: 'Under review',
+                                    completed: false,
+                                    isCurrent: true,
+                                  ),
+                                  TimelineStep(
+                                    step: 'approved',
+                                    label: 'Approved',
+                                    completed: false,
+                                  ),
+                                ],
+                          ),
                           const SizedBox(height: 12),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.info_outline, size: 16, color: Color(0xFFF59E0B)),
+                              const Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: Color(0xFFF59E0B),
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -1079,14 +1214,20 @@ class ReceiptDetailSheet extends StatelessWidget {
                         child: OutlinedButton.icon(
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Invoice link copied to clipboard')),
+                              const SnackBar(
+                                content: Text(
+                                  'Invoice link copied to clipboard',
+                                ),
+                              ),
                             );
                           },
                           icon: const Icon(Icons.share_outlined, size: 18),
                           label: const Text('Share'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -1095,7 +1236,11 @@ class ReceiptDetailSheet extends StatelessWidget {
                         child: FilledButton.icon(
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Downloading invoice ${transaction.invoiceNo ?? ''}...')),
+                              SnackBar(
+                                content: Text(
+                                  'Downloading invoice ${transaction.invoiceNo ?? ''}...',
+                                ),
+                              ),
                             );
                           },
                           icon: const Icon(Icons.download_rounded, size: 18),
@@ -1103,7 +1248,9 @@ class ReceiptDetailSheet extends StatelessWidget {
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -1120,7 +1267,12 @@ class ReceiptDetailSheet extends StatelessWidget {
 }
 
 class _BreakdownRow extends StatelessWidget {
-  const _BreakdownRow(this.label, this.value, {this.valueColor, this.isBold = false});
+  const _BreakdownRow(
+    this.label,
+    this.value, {
+    this.valueColor,
+    this.isBold = false,
+  });
 
   final String label;
   final String value;
@@ -1140,7 +1292,9 @@ class _BreakdownRow extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-            color: isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280),
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : const Color(0xFF6B7280),
           ),
         ),
         Text(
@@ -1174,7 +1328,9 @@ class _DetailItem extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 13,
-            color: isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280),
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : const Color(0xFF6B7280),
           ),
         ),
         const SizedBox(width: 16),
@@ -1208,7 +1364,9 @@ class _TimelineTracker extends StatelessWidget {
           return Expanded(
             child: Container(
               height: 2,
-              color: stepBefore.completed ? AppColors.primary : Colors.grey.withOpacity(0.3),
+              color: stepBefore.completed
+                  ? AppColors.primary
+                  : Colors.grey.withValues(alpha: 0.3),
             ),
           );
         }
@@ -1225,23 +1383,27 @@ class _TimelineTracker extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isCompleted
                     ? AppColors.primary
-                    : (isCurrent ? const Color(0xFFDBEAFE) : Colors.grey.withOpacity(0.2)),
+                    : (isCurrent
+                          ? const Color(0xFFDBEAFE)
+                          : Colors.grey.withValues(alpha: 0.2)),
                 shape: BoxShape.circle,
-                border: isCurrent ? Border.all(color: AppColors.primary, width: 2) : null,
+                border: isCurrent
+                    ? Border.all(color: AppColors.primary, width: 2)
+                    : null,
               ),
               child: Center(
                 child: isCompleted
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : (isCurrent
-                        ? Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          )
-                        : null),
+                          ? Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            )
+                          : null),
               ),
             ),
             const SizedBox(height: 6),
@@ -1249,8 +1411,12 @@ class _TimelineTracker extends StatelessWidget {
               step.label,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: isCurrent || isCompleted ? FontWeight.w600 : FontWeight.w400,
-                color: isCurrent || isCompleted ? AppColors.primary : Colors.grey,
+                fontWeight: isCurrent || isCompleted
+                    ? FontWeight.w600
+                    : FontWeight.w400,
+                color: isCurrent || isCompleted
+                    ? AppColors.primary
+                    : Colors.grey,
               ),
             ),
           ],
@@ -1280,12 +1446,17 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
     final cardBg = isDark ? AppColors.darkSurface1 : Colors.white;
     final borderColor = isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB);
     final titleColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final subtitleColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final subtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
 
     return Scaffold(
       backgroundColor: scaffoldBg,
       appBar: AppBar(
-        title: const Text('Plan & Subscription', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+        title: const Text(
+          'Plan & Subscription',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
         elevation: 0,
         backgroundColor: scaffoldBg,
         scrolledUnderElevation: 0,
@@ -1303,7 +1474,7 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
                 border: Border.all(color: borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -1342,8 +1513,12 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
                       ),
                       StatusPill(
                         label: 'ACTIVE',
-                        bgColor: isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7),
-                        textColor: isDark ? const Color(0xFF34D399) : const Color(0xFF15803D),
+                        bgColor: isDark
+                            ? const Color(0xFF064E3B)
+                            : const Color(0xFFDCFCE7),
+                        textColor: isDark
+                            ? const Color(0xFF34D399)
+                            : const Color(0xFF15803D),
                       ),
                     ],
                   ),
@@ -1353,16 +1528,28 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _SubscriptionInfo(label: 'Price & Cycle', value: '₹9,999 / year'),
-                      _SubscriptionInfo(label: 'Start Date', value: '1 Jan 2026'),
+                      _SubscriptionInfo(
+                        label: 'Price & Cycle',
+                        value: '₹9,999 / year',
+                      ),
+                      _SubscriptionInfo(
+                        label: 'Start Date',
+                        value: '1 Jan 2026',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _SubscriptionInfo(label: 'Next Renewal', value: '1 Jan 2028'),
-                      _SubscriptionInfo(label: 'Access Duration', value: '2 Years Prepaid'),
+                      _SubscriptionInfo(
+                        label: 'Next Renewal',
+                        value: '1 Jan 2028',
+                      ),
+                      _SubscriptionInfo(
+                        label: 'Access Duration',
+                        value: '2 Years Prepaid',
+                      ),
                     ],
                   ),
                 ],
@@ -1388,7 +1575,9 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
                 border: Border.all(color: borderColor),
               ),
               child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
                 child: Column(
                   children: [
                     _FeatureAccordion(
@@ -1444,7 +1633,9 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
                 // Billing cycle switch
                 Container(
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF3F4F6),
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   padding: const EdgeInsets.all(3),
@@ -1473,7 +1664,8 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
               name: 'Operations Plus',
               monthlyPrice: '₹599 / month',
               yearlyPrice: '₹5,999 / year',
-              description: 'Centres managing field work, volunteer activities, and equipment assets.',
+              description:
+                  'Centres managing field work, volunteer activities, and equipment assets.',
               features: const [
                 'Patient management & field visits',
                 'Volunteer coordinator directory',
@@ -1481,7 +1673,8 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
               ],
               isYearly: _isYearly,
               isCurrent: false,
-              onRequestUpgrade: () => _showUpgradeDialog(context, 'Operations Plus'),
+              onRequestUpgrade: () =>
+                  _showUpgradeDialog(context, 'Operations Plus'),
             ),
             const SizedBox(height: 12),
 
@@ -1490,7 +1683,8 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
               name: 'Clinical Pro',
               monthlyPrice: '₹999 / month',
               yearlyPrice: '₹9,999 / year',
-              description: 'Centres doing regular nurse clinical documentation and medicine management.',
+              description:
+                  'Centres doing regular nurse clinical documentation and medicine management.',
               features: const [
                 'All features in Operations Plus',
                 'Clinical NHC block & automated PDF reports',
@@ -1508,7 +1702,8 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
               name: 'Complete Suite',
               monthlyPrice: '₹1,399 / month',
               yearlyPrice: '₹13,999 / year',
-              description: 'Larger units with multi-ward decentralization, multiple nurses, and advanced analytics.',
+              description:
+                  'Larger units with multi-ward decentralization, multiple nurses, and advanced analytics.',
               features: const [
                 'All features in Clinical Pro',
                 'Multi-village & multi-ward restriction gates',
@@ -1517,7 +1712,8 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
               ],
               isYearly: _isYearly,
               isCurrent: false,
-              onRequestUpgrade: () => _showUpgradeDialog(context, 'Complete Suite'),
+              onRequestUpgrade: () =>
+                  _showUpgradeDialog(context, 'Complete Suite'),
             ),
             const SizedBox(height: 32),
           ],
@@ -1544,7 +1740,11 @@ class _PlanSubscriptionScreenState extends State<PlanSubscriptionScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Upgrade request for $targetPlan submitted successfully!')),
+                SnackBar(
+                  content: Text(
+                    'Upgrade request for $targetPlan submitted successfully!',
+                  ),
+                ),
               );
             },
             child: const Text('Send request'),
@@ -1572,7 +1772,9 @@ class _SubscriptionInfo extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280),
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : const Color(0xFF6B7280),
           ),
         ),
         const SizedBox(height: 3),
@@ -1627,14 +1829,20 @@ class _FeatureAccordion extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A)),
+                  const Icon(
+                    Icons.check_circle_outline,
+                    size: 18,
+                    color: Color(0xFF16A34A),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       feat,
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? AppColors.darkText : const Color(0xFF374151),
+                        color: isDark
+                            ? AppColors.darkText
+                            : const Color(0xFF374151),
                       ),
                     ),
                   ),
@@ -1673,7 +1881,7 @@ class _CycleSwitchTab extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
@@ -1686,7 +1894,9 @@ class _CycleSwitchTab extends StatelessWidget {
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected
-                ? (isHighlight ? const Color(0xFF15803D) : const Color(0xFF111827))
+                ? (isHighlight
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFF111827))
                 : const Color(0xFF6B7280),
           ),
         ),
@@ -1724,7 +1934,9 @@ class _PlanComparisonCard extends StatelessWidget {
         ? AppColors.primary
         : (isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB));
     final titleColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final subtitleColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final subtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
 
     return Container(
       decoration: BoxDecoration(
@@ -1750,8 +1962,12 @@ class _PlanComparisonCard extends StatelessWidget {
               if (isCurrent)
                 StatusPill(
                   label: 'CURRENT',
-                  bgColor: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE),
-                  textColor: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                  bgColor: isDark
+                      ? const Color(0xFF1E3A8A)
+                      : const Color(0xFFDBEAFE),
+                  textColor: isDark
+                      ? const Color(0xFF93C5FD)
+                      : const Color(0xFF1D4ED8),
                 ),
             ],
           ),
@@ -1768,11 +1984,7 @@ class _PlanComparisonCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             description,
-            style: TextStyle(
-              fontSize: 13,
-              color: subtitleColor,
-              height: 1.3,
-            ),
+            style: TextStyle(fontSize: 13, color: subtitleColor, height: 1.3),
           ),
           const SizedBox(height: 12),
           const Divider(height: 1),
@@ -1789,7 +2001,9 @@ class _PlanComparisonCard extends StatelessWidget {
                       feat,
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? AppColors.darkText : const Color(0xFF374151),
+                        color: isDark
+                            ? AppColors.darkText
+                            : const Color(0xFF374151),
                       ),
                     ),
                   ),
@@ -1804,13 +2018,18 @@ class _PlanComparisonCard extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: onRequestUpgrade,
                 style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: const BorderSide(color: AppColors.primary),
                 ),
                 child: const Text(
                   'Request upgrade',
-                  style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -1838,7 +2057,9 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? AppColors.darkText : const Color(0xFF111827);
-    final subtitleColor = isDark ? AppColors.darkTextSecondary : const Color(0xFF6B7280);
+    final subtitleColor = isDark
+        ? AppColors.darkTextSecondary
+        : const Color(0xFF6B7280);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
@@ -1849,7 +2070,7 @@ class EmptyState extends StatelessWidget {
             Icon(
               Icons.receipt_long_outlined,
               size: 56,
-              color: Colors.grey.withOpacity(0.5),
+              color: Colors.grey.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -1866,10 +2087,7 @@ class EmptyState extends StatelessWidget {
                   ? 'Try changing your active filters or clear search terms.'
                   : 'Billing invoices and payment records will appear here.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: subtitleColor,
-              ),
+              style: TextStyle(fontSize: 14, color: subtitleColor),
             ),
             if (isFiltered) ...[
               const SizedBox(height: 18),
@@ -1877,7 +2095,9 @@ class EmptyState extends StatelessWidget {
                 onPressed: onClearFilters,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 child: const Text('Clear filters'),
               ),
@@ -1899,7 +2119,8 @@ class BillingSkeleton extends StatefulWidget {
   State<BillingSkeleton> createState() => _BillingSkeletonState();
 }
 
-class _BillingSkeletonState extends State<BillingSkeleton> with SingleTickerProviderStateMixin {
+class _BillingSkeletonState extends State<BillingSkeleton>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
@@ -1920,8 +2141,12 @@ class _BillingSkeletonState extends State<BillingSkeleton> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB);
-    final highlightColor = isDark ? const Color(0xFF334155) : const Color(0xFFF3F4F6);
+    final baseColor = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFE5E7EB);
+    final highlightColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFF3F4F6);
 
     return AnimatedBuilder(
       animation: _controller,
@@ -2040,4 +2265,3 @@ class _BillingSkeletonState extends State<BillingSkeleton> with SingleTickerProv
     );
   }
 }
-

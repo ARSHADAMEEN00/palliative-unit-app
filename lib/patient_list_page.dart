@@ -230,10 +230,11 @@ class _PatientListPageState extends State<PatientListPage> {
                 "Patients",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: (isSmall
-                        ? Theme.of(context).textTheme.titleMedium
-                        : Theme.of(context).textTheme.titleLarge)
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style:
+                    (isSmall
+                            ? Theme.of(context).textTheme.titleMedium
+                            : Theme.of(context).textTheme.titleLarge)
+                        ?.copyWith(fontWeight: FontWeight.w700),
               ),
         actions: [
           Padding(
@@ -285,8 +286,9 @@ class _PatientListPageState extends State<PatientListPage> {
                   children: [
                     Material(
                       color: AppColors.surface1,
-                      borderRadius:
-                          actionSize <= 38 ? AppRadius.sm : AppRadius.md,
+                      borderRadius: actionSize <= 38
+                          ? AppRadius.sm
+                          : AppRadius.md,
                       child: SizedBox(
                         width: actionSize,
                         height: actionSize,
@@ -705,8 +707,7 @@ class _PatientListPageState extends State<PatientListPage> {
               value: _selectedVillage,
               icon: Icons.location_on_outlined,
               items: _villagesList,
-              labelBuilder: (value) =>
-                  value == 'All' ? 'All villages' : value,
+              labelBuilder: (value) => value == 'All' ? 'All villages' : value,
               onChanged: (newValue) {
                 if (newValue != null && newValue != _selectedVillage) {
                   setState(() {
@@ -720,9 +721,7 @@ class _PatientListPageState extends State<PatientListPage> {
           ),
           const SizedBox(width: AppSpacing.sm),
           if (isWardRestricted)
-            Expanded(
-              child: _buildCareWardFilterField(),
-            )
+            Expanded(child: _buildCareWardFilterField())
           else
             Expanded(
               child: _PatientDropdown(
@@ -849,7 +848,8 @@ class _PatientListPageState extends State<PatientListPage> {
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setDialogState) {
             final query = searchQuery.trim().toLowerCase();
-            final unassignedMatches = query.isEmpty ||
+            final unassignedMatches =
+                query.isEmpty ||
                 'unassigned'.contains(query) ||
                 'no ward'.contains(query);
 
@@ -863,7 +863,8 @@ class _PatientListPageState extends State<PatientListPage> {
             final visibleWardIds = visibleWards.map((w) => w.id).toSet();
             if (unassignedMatches) visibleWardIds.add('unassigned');
 
-            final allVisibleSelected = visibleWardIds.isNotEmpty &&
+            final allVisibleSelected =
+                visibleWardIds.isNotEmpty &&
                 visibleWardIds.every((id) => selected.contains(id));
 
             final mediaSize = MediaQuery.sizeOf(context);
@@ -1096,11 +1097,10 @@ class _PatientListPageState extends State<PatientListPage> {
                                       horizontal: -2,
                                       vertical: -3,
                                     ),
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 0,
-                                        ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 0,
+                                    ),
                                     activeColor: AppColors.primary,
                                     checkboxShape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(4),
@@ -1119,8 +1119,8 @@ class _PatientListPageState extends State<PatientListPage> {
                                         fontSize: 13.5,
                                         fontWeight:
                                             selected.contains('unassigned')
-                                                ? FontWeight.w600
-                                                : FontWeight.w500,
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
                                         color: AppColors.text,
                                       ),
                                     ),
@@ -1186,7 +1186,8 @@ class _PatientListPageState extends State<PatientListPage> {
                                           color: AppColors.text,
                                         ),
                                       ),
-                                      subtitle: hasMultipleLocalBodies &&
+                                      subtitle:
+                                          hasMultipleLocalBodies &&
                                               ward.localBody != null &&
                                               ward.localBody!.trim().isNotEmpty
                                           ? Text(
@@ -1216,10 +1217,7 @@ class _PatientListPageState extends State<PatientListPage> {
                       decoration: const BoxDecoration(
                         color: AppColors.surface,
                         border: Border(
-                          top: BorderSide(
-                            color: AppColors.border,
-                            width: 0.5,
-                          ),
+                          top: BorderSide(color: AppColors.border, width: 0.5),
                         ),
                       ),
                       child: Row(
@@ -1377,8 +1375,9 @@ class _PatientListPageState extends State<PatientListPage> {
       patient.plan,
     ].where((item) => item.trim().isNotEmpty).join(' • ');
 
-    final placeText =
-        patient.place.isNotEmpty ? patient.place : patient.village;
+    final placeText = patient.place.isNotEmpty
+        ? patient.place
+        : patient.village;
 
     Widget cardContent = Stack(
       children: [
@@ -1423,7 +1422,8 @@ class _PatientListPageState extends State<PatientListPage> {
                         Expanded(
                           child: Text(
                             patient.name,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14.5,
                                   color: AppColors.text,
@@ -1782,10 +1782,7 @@ class _PatientAvatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: background,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
       child: Center(
         child: patient.isDead
             ? Icon(
@@ -1801,51 +1798,6 @@ class _PatientAvatar extends StatelessWidget {
                   fontSize: size * 0.42,
                 ),
               ),
-      ),
-    );
-  }
-}
-
-class _PatientMetaPill extends StatelessWidget {
-  const _PatientMetaPill({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: AppIcons.small),
-          const SizedBox(width: AppSpacing.xxs),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
