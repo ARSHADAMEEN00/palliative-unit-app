@@ -1941,17 +1941,32 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
                               Icons.straighten_outlined,
                             ),
                             items: const [
-                              DropdownMenuItem(value: 'tab', child: Text('Tab')),
-                              DropdownMenuItem(value: 'bottle', child: Text('Bottle')),
-                              DropdownMenuItem(value: 'gel', child: Text('Gel')),
-                              DropdownMenuItem(value: 'piece', child: Text('Piece')),
-                              DropdownMenuItem(value: 'pair', child: Text('Pair')),
+                              DropdownMenuItem(
+                                value: 'tab',
+                                child: Text('Tab'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'bottle',
+                                child: Text('Bottle'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gel',
+                                child: Text('Gel'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'piece',
+                                child: Text('Piece'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'pair',
+                                child: Text('Pair'),
+                              ),
                             ],
                             onChanged: saving
                                 ? null
                                 : (val) => setModalState(
-                                      () => selectedUnit = val ?? 'piece',
-                                    ),
+                                    () => selectedUnit = val ?? 'piece',
+                                  ),
                           ),
                         ),
                       ],
@@ -2193,15 +2208,18 @@ class _MedicineFormPageState extends State<MedicineFormPage> {
                       maxLines: 3,
                     ),
                     _photoPickerField(),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: _isActive,
-                      activeThumbColor: _medicineGreen,
-                      title: const Text('Active medicine'),
-                      subtitle: const Text(
-                        'Inactive medicines remain in history but are clearly marked.',
+                    Material(
+                      color: Colors.transparent,
+                      child: SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isActive,
+                        activeThumbColor: _medicineGreen,
+                        title: const Text('Active medicine'),
+                        subtitle: const Text(
+                          'Inactive medicines remain in history but are clearly marked.',
+                        ),
+                        onChanged: (value) => setState(() => _isActive = value),
                       ),
-                      onChanged: (value) => setState(() => _isActive = value),
                     ),
                   ],
                 ),

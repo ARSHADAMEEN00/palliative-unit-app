@@ -2542,7 +2542,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'New availability requests',
+                    'New volunteer requests',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.text,
                       fontWeight: FontWeight.w700,
@@ -2569,7 +2569,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
             ),
             const SizedBox(width: AppSpacing.xxs),
             IconButton(
-              tooltip: 'Dismiss new availability requests',
+              tooltip: 'Dismiss new volunteer requests',
               icon: const Icon(Icons.close_rounded, size: 18),
               color: AppColors.textMuted,
               splashRadius: 18,
@@ -5083,7 +5083,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
         ? null
         : _pendingPatientEnquiryCount;
     final cards = <Widget>[
-      if (auth.isAdmin && auth.canManageVolunteerRequests) ...[
+      if (auth.canManageVolunteerRequests) ...[
         _HomeActivityCard(
           icon: Icons.how_to_reg_rounded,
           iconBackground: AppColors.info.withValues(alpha: 0.1),
@@ -7237,7 +7237,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                     _buildDrawerItem(
                       context,
                       icon: Icons.mark_email_unread_outlined,
-                      title: "Patient Registration Requests",
+                      title: "Patient Enquiries",
                       color: ModulePalettes.patients.primary,
                       compact: true,
                       onTap: () {
@@ -7383,7 +7383,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                  if (auth.isAdmin && auth.canManageVolunteerRequests)
+                  if (auth.canManageVolunteerRequests)
                     _buildDrawerItem(
                       context,
                       icon: Icons.how_to_reg_outlined,

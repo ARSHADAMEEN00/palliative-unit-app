@@ -23,7 +23,7 @@ Kotlin activity to the matching package, and rebuild.
 
 - Android application ID and namespace are `com.osperb.palliative`.
 - The app explicitly targets Android 16 / API 36 and has minimum API 24.
-- Version is `1.0.0+1` (`versionName` 1.0.0, `versionCode` 1).
+- Version is `1.0.12+12` (`versionName` 1.0.12, `versionCode` 12).
 - Release builds use an upload keystore, R8 code shrinking, resource shrinking,
   Dart obfuscation, and native debug symbols.
 - Clear-text HTTP and Android backups/device transfers are disabled.
@@ -163,25 +163,25 @@ flutter pub get
 flutter analyze
 flutter test
 flutter build appbundle --release --obfuscate \
-  --split-debug-info=build/symbols/android/1.0.0+1
+  --split-debug-info=build/symbols/android/1.0.12+12
 ```
 
 Upload:
 
 `build/app/outputs/bundle/release/app-release.aab`
 
-The verified `1.0.0+1` bundle created on 4 September 2026 has SHA-256:
+The verified `1.0.12+12` bundle created on 18 November 2026 has SHA-256:
 
-`0087de37c5d5cc2cc1b4eb6d043455613f6d4b103aea0f07a973b0ff6e9af156`
+`919d0d35995faaa402d299f65a411faf5b85ed24576451e71744da3af2ace3dd`
 
-Archive the matching `build/symbols/android/1.0.0+1` directory and
+Archive the matching `build/symbols/android/1.0.12+12` directory and
 `build/app/outputs/mapping/release/mapping.txt` with the release. Native debug
 symbols and the R8 mapping are also embedded as bundle metadata for Play. Keep
 the local copies because they are needed to decode production crashes outside
 Play Console.
 
 For every update, increment the build number in `pubspec.yaml`, for example
-`1.0.1+2`, and use a matching symbol-directory name. Play rejects a reused
+`1.0.13+13`, and use a matching symbol-directory name. Play rejects a reused
 version code.
 
 ## 7. Upload, test and release

@@ -2683,16 +2683,20 @@ class _ConfigPageState extends State<ConfigPage>
               !(activeIndex == 1 && _selectedStaffSection == 'role') &&
               widget.mode != ConfigPageMode.settings
           ? widget.mode == ConfigPageMode.lsg
-                ? FloatingActionButton.extended(
-                    onPressed:
-                        _isLoadingConfig || _config == null || _isSavingConfig
-                        ? null
-                        : _saveConfig,
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Save changes'),
-                  )
+                ? (_config?.lsgWardStructureReadOnly == true
+                      ? null
+                      : FloatingActionButton.extended(
+                          onPressed:
+                              _isLoadingConfig ||
+                                  _config == null ||
+                                  _isSavingConfig
+                              ? null
+                              : _saveConfig,
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          icon: const Icon(Icons.save_outlined),
+                          label: const Text('Save changes'),
+                        ))
                 : RevealActionFab(
                     onPressed: activeIndex == 0
                         ? (_isLoadingConfig ||
@@ -3634,7 +3638,7 @@ class _ConfigPageState extends State<ConfigPage>
                   SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      'Names-only mode is enabled by Superadmin. Tap an existing local body or ward to rename it. Adding and removing are disabled.',
+                      'View-only mode is enabled by Superadmin. LSGs and wards are managed by Superadmin for this unit. You can view them below.',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -3650,7 +3654,7 @@ class _ConfigPageState extends State<ConfigPage>
           _LsgSectionHeader(
             icon: Icons.location_city_outlined,
             title: 'Local bodies',
-            subtitle: 'Village, municipality, or corporation',
+            subtitle: 'Zone, sector, village, municipality, or corporation',
             count: config.villages.length,
           ),
           if (!namesOnly) ...[
@@ -3677,7 +3681,9 @@ class _ConfigPageState extends State<ConfigPage>
                 return _ConfigChip(
                   label: Text(localBody),
                   icon: Icons.location_city_outlined,
-                  onPressed: () => _renameLocalBody(localBody),
+                  onPressed: namesOnly
+                      ? null
+                      : () => _renameLocalBody(localBody),
                   onDeleted: namesOnly
                       ? null
                       : () => _removeItem('villages', localBody),
@@ -3690,9 +3696,10 @@ class _ConfigPageState extends State<ConfigPage>
           ),
           _LsgSectionHeader(
             icon: Icons.map_outlined,
-            title: 'Wards',
-            subtitle:
-                selectedLocalBody ?? 'Select a local body to manage its wards',
+            title: 'Unit / Ward',
+            subtitle: selectedLocalBody != null
+                ? 'Local sub-units or wards of $selectedLocalBody'
+                : 'Select a local body to manage its wards',
             count: wards.length,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -3783,7 +3790,7 @@ class _ConfigPageState extends State<ConfigPage>
                 return _ConfigChip(
                   label: Text(formatWardLabel(ward.number)),
                   icon: Icons.map_outlined,
-                  onPressed: () => _renameWard(ward),
+                  onPressed: namesOnly ? null : () => _renameWard(ward),
                   onDeleted: namesOnly ? null : () => _removeWard(ward),
                 );
               }).toList(),

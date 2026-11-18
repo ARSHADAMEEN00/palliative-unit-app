@@ -808,7 +808,7 @@ class _patientrigisterState extends State<patientrigister> {
                 children: [
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
-                      "Local body",
+                      "Local body / Zone",
                       Icons.location_city,
                     ),
                     key: ValueKey(_selectedVillage),
@@ -845,7 +845,7 @@ class _patientrigisterState extends State<patientrigister> {
                   const SizedBox(height: AppSpacing.md),
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
-                      wardRequired ? "Ward *" : "Ward (optional)",
+                      wardRequired ? "Unit / Ward *" : "Unit / Ward (optional)",
                       Icons.apartment,
                     ),
                     key: ValueKey(
@@ -865,10 +865,10 @@ class _patientrigisterState extends State<patientrigister> {
                     ),
                     hint: Text(
                       _selectedVillage == null
-                          ? 'Select a local body first'
+                          ? 'Select a local body / zone first'
                           : _wardsForSelectedLocalBody.isEmpty
-                          ? 'No wards configured for this local body'
-                          : 'Select ward',
+                          ? 'No wards configured for this local body / zone'
+                          : 'Select unit / ward',
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.normal,
@@ -898,13 +898,13 @@ class _patientrigisterState extends State<patientrigister> {
                               _selectedCurrentWardId = value;
                               final selectedWard = _wardById(value);
                               _selectedWardTitle =
-                                  selectedWard?.lsgWardValue ??
+                                   selectedWard?.lsgWardValue ??
                                   selectedWard?.name;
                             });
                           },
                     validator: (value) =>
                         wardRequired && (value == null || value.isEmpty)
-                        ? 'Ward is required'
+                        ? 'Unit / Ward is required'
                         : null,
                   ),
                   const SizedBox(height: AppSpacing.md),

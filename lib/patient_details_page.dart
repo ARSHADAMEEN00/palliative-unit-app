@@ -817,6 +817,14 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                         color: AppColors.danger,
                       ),
                     ],
+                    if (_currentPatient.isExcelImported) ...[
+                      const SizedBox(width: 6),
+                      _lightHeaderPill(
+                        'Excel Import',
+                        icon: Icons.table_chart_outlined,
+                        color: AppColors.success,
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -907,13 +915,31 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (registerId?.isNotEmpty == true)
-                Text(
-                  'ID $registerId',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
+              if (registerId?.isNotEmpty == true || _currentPatient.isExcelImported)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (registerId?.isNotEmpty == true)
+                      Text(
+                        'ID $registerId',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    if (_currentPatient.isExcelImported) ...[
+                      if (registerId?.isNotEmpty == true)
+                        const SizedBox(width: 6),
+                      Text(
+                        '• Excel',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
             ],
           ),
@@ -1070,6 +1096,12 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 'Age',
                 '${_currentPatient.age} years',
               ),
+              if (_currentPatient.isExcelImported)
+                _infoRow(
+                  Icons.table_chart_outlined,
+                  'Registration source',
+                  'Uploaded via Excel',
+                ),
             ]),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -1089,19 +1121,17 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               ),
               _infoRow(
                 Icons.holiday_village_outlined,
-                'Village',
+                'Local body / Zone',
                 _value(_currentPatient.village),
               ),
-              if (_currentPatient.currentWard != null)
-                _infoRow(
-                  Icons.local_hospital_outlined,
-                  'Care ward',
-                  _currentPatient.currentWard!.label,
-                ),
               _infoRow(
                 Icons.apartment_outlined,
-                'Ward number',
-                _value(_currentPatient.ward),
+                'Unit / Ward',
+                _value(
+                  _currentPatient.ward?.isNotEmpty == true
+                      ? _currentPatient.ward
+                      : _currentPatient.currentWard?.label,
+                ),
               ),
               if (_currentPatient.locationLink?.trim().isNotEmpty == true)
                 _mapButton(_currentPatient.locationLink!),

@@ -40,6 +40,7 @@ class ApiConfig {
   static String get v2SocialSupportEndpoint => '$baseUrl/v2/social-support';
   static String get v2VolunteersEndpoint => '$baseUrl/v2/volunteers';
   static String get meEndpoint => '$baseUrl/auth/me';
+  static String get logoutEndpoint => '$baseUrl/auth/logout';
   static String get deleteAccountEndpoint => '$baseUrl/auth/account';
   static String get staffEndpoint => '$baseUrl/auth/staff';
   static String get rolePermissionsEndpoint => '$baseUrl/auth/role-permissions';

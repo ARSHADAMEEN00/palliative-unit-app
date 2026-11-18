@@ -86,7 +86,10 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     if (widget.portal != null) {
       _portal = widget.portal;
       _initFromPortal(widget.portal!);
-      if (!widget.portal!.paymentSettings.hasPaymentMethod) {
+      // A pending submission has its own status view and does not need payment
+      // instructions. Avoid replacing it with an unnecessary network reload.
+      if (_activeSubmission == null &&
+          !widget.portal!.paymentSettings.hasPaymentMethod) {
         _loadPortal();
       }
     } else {
@@ -333,199 +336,203 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     return RefreshIndicator(
       onRefresh: _loadPortal,
       child: ListView(
-      padding: AppInsets.screen(
-        context,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl,
-      ),
-      children: [
-        _PaymentInfoCard(
-          icon: Icons.account_balance_wallet_outlined,
-          color: AppColors.warning,
-          title: '${_currency.format(_selectedAmount)} selected',
-          message:
-              'Pay the exact selected total using the instructions below, then upload the screenshot for verification.',
+        padding: AppInsets.screen(
+          context,
+          top: AppSpacing.md,
+          bottom: AppSpacing.xl,
         ),
-        if (_latestRejectedSubmission != null) ...[
-          const SizedBox(height: AppSpacing.sm),
+        children: [
           _PaymentInfoCard(
-            icon: Icons.error_outline_rounded,
-            color: AppColors.danger,
-            title: 'Previous proof was rejected',
+            icon: Icons.account_balance_wallet_outlined,
+            color: AppColors.warning,
+            title: '${_currency.format(_selectedAmount)} selected',
             message:
-                _latestRejectedSubmission!.rejectionReason ??
-                'Please correct the payment details and submit a new screenshot.',
+                'Pay the exact selected total using the instructions below, then upload the screenshot for verification.',
           ),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        _section(
-          title: 'Select invoices',
-          subtitle:
-              'The uploaded proof will be linked to these billing entries.',
-          child: Column(
-            children: _payableInvoices.map((invoice) {
-              final selected = _selectedInvoiceIds.contains(invoice.id);
-              return Material(
-                color: Colors.transparent,
-                child: CheckboxListTile(
-                  value: selected,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: Text(invoice.label),
-                  subtitle: Text(
-                    '${invoice.invoiceNumber ?? 'Invoice'} • due ${_formatDate(invoice.dueDate)}',
-                  ),
-                  secondary: Text(
-                    _currency.format(invoice.displayAmount),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedInvoiceIds.add(invoice.id!);
-                      } else {
-                        _selectedInvoiceIds.remove(invoice.id);
-                      }
-                    });
-                  },
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        if (settings.hasPaymentMethod) ...[
-          if (settings.hasBankTransfer)
-            _section(
-              title: 'Bank transfer',
-              subtitle: 'Use these details for NEFT, IMPS, or bank transfer.',
-              child: Column(
-                children: [
-                  _copyRow('Account holder', settings.accountHolderName),
-                  _copyRow('Bank', settings.bankName),
-                  _copyRow('Account number', settings.accountNumber),
-                  _copyRow('IFSC', settings.ifscCode),
-                  if (settings.branchName.isNotEmpty)
-                    _copyRow('Branch', settings.branchName),
-                ],
-              ),
-            ),
-          if (settings.hasBankTransfer &&
-              (settings.hasUpiId || settings.hasUpiQr))
+          if (_latestRejectedSubmission != null) ...[
             const SizedBox(height: AppSpacing.sm),
-          if (settings.hasUpiId || settings.hasUpiQr)
-            _section(
-              title: 'UPI payment',
-              subtitle: 'Scan the QR or copy the UPI ID into your payment app.',
-              child: Column(
-                children: [
-                  if (settings.hasUpiQr) _qrImage(settings.qrImage),
-                  if (settings.hasUpiQr && settings.hasUpiId)
-                    const SizedBox(height: AppSpacing.md),
-                  if (settings.hasUpiId) _copyRow('UPI ID', settings.upiId),
-                ],
-              ),
-            ),
-          if (settings.instructions.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            _section(
-              title: 'Additional instructions',
-              child: Text(
-                settings.instructions,
-                style: const TextStyle(height: 1.45),
-              ),
+            _PaymentInfoCard(
+              icon: Icons.error_outline_rounded,
+              color: AppColors.danger,
+              title: 'Previous proof was rejected',
+              message:
+                  _latestRejectedSubmission!.rejectionReason ??
+                  'Please correct the payment details and submit a new screenshot.',
             ),
           ],
           const SizedBox(height: AppSpacing.sm),
           _section(
-            title: 'Upload payment proof',
+            title: 'Select invoices',
             subtitle:
-                'Your balance changes only after the superadmin verifies this submission.',
+                'The uploaded proof will be linked to these billing entries.',
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _paymentMethod,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment method',
-                  ),
-                  items: [
-                    if (settings.hasUpiId || settings.hasUpiQr)
-                      const DropdownMenuItem(value: 'upi', child: Text('UPI')),
-                    if (settings.hasBankTransfer)
-                      const DropdownMenuItem(
-                        value: 'bank_transfer',
-                        child: Text('Bank transfer'),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => _paymentMethod = value);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _referenceController,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'Transaction reference / UTR',
-                    hintText: 'Enter the bank or UPI reference number',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                InkWell(
-                  onTap: _selectPaymentDate,
-                  borderRadius: AppRadius.input,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Payment date',
-                      suffixIcon: Icon(Icons.calendar_today_outlined),
+              children: _payableInvoices.map((invoice) {
+                final selected = _selectedInvoiceIds.contains(invoice.id);
+                return Material(
+                  color: Colors.transparent,
+                  child: CheckboxListTile(
+                    value: selected,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(invoice.label),
+                    subtitle: Text(
+                      '${invoice.invoiceNumber ?? 'Invoice'} • due ${_formatDate(invoice.dueDate)}',
                     ),
-                    child: Text(_formatDate(_paidAt)),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                if (_proofPreview != null) ...[
-                  ClipRRect(
-                    borderRadius: AppRadius.md,
-                    child: Image.memory(
-                      _proofPreview!,
-                      height: 220,
-                      fit: BoxFit.contain,
+                    secondary: Text(
+                      _currency.format(invoice.displayAmount),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == true) {
+                          _selectedInvoiceIds.add(invoice.id!);
+                        } else {
+                          _selectedInvoiceIds.remove(invoice.id);
+                        }
+                      });
+                    },
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-                AppSecondaryButton(
-                  label: _proofPreview == null
-                      ? 'Upload payment screenshot'
-                      : 'Replace screenshot',
-                  icon: Icons.upload_file_outlined,
-                  fullWidth: true,
-                  onPressed: _submitting ? null : _pickProof,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: AppColors.danger),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.md),
-                AppPrimaryButton(
-                  label: 'Submit for verification',
-                  icon: Icons.verified_user_outlined,
-                  fullWidth: true,
-                  loading: _submitting,
-                  onPressed: _submitting ? null : _submit,
-                ),
-              ],
+                );
+              }).toList(),
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          if (settings.hasPaymentMethod) ...[
+            if (settings.hasBankTransfer)
+              _section(
+                title: 'Bank transfer',
+                subtitle: 'Use these details for NEFT, IMPS, or bank transfer.',
+                child: Column(
+                  children: [
+                    _copyRow('Account holder', settings.accountHolderName),
+                    _copyRow('Bank', settings.bankName),
+                    _copyRow('Account number', settings.accountNumber),
+                    _copyRow('IFSC', settings.ifscCode),
+                    if (settings.branchName.isNotEmpty)
+                      _copyRow('Branch', settings.branchName),
+                  ],
+                ),
+              ),
+            if (settings.hasBankTransfer &&
+                (settings.hasUpiId || settings.hasUpiQr))
+              const SizedBox(height: AppSpacing.sm),
+            if (settings.hasUpiId || settings.hasUpiQr)
+              _section(
+                title: 'UPI payment',
+                subtitle:
+                    'Scan the QR or copy the UPI ID into your payment app.',
+                child: Column(
+                  children: [
+                    if (settings.hasUpiQr) _qrImage(settings.qrImage),
+                    if (settings.hasUpiQr && settings.hasUpiId)
+                      const SizedBox(height: AppSpacing.md),
+                    if (settings.hasUpiId) _copyRow('UPI ID', settings.upiId),
+                  ],
+                ),
+              ),
+            if (settings.instructions.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _section(
+                title: 'Additional instructions',
+                child: Text(
+                  settings.instructions,
+                  style: const TextStyle(height: 1.45),
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            _section(
+              title: 'Upload payment proof',
+              subtitle:
+                  'Your balance changes only after the superadmin verifies this submission.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _paymentMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment method',
+                    ),
+                    items: [
+                      if (settings.hasUpiId || settings.hasUpiQr)
+                        const DropdownMenuItem(
+                          value: 'upi',
+                          child: Text('UPI'),
+                        ),
+                      if (settings.hasBankTransfer)
+                        const DropdownMenuItem(
+                          value: 'bank_transfer',
+                          child: Text('Bank transfer'),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _paymentMethod = value);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _referenceController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Transaction reference / UTR',
+                      hintText: 'Enter the bank or UPI reference number',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  InkWell(
+                    onTap: _selectPaymentDate,
+                    borderRadius: AppRadius.input,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Payment date',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      child: Text(_formatDate(_paidAt)),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (_proofPreview != null) ...[
+                    ClipRRect(
+                      borderRadius: AppRadius.md,
+                      child: Image.memory(
+                        _proofPreview!,
+                        height: 220,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  AppSecondaryButton(
+                    label: _proofPreview == null
+                        ? 'Upload payment screenshot'
+                        : 'Replace screenshot',
+                    icon: Icons.upload_file_outlined,
+                    fullWidth: true,
+                    onPressed: _submitting ? null : _pickProof,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
+                  AppPrimaryButton(
+                    label: 'Submit for verification',
+                    icon: Icons.verified_user_outlined,
+                    fullWidth: true,
+                    loading: _submitting,
+                    onPressed: _submitting ? null : _submit,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 
   Widget _statusView(PaymentSubmission submission) {
     final underReview =

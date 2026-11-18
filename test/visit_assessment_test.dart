@@ -392,11 +392,8 @@ void main() {
     expect(find.text('Step 1 of 7'), findsOneWidget);
     expect(find.text('Visit Information'), findsOneWidget);
     expect(find.text('Muhammed Ali'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('visit-nurse-name')),
-      120,
-      scrollable: find.byType(Scrollable).last,
-    );
+    await tester.drag(find.byType(ListView), const Offset(0, -480));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('visit-nurse-name')), findsOneWidget);
   });
 
@@ -414,26 +411,18 @@ void main() {
       MaterialApp(home: VisitAssessmentFlowScreen(controller: controller)),
     );
 
-    expect(find.text('Visit Mode'), findsOneWidget);
     expect(controller.assessment.visitMode, 'new');
     expect(controller.assessment.nurseName, isEmpty);
 
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('visit-nurse-name')),
-      120,
-      scrollable: find.byType(Scrollable).last,
-    );
+    await tester.drag(find.byType(ListView), const Offset(0, -480));
+    await tester.pumpAndSettle();
+    expect(find.text('Visit Mode'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('visit-nurse-name')),
       'Nurse B',
     );
     await tester.pump();
 
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('visit-mode-emergency')),
-      120,
-      scrollable: find.byType(Scrollable).last,
-    );
     await tester.tap(find.byKey(const ValueKey('visit-mode-emergency')));
     await tester.pumpAndSettle();
 

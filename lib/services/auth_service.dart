@@ -635,7 +635,17 @@ class AuthService with ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
+  Future<void> logout({bool revokeServerSession = true}) async {
+    if (revokeServerSession && _token != null) {
+      try {
+        await http
+            .post(Uri.parse(ApiConfig.logoutEndpoint), headers: headers)
+            .timeout(const Duration(seconds: 5));
+      } catch (error) {
+        if (kDebugMode) debugPrint('Server logout error: $error');
+      }
+    }
+
     _token = null;
     _role = null;
     _user = null;
@@ -674,7 +684,7 @@ class AuthService with ChangeNotifier {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final message =
             data['message']?.toString() ?? 'Account deleted successfully';
-        await logout();
+        await logout(revokeServerSession: false);
         return AccountDeletionResult.success(message);
       }
 

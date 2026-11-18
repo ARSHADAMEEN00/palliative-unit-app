@@ -51,6 +51,8 @@ class Patient {
   final String? volunteerContact;
   final String? registerId;
   final DateTime? registrationDate; // User-controlled registration date
+  final bool isExcelImported;
+  final String registrationSource;
   final bool isDead;
   final DateTime? dateOfDeath;
   final String? createdBy;
@@ -85,6 +87,8 @@ class Patient {
     this.volunteerContact,
     this.registerId,
     this.registrationDate,
+    this.isExcelImported = false,
+    this.registrationSource = 'MANUAL',
     this.isDead = false,
     this.dateOfDeath,
     this.createdBy,
@@ -136,6 +140,10 @@ class Patient {
       registrationDate: json['registrationDate'] != null
           ? DateTime.tryParse(json['registrationDate'].toString())
           : null,
+      isExcelImported: json['isExcelImported'] == true ||
+          json['registrationSource']?.toString().toUpperCase() == 'EXCEL',
+      registrationSource: json['registrationSource']?.toString() ??
+          (json['isExcelImported'] == true ? 'EXCEL' : 'MANUAL'),
       isDead: json['isDead'] == true,
       dateOfDeath: json['dateOfDeath'] != null
           ? DateTime.tryParse(json['dateOfDeath'].toString())
@@ -189,6 +197,8 @@ class Patient {
       'volunteerContact': volunteerContact,
       'registerId': registerId,
       'registrationDate': registrationDate?.toIso8601String(),
+      'isExcelImported': isExcelImported,
+      'registrationSource': registrationSource,
       'isDead': isDead,
       'dateOfDeath': dateOfDeath?.toIso8601String(),
     };
@@ -218,6 +228,8 @@ class Patient {
     String? volunteerContact,
     String? registerId,
     DateTime? registrationDate,
+    bool? isExcelImported,
+    String? registrationSource,
     bool? isDead,
     DateTime? dateOfDeath,
     String? transferStatus,
@@ -249,6 +261,8 @@ class Patient {
       volunteerContact: volunteerContact ?? this.volunteerContact,
       registerId: registerId ?? this.registerId,
       registrationDate: registrationDate ?? this.registrationDate,
+      isExcelImported: isExcelImported ?? this.isExcelImported,
+      registrationSource: registrationSource ?? this.registrationSource,
       isDead: isDead ?? this.isDead,
       dateOfDeath: dateOfDeath ?? this.dateOfDeath,
       createdAt: createdAt,

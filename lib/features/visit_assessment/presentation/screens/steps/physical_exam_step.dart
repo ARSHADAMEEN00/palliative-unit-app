@@ -147,59 +147,62 @@ class PhysicalExamStep extends StatelessWidget {
   }) {
     return AssessmentCard(
       padding: EdgeInsets.zero,
-      child: Theme(
-        data: ThemeData(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: initiallyExpanded,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 13),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: const Icon(
-            Icons.chevron_right,
-            size: 17,
-            color: assessmentMuted,
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${items.length} ${isMalayalam ? 'ഇനങ്ങൾ' : 'items'}',
-                style: const TextStyle(color: assessmentMuted, fontSize: 9),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.keyboard_arrow_down,
-                size: 18,
-                color: assessmentMuted,
-              ),
-            ],
-          ),
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-          children: items.isEmpty
-              ? [
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Text(
-                      emptyMessage ?? '',
-                      style: const TextStyle(
-                        color: assessmentMuted,
-                        fontSize: 11,
+      child: Material(
+        color: Colors.transparent,
+        child: Theme(
+          data: ThemeData(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: initiallyExpanded,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 13),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            leading: const Icon(
+              Icons.chevron_right,
+              size: 17,
+              color: assessmentMuted,
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${items.length} ${isMalayalam ? 'ഇനങ്ങൾ' : 'items'}',
+                  style: const TextStyle(color: assessmentMuted, fontSize: 9),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: assessmentMuted,
+                ),
+              ],
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+            children: items.isEmpty
+                ? [
+                    Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(
+                        emptyMessage ?? '',
+                        style: const TextStyle(
+                          color: assessmentMuted,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
-                  ),
-                ]
-              : items.entries
-                    .map(
-                      (entry) => _finding(
-                        context,
-                        entry.key,
-                        entry.value,
-                        isMalayalam,
-                      ),
-                    )
-                    .toList(),
+                  ]
+                : items.entries
+                      .map(
+                        (entry) => _finding(
+                          context,
+                          entry.key,
+                          entry.value,
+                          isMalayalam,
+                        ),
+                      )
+                      .toList(),
+          ),
         ),
       ),
     );
