@@ -586,7 +586,9 @@ class _ConfigPageState extends State<ConfigPage>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update role: $e'),
+          content: Text(
+            'Failed to update role: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -1738,7 +1740,7 @@ class _ConfigPageState extends State<ConfigPage>
                   );
                 } catch (e) {
                   setSheetState(() {
-                    formError = e.toString();
+                    formError = e.toString().replaceFirst('Exception: ', '');
                     isSubmitting = false;
                   });
                 }
@@ -2191,7 +2193,10 @@ class _ConfigPageState extends State<ConfigPage>
               } catch (error) {
                 setDialogState(() {
                   saving = false;
-                  errorMessage = error.toString();
+                  errorMessage = error.toString().replaceFirst(
+                    'Exception: ',
+                    '',
+                  );
                 });
               }
             }
