@@ -845,7 +845,7 @@ class _patientrigisterState extends State<patientrigister> {
                   const SizedBox(height: AppSpacing.md),
                   DropdownButtonFormField<String>(
                     decoration: _buildInputDecoration(
-                      wardRequired ? "Unit / Ward *" : "Unit / Ward (optional)",
+                      wardRequired ? "Ward *" : "Ward (optional)",
                       Icons.apartment,
                     ),
                     key: ValueKey(
@@ -868,7 +868,7 @@ class _patientrigisterState extends State<patientrigister> {
                           ? 'Select a local body / zone first'
                           : _wardsForSelectedLocalBody.isEmpty
                           ? 'No wards configured for this local body / zone'
-                          : 'Select unit / ward',
+                          : 'Select ward',
                       style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.normal,
@@ -898,13 +898,13 @@ class _patientrigisterState extends State<patientrigister> {
                               _selectedCurrentWardId = value;
                               final selectedWard = _wardById(value);
                               _selectedWardTitle =
-                                   selectedWard?.lsgWardValue ??
+                                  selectedWard?.lsgWardValue ??
                                   selectedWard?.name;
                             });
                           },
                     validator: (value) =>
                         wardRequired && (value == null || value.isEmpty)
-                        ? 'Unit / Ward is required'
+                        ? 'Ward is required'
                         : null,
                   ),
                   const SizedBox(height: AppSpacing.md),

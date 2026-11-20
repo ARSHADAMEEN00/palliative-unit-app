@@ -29,9 +29,24 @@ String normalizeWardNumberValue(dynamic raw) {
   return text;
 }
 
-String formatWardLabel(dynamic raw) {
+String formatWardLabel(dynamic raw, {bool prefix = true}) {
   final value = normalizeWardNumberValue(raw);
   if (value.isEmpty) return '';
+  if (!prefix) {
+    var text = value;
+    if (RegExp(r'^ward\s+', caseSensitive: false).hasMatch(text)) {
+      text =
+          text.replaceFirst(RegExp(r'^ward\s+', caseSensitive: false), '').trim();
+    }
+    if (text.contains(':')) {
+      final parts = text.split(':');
+      final namePart = parts.sublist(1).join(':').trim();
+      if (namePart.isNotEmpty) {
+        return namePart;
+      }
+    }
+    return text;
+  }
   if (RegExp(r'^ward\b', caseSensitive: false).hasMatch(value)) return value;
   return 'Ward $value';
 }
@@ -44,15 +59,33 @@ String wardKey(String value) {
   return normalized.toLowerCase();
 }
 
-List<String> parseWardInput(dynamic raw) {
+List<String> parseWardInput(dynamic raw, {bool prefix = true}) {
   if (raw == null) return const [];
 
   final seen = <String>{};
   return raw
       .toString()
       .split(',')
-      .map(normalizeWardNumberValue)
-      .where((ward) => ward.isNotEmpty && seen.add(wardKey(ward)))
+      .map((item) {
+        final val = normalizeWardNumberValue(item);
+        if (!prefix) {
+          var text = val;
+          if (RegExp(r'^ward\s+', caseSensitive: false).hasMatch(text)) {
+            text = text
+                .replaceFirst(RegExp(r'^ward\s+', caseSensitive: false), '')
+                .trim();
+          }
+          if (text.contains(':')) {
+            final parts = text.split(':');
+            final namePart = parts.sublist(1).join(':').trim();
+            if (namePart.isNotEmpty) return namePart;
+          }
+          return text;
+        }
+        return val;
+      })
+      .where((ward) => ward.trim().isNotEmpty && seen.add(wardKey(ward)))
+      .map((ward) => ward.trim())
       .toList(growable: false);
 }
 
@@ -174,6 +207,8 @@ class TransferSettings {
 class Config {
   final String? id;
   final bool lsgWardStructureReadOnly;
+  final int staffLimit;
+  bool wardPrefixEnabled;
   final List<String> villages;
   final List<String> diseases;
   final List<String> plans;
@@ -189,6 +224,8 @@ class Config {
   Config({
     this.id,
     this.lsgWardStructureReadOnly = false,
+    this.staffLimit = 1,
+    this.wardPrefixEnabled = true,
     required this.villages,
     required this.diseases,
     required this.plans,
@@ -218,6 +255,12 @@ class Config {
       lsgWardStructureReadOnly:
           json['lsgWardStructureReadOnly'] == true ||
           json['lsg_ward_structure_read_only'] == true,
+      staffLimit: int.tryParse(json['staffLimit']?.toString() ?? '') ??
+          int.tryParse(json['staff_limit']?.toString() ?? '') ??
+          1,
+      wardPrefixEnabled:
+          json['wardPrefixEnabled'] != false &&
+          json['ward_prefix_enabled'] != false,
       villages:
           (json['villages'] as List<dynamic>?)
               ?.map((e) => e.toString())
@@ -278,6 +321,7 @@ class Config {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'wardPrefixEnabled': wardPrefixEnabled,
       'villages': villages,
       'diseases': diseases,
       'plans': plans,

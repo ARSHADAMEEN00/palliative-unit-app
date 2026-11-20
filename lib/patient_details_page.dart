@@ -645,8 +645,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               : IconButton(
                   tooltip: 'Download patient report (PDF)',
                   onPressed: _isMutating ? null : _downloadPatientPdf,
-                  constraints:
-                      BoxConstraints.tightFor(width: btnSize, height: btnSize),
+                  constraints: BoxConstraints.tightFor(
+                    width: btnSize,
+                    height: btnSize,
+                  ),
                   padding: EdgeInsets.zero,
                   style: IconButton.styleFrom(
                     backgroundColor: AppColors.surface1,
@@ -661,8 +663,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
           child: IconButton(
             tooltip: 'Edit patient',
             onPressed: _isMutating ? null : _editPatient,
-            constraints:
-                BoxConstraints.tightFor(width: btnSize, height: btnSize),
+            constraints: BoxConstraints.tightFor(
+              width: btnSize,
+              height: btnSize,
+            ),
             padding: EdgeInsets.zero,
             style: IconButton.styleFrom(
               backgroundColor: AppColors.surface1,
@@ -681,49 +685,51 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               tooltip: 'More actions',
               padding: EdgeInsets.zero,
               enabled: !_isMutating,
-              icon: Icon(Icons.more_horiz,
-                  color: AppColors.text, size: iconSize),
+              icon: Icon(
+                Icons.more_horiz,
+                color: AppColors.text,
+                size: iconSize,
+              ),
               color: AppColors.surface,
-              shape:
-                  const RoundedRectangleBorder(borderRadius: AppRadius.card),
+              shape: const RoundedRectangleBorder(borderRadius: AppRadius.card),
               onSelected: _handlePatientAction,
               itemBuilder: (context) => [
-              if (auth.canInitiatePatientTransfer &&
-                  !_currentPatient.isDead &&
-                  _currentPatient.transferStatus != 'TRANSFER_PENDING')
-                const PopupMenuItem(
-                  value: _PatientAction.transfer,
-                  child: AppMenuActionLabel(
-                    icon: Icons.swap_horiz_rounded,
-                    label: 'Transfer patient',
-                    color: AppColors.primary,
+                if (auth.canInitiatePatientTransfer &&
+                    !_currentPatient.isDead &&
+                    _currentPatient.transferStatus != 'TRANSFER_PENDING')
+                  const PopupMenuItem(
+                    value: _PatientAction.transfer,
+                    child: AppMenuActionLabel(
+                      icon: Icons.swap_horiz_rounded,
+                      label: 'Transfer patient',
+                      color: AppColors.primary,
+                    ),
                   ),
-                ),
-              if (auth.canEdit &&
-                  !_currentPatient.isDead &&
-                  _currentPatient.transferStatus != 'TRANSFER_PENDING')
-                const PopupMenuItem(
-                  value: _PatientAction.markDeceased,
-                  child: AppMenuActionLabel(
-                    leading: DeceasedIcon(size: 18, color: AppColors.warning),
-                    label: 'Mark as passed away',
-                    color: AppColors.warning,
+                if (auth.canEdit &&
+                    !_currentPatient.isDead &&
+                    _currentPatient.transferStatus != 'TRANSFER_PENDING')
+                  const PopupMenuItem(
+                    value: _PatientAction.markDeceased,
+                    child: AppMenuActionLabel(
+                      leading: DeceasedIcon(size: 18, color: AppColors.warning),
+                      label: 'Mark as passed away',
+                      color: AppColors.warning,
+                    ),
                   ),
-                ),
-              if (auth.canDelete &&
-                  _currentPatient.transferStatus != 'TRANSFER_PENDING')
-                const PopupMenuItem(
-                  value: _PatientAction.delete,
-                  child: AppMenuActionLabel(
-                    icon: Icons.delete_outline,
-                    label: 'Delete patient',
-                    color: AppColors.danger,
+                if (auth.canDelete &&
+                    _currentPatient.transferStatus != 'TRANSFER_PENDING')
+                  const PopupMenuItem(
+                    value: _PatientAction.delete,
+                    child: AppMenuActionLabel(
+                      icon: Icons.delete_outline,
+                      label: 'Delete patient',
+                      color: AppColors.danger,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
     ];
   }
 
@@ -783,10 +789,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 : Text(
                     initial,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: _patientPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 20,
-                        ),
+                      color: _patientPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
                   ),
           ),
           const SizedBox(width: 10),
@@ -802,7 +808,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                               fontSize: 15.5,
                               color: AppColors.text,
@@ -831,10 +838,10 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                 Text(
                   secondary.join('  •  '),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11.5,
-                      ),
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11.5,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -915,7 +922,8 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (registerId?.isNotEmpty == true || _currentPatient.isExcelImported)
+              if (registerId?.isNotEmpty == true ||
+                  _currentPatient.isExcelImported)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1126,7 +1134,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
               ),
               _infoRow(
                 Icons.apartment_outlined,
-                'Unit / Ward',
+                'Ward',
                 _value(
                   _currentPatient.ward?.isNotEmpty == true
                       ? _currentPatient.ward
@@ -2289,11 +2297,7 @@ class _PatientDetailsPageState extends State<PatientDetailsPage> {
     );
   }
 
-  Widget _lightHeaderPill(
-    String label, {
-    IconData? icon,
-    Color? color,
-  }) {
+  Widget _lightHeaderPill(String label, {IconData? icon, Color? color}) {
     final pillColor = color ?? AppColors.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),

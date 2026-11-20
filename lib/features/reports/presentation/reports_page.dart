@@ -10,6 +10,7 @@ import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/pdf/report_pdf_generator.dart';
 import 'package:oruma_app/features/reports/presentation/report_config.dart';
 import 'package:oruma_app/services/auth_service.dart';
+import 'package:oruma_app/models/config.dart';
 import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/patient_details_page.dart';
 import 'package:oruma_app/services/patient_service.dart';
@@ -278,95 +279,165 @@ class _ReportsPageState extends State<ReportsPage> {
         : '${_filters.from == null ? 'Start' : dateFormat.format(_filters.from!)} – '
               '${_filters.to == null ? 'Today' : dateFormat.format(_filters.to!)}';
 
-    return Container(
-      color: AppColors.surface,
-      padding: EdgeInsets.fromLTRB(
-        AppInsets.screenHorizontal(context),
-        AppSpacing.xs,
-        AppInsets.screenHorizontal(context),
-        AppSpacing.md,
-      ),
-      child: Column(
-        children: [
-          TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Search ${_type.label.toLowerCase()} records',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchController.clear();
-                        _filters = _filters.copyWith(search: '', page: 1);
-                        setState(() {});
-                        _load();
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-              filled: true,
-              fillColor: AppColors.surface1,
-              border: OutlineInputBorder(
-                borderRadius: AppRadius.input,
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: AppRadius.input,
-                borderSide: const BorderSide(color: AppColors.border),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 760;
+
+        Widget buildSearchField() {
+          return SizedBox(
+            height: 38,
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(fontSize: 14),
+              textAlignVertical: TextAlignVertical.center,
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                hintText: 'Search ${_type.label.toLowerCase()} records',
+                hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                prefixIcon: const Icon(Icons.search, size: 18),
+                prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        padding: EdgeInsets.zero,
+                        iconSize: 18,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchController.clear();
+                          _filters = _filters.copyWith(search: '', page: 1);
+                          setState(() {});
+                          _load();
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                filled: true,
+                fillColor: AppColors.surface1,
+                border: OutlineInputBorder(
+                  borderRadius: AppRadius.input,
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: AppRadius.input,
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: AppRadius.input,
+                  borderSide: const BorderSide(color: AppColors.primary),
+                ),
               ),
             ),
+          );
+        }
+
+        final periodChip = ActionChip(
+          visualDensity: VisualDensity.compact,
+          avatar: const Icon(Icons.date_range_outlined, size: 16),
+          label: Text(period, style: const TextStyle(fontSize: 13)),
+          onPressed: _showFilters,
+        );
+
+        final filtersChip = ActionChip(
+          visualDensity: VisualDensity.compact,
+          avatar: Badge(
+            isLabelVisible: _filters.activeFilterCount > 0,
+            label: Text('${_filters.activeFilterCount}'),
+            child: const Icon(Icons.filter_list, size: 16),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
+          label: const Text('Filters', style: TextStyle(fontSize: 13)),
+          onPressed: _showFilters,
+        );
+
+        final sortChip = ActionChip(
+          visualDensity: VisualDensity.compact,
+          avatar: Icon(
+            _filters.sortOrder == 'asc'
+                ? Icons.arrow_upward
+                : Icons.arrow_downward,
+            size: 16,
+          ),
+          label: Text(_sortLabel(), style: const TextStyle(fontSize: 13)),
+          onPressed: _showSort,
+        );
+
+        final showReset =
+            _filters.activeFilterCount > 0 || _filters.search.isNotEmpty;
+        final resetButton = TextButton(
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+          ),
+          onPressed: () {
+            _searchController.clear();
+            setState(() => _filters = _defaultFilters(_type));
+            _load();
+          },
+          child: const Text('Reset', style: TextStyle(fontSize: 13)),
+        );
+
+        if (isWide) {
+          return Container(
+            color: AppColors.surface,
+            padding: EdgeInsets.fromLTRB(
+              AppInsets.screenHorizontal(context),
+              AppSpacing.xs,
+              AppInsets.screenHorizontal(context),
+              AppSpacing.xs,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: buildSearchField()),
+                const SizedBox(width: AppSpacing.sm),
+                periodChip,
+                const SizedBox(width: AppSpacing.xs),
+                filtersChip,
+                const SizedBox(width: AppSpacing.xs),
+                sortChip,
+                if (showReset) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  resetButton,
+                ],
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          color: AppColors.surface,
+          padding: EdgeInsets.fromLTRB(
+            AppInsets.screenHorizontal(context),
+            AppSpacing.xs,
+            AppInsets.screenHorizontal(context),
+            AppSpacing.sm,
+          ),
+          child: Column(
             children: [
-              Expanded(
-                child: Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    ActionChip(
-                      avatar: const Icon(Icons.date_range_outlined, size: 18),
-                      label: Text(period),
-                      onPressed: _showFilters,
+              buildSearchField(),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        periodChip,
+                        filtersChip,
+                        sortChip,
+                      ],
                     ),
-                    ActionChip(
-                      avatar: Badge(
-                        isLabelVisible: _filters.activeFilterCount > 0,
-                        label: Text('${_filters.activeFilterCount}'),
-                        child: const Icon(Icons.filter_list, size: 18),
-                      ),
-                      label: const Text('Filters'),
-                      onPressed: _showFilters,
-                    ),
-                    ActionChip(
-                      avatar: Icon(
-                        _filters.sortOrder == 'asc'
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 18,
-                      ),
-                      label: Text(_sortLabel()),
-                      onPressed: _showSort,
-                    ),
-                  ],
-                ),
+                  ),
+                  if (showReset) resetButton,
+                ],
               ),
-              if (_filters.activeFilterCount > 0 || _filters.search.isNotEmpty)
-                TextButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _filters = _defaultFilters(_type));
-                    _load();
-                  },
-                  child: const Text('Reset'),
-                ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -391,44 +462,58 @@ class _ReportsPageState extends State<ReportsPage> {
     if (result == null) return const SizedBox.shrink();
     return Stack(
       children: [
-        RefreshIndicator(
-          onRefresh: _load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: AppInsets.screen(context, top: AppSpacing.md),
-                sliver: SliverList.list(
-                  children: [
-                    _buildSummary(result),
-                    const SizedBox(height: AppSpacing.md),
-                    if (result.rows.isEmpty)
-                      const SizedBox(
-                        height: 280,
-                        child: _ReportMessage(
-                          icon: Icons.query_stats_outlined,
-                          title: 'No matching records',
-                          message: 'Try changing the date range or filters.',
-                        ),
-                      )
-                    else
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return constraints.maxWidth >= 760
-                              ? _buildTable(result)
-                              : _buildCards(result);
-                        },
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppInsets.screenHorizontal(context),
+                AppSpacing.sm,
+                AppInsets.screenHorizontal(context),
+                AppSpacing.xs,
+              ),
+              child: _buildSummary(result),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: AppInsets.screen(context, top: AppSpacing.xs),
+                      sliver: SliverList.list(
+                        children: [
+                          if (result.rows.isEmpty)
+                            const SizedBox(
+                              height: 280,
+                              child: _ReportMessage(
+                                icon: Icons.query_stats_outlined,
+                                title: 'No matching records',
+                                message: 'Try changing the date range or filters.',
+                              ),
+                            )
+                          else
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                return constraints.maxWidth >= 760
+                                    ? _buildTable(result)
+                                    : _buildCards(result);
+                              },
+                            ),
+                          if (result.pagination.totalPages > 1) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            _buildPagination(result.pagination),
+                          ],
+                          const SizedBox(height: AppSpacing.xl),
+                        ],
                       ),
-                    if (result.pagination.totalPages > 1) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      _buildPagination(result.pagination),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         if (_loading)
           const Positioned(
@@ -827,6 +912,18 @@ class _ReportsPageState extends State<ReportsPage> {
     var from = _filters.from;
     var to = _filters.to;
     var extra = Map<String, String>.from(_filters.extra);
+    final initialWard = _wardChoices.cast<Ward?>().firstWhere(
+      (w) => w?.id == extra['ward'],
+      orElse: () => null,
+    );
+    var selectedLocalBody =
+        extra['localBody'] ?? initialWard?.localBody?.trim() ?? '';
+    final localBodies = _wardChoices
+        .map((w) => w.localBody?.trim() ?? '')
+        .where((b) => b.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort(compareNaturally);
     final lowStockController = TextEditingController(
       text: extra['lowStockThreshold'] ?? '10',
     );
@@ -901,6 +998,7 @@ class _ReportsPageState extends State<ReportsPage> {
                             from = null;
                             to = null;
                             extra = {};
+                            selectedLocalBody = '';
                             lowStockController.text = '10';
                             expiryController.text = '60';
                           }),
@@ -984,42 +1082,114 @@ class _ReportsPageState extends State<ReportsPage> {
                       );
                     }),
                     if (_type == ReportType.patientWards ||
-                        _type == ReportType.patients)
+                        _type == ReportType.patients) ...[
                       Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.sm),
                         child: DropdownButtonFormField<String>(
+                          key: ValueKey('filter_lb_$selectedLocalBody'),
+                          initialValue: selectedLocalBody,
+                          isDense: true,
+                          itemHeight: 48,
+                          menuMaxHeight: 320,
+                          style: _compactDropdownTextStyle(),
+                          decoration: _compactDropdownDecoration('Local body'),
+                          items: [
+                            DropdownMenuItem(
+                              value: '',
+                              child: Text(
+                                'All local bodies',
+                                style: _compactDropdownTextStyle(),
+                              ),
+                            ),
+                            ...localBodies.map(
+                              (lb) => DropdownMenuItem(
+                                value: lb,
+                                child: Text(
+                                  lb,
+                                  style: _compactDropdownTextStyle(),
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) => setModalState(() {
+                            selectedLocalBody = value ?? '';
+                            if (selectedLocalBody.isNotEmpty) {
+                              extra['localBody'] = selectedLocalBody;
+                            } else {
+                              extra.remove('localBody');
+                            }
+                            final currentWardId = extra['ward'] ?? '';
+                            if (currentWardId.isNotEmpty &&
+                                currentWardId != 'unassigned') {
+                              final currentWard = _wardChoices
+                                  .cast<Ward?>()
+                                  .firstWhere(
+                                    (w) => w?.id == currentWardId,
+                                    orElse: () => null,
+                                  );
+                              if (selectedLocalBody.isNotEmpty &&
+                                  (currentWard?.localBody?.trim() ?? '') !=
+                                      selectedLocalBody) {
+                                extra['ward'] = '';
+                              }
+                            }
+                          }),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.sm),
+                        child: DropdownButtonFormField<String>(
+                          key: ValueKey(
+                            'filter_ward_${selectedLocalBody}_${extra['ward'] ?? ''}',
+                          ),
                           initialValue: extra['ward'] ?? '',
+                          isDense: true,
+                          itemHeight: 48,
+                          menuMaxHeight: 320,
                           style: _compactDropdownTextStyle(),
                           decoration: _compactDropdownDecoration('Care ward'),
                           items: [
                             DropdownMenuItem(
                               value: '',
                               child: Text(
-                                'All wards',
+                                selectedLocalBody.isEmpty
+                                    ? 'All wards'
+                                    : 'All in $selectedLocalBody',
                                 style: _compactDropdownTextStyle(),
                               ),
                             ),
-                            DropdownMenuItem(
-                              value: 'unassigned',
-                              child: Text(
-                                'Unassigned',
-                                style: _compactDropdownTextStyle(),
-                              ),
-                            ),
-                            ..._wardChoices.map(
-                              (ward) => DropdownMenuItem(
-                                value: ward.id,
+                            if (selectedLocalBody.isEmpty)
+                              DropdownMenuItem(
+                                value: 'unassigned',
                                 child: Text(
-                                  ward.label,
+                                  'Unassigned',
                                   style: _compactDropdownTextStyle(),
                                 ),
                               ),
-                            ),
+                            ..._wardChoices
+                                .where(
+                                  (ward) =>
+                                      selectedLocalBody.isEmpty ||
+                                      (ward.localBody?.trim() ?? '') ==
+                                          selectedLocalBody,
+                                )
+                                .map(
+                                  (ward) => DropdownMenuItem(
+                                    value: ward.id,
+                                    child: Text(
+                                      selectedLocalBody.isEmpty
+                                          ? ward.fullLabel
+                                          : ward.label,
+                                      style: _compactDropdownTextStyle(),
+                                    ),
+                                  ),
+                                ),
                           ],
                           onChanged: (value) =>
                               setModalState(() => extra['ward'] = value ?? ''),
                         ),
                       ),
+                    ],
                     if (_type == ReportType.medicineStock) ...[
                       const SizedBox(height: AppSpacing.md),
                       Row(
@@ -1055,6 +1225,30 @@ class _ReportsPageState extends State<ReportsPage> {
                             extra['lowStockThreshold'] = lowStockController.text
                                 .trim();
                             extra['expiryDays'] = expiryController.text.trim();
+                          }
+                          if (_type == ReportType.patientWards ||
+                              _type == ReportType.patients) {
+                            if (selectedLocalBody.isEmpty) {
+                              extra.remove('localBody');
+                            }
+                            if (selectedLocalBody.isNotEmpty &&
+                                (extra['ward'] ?? '').isEmpty) {
+                              final localWardIds = _wardChoices
+                                  .where(
+                                    (w) =>
+                                        (w.localBody?.trim() ?? '') ==
+                                        selectedLocalBody,
+                                  )
+                                  .map((w) => w.id)
+                                  .join(',');
+                              if (localWardIds.isNotEmpty) {
+                                extra['wardIds'] = localWardIds;
+                              } else {
+                                extra.remove('wardIds');
+                              }
+                            } else {
+                              extra.remove('wardIds');
+                            }
                           }
                           Navigator.pop(
                             context,

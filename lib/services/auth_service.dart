@@ -432,6 +432,12 @@ class AuthService with ChangeNotifier {
     return value?.toString().toLowerCase() == 'true';
   }
 
+  int get unitStaffLimit {
+    final value = unit?['staffLimit'] ?? unit?['staff_limit'];
+    final parsed = int.tryParse(value?.toString() ?? '');
+    return parsed != null && parsed >= 0 ? parsed : 1;
+  }
+
   String get unitName => _firstText([
     unit?['name'],
     _user?['unitName'],

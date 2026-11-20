@@ -8,11 +8,13 @@ class RolePermissionSettings {
     required this.allModuleIds,
     required this.subscribedModuleIds,
     required this.rolePermissions,
+    this.staffLimit,
   });
 
   final List<String> allModuleIds;
   final Set<String> subscribedModuleIds;
   final Map<String, Set<String>> rolePermissions;
+  final int? staffLimit;
 
   factory RolePermissionSettings.fromJson(Map<String, dynamic> json) {
     final rawRoles = json['rolePermissions'];
@@ -26,6 +28,8 @@ class RolePermissionSettings {
         for (final role in const ['admin', 'staff', 'member', 'volunteer'])
           role: _stringList(roles[role]).toSet(),
       },
+      staffLimit: int.tryParse(json['staffLimit']?.toString() ?? '') ??
+          int.tryParse(json['staff_limit']?.toString() ?? ''),
     );
   }
 }

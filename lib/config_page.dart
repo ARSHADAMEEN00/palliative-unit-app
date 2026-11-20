@@ -73,6 +73,7 @@ class _ConfigPageState extends State<ConfigPage>
   String _selectedStaffSection = 'staff';
   String _selectedPermissionRole = 'staff';
   String _staffRoleFilter = 'all';
+  String _staffLocalBodyFilter = 'all';
   String _staffWardFilter = 'all';
   String _staffSearchQuery = '';
   final TextEditingController _staffSearchController = TextEditingController();
@@ -86,6 +87,29 @@ class _ConfigPageState extends State<ConfigPage>
   bool _isSavingRolePermissions = false;
   String? _configErrorMessage;
   String? _staffErrorMessage;
+  int? _unitStaffLimit;
+
+  int get _staffLimit {
+    if (_unitStaffLimit != null && _unitStaffLimit! >= 0) {
+      return _unitStaffLimit!;
+    }
+    if (_config != null && _config!.staffLimit >= 0) {
+      return _config!.staffLimit;
+    }
+    try {
+      return context.read<AuthService>().unitStaffLimit;
+    } catch (_) {
+      return 1;
+    }
+  }
+
+  int get _currentStaffCount =>
+      _staff.where((staff) => staff.role == 'staff').length;
+
+  int get _remainingStaffCapacity =>
+      (_staffLimit - _currentStaffCount).clamp(0, _staffLimit);
+
+  bool get _isStaffLimitReached => _currentStaffCount >= _staffLimit;
 
   List<String> get _assignableRoles => _roles
       .where(
@@ -238,6 +262,9 @@ class _ConfigPageState extends State<ConfigPage>
       setState(() {
         _config = config;
         _careWards = wards;
+        if (_unitStaffLimit == null && config.staffLimit >= 0) {
+          _unitStaffLimit = config.staffLimit;
+        }
         _ensureSelectedWardVillage(config);
         _isLoadingConfig = false;
       });
@@ -269,6 +296,9 @@ class _ConfigPageState extends State<ConfigPage>
       setState(() {
         _staff = staff;
         _careWards = careWards;
+        if (permissions.staffLimit != null) {
+          _unitStaffLimit = permissions.staffLimit;
+        }
         _rolePermissionDefaults = {
           for (final role in _permissionRoles)
             role: {...?permissions.rolePermissions[role]},
@@ -427,16 +457,20 @@ class _ConfigPageState extends State<ConfigPage>
   }
 
   Future<void> _renameWard(WardConfig ward) async {
-    final parts = normalizeWardNumberValue(ward.number).split(':');
-    final currentName = parts.length > 1
+    final raw = normalizeWardNumberValue(ward.number);
+    final hasColon = raw.contains(':');
+    final parts = raw.split(':');
+    final currentName = hasColon
         ? parts.sublist(1).join(':').trim()
-        : '';
-    final identity = parts.first.trim();
+        : (_config?.wardPrefixEnabled == false ? raw : '');
+    final identity = hasColon ? parts.first.trim() : raw;
     final newName = await _showLsgRenameDialog(
-      title: 'Rename Ward $identity',
+      title: 'Rename $identity',
       fieldLabel: 'Ward name',
       initialValue: currentName,
-      helperText: 'The ward number and existing assignments will not change.',
+      helperText: _config?.wardPrefixEnabled == false
+          ? 'Update the ward name.'
+          : 'The ward number and existing assignments will not change.',
       allowEmpty: true,
     );
     if (newName == null || newName.trim() == currentName) return;
@@ -513,7 +547,10 @@ class _ConfigPageState extends State<ConfigPage>
   void _addWard() {
     if (_config == null || _selectedWardVillage == null) return;
 
-    final wardValues = parseWardInput(_wardController.text);
+    final wardValues = parseWardInput(
+      _wardController.text,
+      prefix: _config!.wardPrefixEnabled,
+    );
     if (wardValues.isEmpty) return;
 
     setState(() {
@@ -1667,7 +1704,20 @@ class _ConfigPageState extends State<ConfigPage>
     }
     if (!mounted) return;
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
-    final assignableRoles = _assignableRoles;
+    final staffLimit = _staffLimit;
+    final currentStaffCount = _currentStaffCount;
+    final isStaffLimitComplete = currentStaffCount >= staffLimit;
+    final remainingCapacity = (staffLimit - currentStaffCount).clamp(
+      0,
+      staffLimit,
+    );
+
+    final assignableRoles = _assignableRoles.where((role) {
+      if (role == 'staff' && isStaffLimitComplete) {
+        return false;
+      }
+      return true;
+    }).toList();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
@@ -1675,7 +1725,9 @@ class _ConfigPageState extends State<ConfigPage>
     final defaultRole =
         (initialRole != null && assignableRoles.contains(initialRole))
         ? initialRole
-        : 'staff';
+        : (assignableRoles.contains('staff')
+              ? 'staff'
+              : (assignableRoles.isNotEmpty ? assignableRoles.first : 'admin'));
     var selectedRole = defaultRole;
     var selectedModules = <String>{..._modulesForRole(defaultRole)};
     var selectedWardIds = <String>{};
@@ -1706,6 +1758,14 @@ class _ConfigPageState extends State<ConfigPage>
                     selectedWardIds.isEmpty) {
                   setSheetState(() {
                     formError = 'Select at least one ward for a staff user';
+                  });
+                  return;
+                }
+
+                if (selectedRole == 'staff' &&
+                    _currentStaffCount >= _staffLimit) {
+                  setSheetState(() {
+                    formError = 'Staff creation limit reached for this unit.';
                   });
                   return;
                 }
@@ -1885,6 +1945,7 @@ class _ConfigPageState extends State<ConfigPage>
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             DropdownButtonFormField<String>(
+                              key: ValueKey(selectedRole),
                               initialValue: selectedRole,
                               style: const TextStyle(
                                 color: _inkColor,
@@ -1913,12 +1974,43 @@ class _ConfigPageState extends State<ConfigPage>
                               onChanged: isSubmitting
                                   ? null
                                   : (value) => setSheetState(() {
-                                      selectedRole = value ?? 'staff';
+                                      selectedRole =
+                                          value ??
+                                          (assignableRoles.contains('staff')
+                                              ? 'staff'
+                                              : (assignableRoles.isNotEmpty
+                                                    ? assignableRoles.first
+                                                    : 'admin'));
                                       selectedModules = <String>{
                                         ..._modulesForRole(selectedRole),
                                       };
                                     }),
                             ),
+                            if (selectedRole == 'staff' &&
+                                remainingCapacity > 0) ...[
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.info_outline,
+                                      size: 14,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'You can create $remainingCapacity more staff',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: AppSpacing.md),
                             _buildStaffWardPicker(
                               selectedLocalBody: selectedWardLocalBody,
@@ -2122,7 +2214,13 @@ class _ConfigPageState extends State<ConfigPage>
     }
     if (!mounted) return;
     final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
-    final assignableRoles = _assignableRoles;
+    final isStaffLimitComplete = _isStaffLimitReached;
+    final assignableRoles = _assignableRoles.where((role) {
+      if (role == 'staff' && staff.role != 'staff' && isStaffLimitComplete) {
+        return false;
+      }
+      return true;
+    }).toList();
     final nameController = TextEditingController(text: staff.name);
     final emailController = TextEditingController(text: staff.email);
     final passwordController = TextEditingController();
@@ -2156,6 +2254,14 @@ class _ConfigPageState extends State<ConfigPage>
                   selectedWardIds.isEmpty) {
                 setDialogState(() {
                   errorMessage = 'Select at least one ward for a staff user';
+                });
+                return;
+              }
+              if (selectedRole == 'staff' &&
+                  staff.role != 'staff' &&
+                  _currentStaffCount >= _staffLimit) {
+                setDialogState(() {
+                  errorMessage = 'Staff creation limit reached for this unit.';
                 });
                 return;
               }
@@ -2343,6 +2449,32 @@ class _ConfigPageState extends State<ConfigPage>
                                   });
                                 },
                         ),
+                        if (selectedRole == 'staff' &&
+                            staff.role != 'staff' &&
+                            _remainingStaffCapacity > 0) ...[
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  size: 14,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'You can create $_remainingStaffCapacity more staff',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: AppSpacing.md),
                         _buildStaffWardPicker(
                           selectedLocalBody: selectedWardLocalBody,
@@ -2714,7 +2846,10 @@ class _ConfigPageState extends State<ConfigPage>
                               : () => _showAddStaffSheet(
                                   _staffRoleFilter == 'all'
                                       ? null
-                                      : _staffRoleFilter,
+                                      : (_staffRoleFilter == 'staff' &&
+                                                _isStaffLimitReached
+                                            ? null
+                                            : _staffRoleFilter),
                                 )),
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -2726,7 +2861,10 @@ class _ConfigPageState extends State<ConfigPage>
                     label: activeIndex == 0
                         ? 'Save Changes'
                         : (_staffRoleFilter != 'all'
-                              ? 'Add ${_roleLabel(_staffRoleFilter)}'
+                              ? (_staffRoleFilter == 'staff' &&
+                                        _isStaffLimitReached
+                                    ? 'Add User'
+                                    : 'Add ${_roleLabel(_staffRoleFilter)}')
                               : 'Add User'),
                   )
           : null,
@@ -3701,11 +3839,80 @@ class _ConfigPageState extends State<ConfigPage>
           ),
           _LsgSectionHeader(
             icon: Icons.map_outlined,
-            title: 'Unit / Ward',
+            title: 'Ward',
             subtitle: selectedLocalBody != null
-                ? 'Local sub-units or wards of $selectedLocalBody'
+                ? 'Wards of $selectedLocalBody'
                 : 'Select a local body to manage its wards',
             count: wards.length,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface1,
+              borderRadius: AppRadius.sm,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.tag_outlined,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Set ward prefix?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      Text(
+                        'Yes: "Ward 1 : Name" • No: Name only without numbers',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ChoiceChip(
+                  label: const Text('Yes', style: TextStyle(fontSize: 12)),
+                  selected: config.wardPrefixEnabled,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: namesOnly
+                      ? null
+                      : (val) {
+                          if (val && !config.wardPrefixEnabled) {
+                            setState(() => config.wardPrefixEnabled = true);
+                          }
+                        },
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  label: const Text('No', style: TextStyle(fontSize: 12)),
+                  selected: !config.wardPrefixEnabled,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: namesOnly
+                      ? null
+                      : (val) {
+                          if (val && config.wardPrefixEnabled) {
+                            setState(() => config.wardPrefixEnabled = false);
+                          }
+                        },
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           LayoutBuilder(
@@ -3748,7 +3955,9 @@ class _ConfigPageState extends State<ConfigPage>
                   ? null
                   : _AddInlineField(
                       controller: _wardController,
-                      hintText: 'Add wards, separated by commas',
+                      hintText: config.wardPrefixEnabled
+                          ? 'Add wards, separated by commas (e.g. 1, 2 or 1: Name)'
+                          : 'Add ward names, separated by commas',
                       compact: true,
                       enabled: config.villages.isNotEmpty,
                       keyboardType: TextInputType.text,
@@ -3793,7 +4002,12 @@ class _ConfigPageState extends State<ConfigPage>
               runSpacing: 6,
               children: selectedWards.map((ward) {
                 return _ConfigChip(
-                  label: Text(formatWardLabel(ward.number)),
+                  label: Text(
+                    formatWardLabel(
+                      ward.number,
+                      prefix: config.wardPrefixEnabled,
+                    ),
+                  ),
                   icon: Icons.map_outlined,
                   onPressed: namesOnly ? null : () => _renameWard(ward),
                   onDeleted: namesOnly ? null : () => _removeWard(ward),
@@ -4627,9 +4841,65 @@ class _ConfigPageState extends State<ConfigPage>
     );
   }
 
-  Widget _buildStaffWardFilter() {
+  Widget _buildStaffLocalBodyFilter() {
+    final localBodies = {
+      if (_config != null) ..._config!.villages,
+      ..._careWards
+          .map((w) => w.localBody?.trim())
+          .whereType<String>()
+          .where((s) => s.isNotEmpty),
+    }.toList()..sort(compareNaturally);
+
+    if (localBodies.isEmpty) return const SizedBox.shrink();
+
     return DropdownButtonFormField<String>(
-      initialValue: _staffWardFilter,
+      initialValue: _staffLocalBodyFilter,
+      isExpanded: true,
+      style: const TextStyle(
+        color: _inkColor,
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
+      ),
+      decoration: _fieldDecoration(
+        labelText: 'Filter by local body',
+        prefixIcon: Icons.location_city_outlined,
+      ),
+      items: [
+        const DropdownMenuItem(
+          value: 'all',
+          child: Text('All local bodies', style: TextStyle(fontSize: 13)),
+        ),
+        ...localBodies.map(
+          (lb) => DropdownMenuItem(
+            value: lb,
+            child: Text(
+              lb,
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+      onChanged: (value) => setState(() {
+        _staffLocalBodyFilter = value ?? 'all';
+        _staffWardFilter = 'all';
+      }),
+    );
+  }
+
+  Widget _buildStaffWardFilter() {
+    final availableWards = _careWards.where((ward) {
+      if (!ward.isActive) return false;
+      if (_staffLocalBodyFilter != 'all') {
+        return (ward.localBody?.trim() ?? '') == _staffLocalBodyFilter;
+      }
+      return true;
+    }).toList();
+
+    return DropdownButtonFormField<String>(
+      initialValue: availableWards.any((w) => w.id == _staffWardFilter)
+          ? _staffWardFilter
+          : 'all',
       isExpanded: true,
       style: const TextStyle(
         color: _inkColor,
@@ -4645,18 +4915,16 @@ class _ConfigPageState extends State<ConfigPage>
           value: 'all',
           child: Text('All wards', style: TextStyle(fontSize: 13)),
         ),
-        ..._careWards
-            .where((ward) => ward.isActive)
-            .map(
-              (ward) => DropdownMenuItem(
-                value: ward.id,
-                child: Text(
-                  ward.fullLabel,
-                  style: const TextStyle(fontSize: 13),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+        ...availableWards.map(
+          (ward) => DropdownMenuItem(
+            value: ward.id,
+            child: Text(
+              ward.fullLabel,
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
+        ),
       ],
       onChanged: (value) => setState(() => _staffWardFilter = value ?? 'all'),
     );
@@ -4679,6 +4947,12 @@ class _ConfigPageState extends State<ConfigPage>
     final filteredStaff = _staff.where((staff) {
       if (_staffRoleFilter != 'all' && staff.role != _staffRoleFilter) {
         return false;
+      }
+      if (_staffLocalBodyFilter != 'all') {
+        final matchesLocalBody = staff.assignedWards.any(
+          (ward) => (ward.localBody?.trim() ?? '') == _staffLocalBodyFilter,
+        );
+        if (!matchesLocalBody) return false;
       }
       if (_staffWardFilter != 'all' &&
           !staff.assignedWards.any((ward) => ward.id == _staffWardFilter)) {
@@ -4762,11 +5036,15 @@ class _ConfigPageState extends State<ConfigPage>
                       children: [
                         Expanded(flex: 3, child: _buildStaffSearchField()),
                         const SizedBox(width: AppSpacing.sm),
+                        Expanded(flex: 2, child: _buildStaffLocalBodyFilter()),
+                        const SizedBox(width: AppSpacing.sm),
                         Expanded(flex: 2, child: _buildStaffWardFilter()),
                       ],
                     )
                   else ...[
                     _buildStaffSearchField(),
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildStaffLocalBodyFilter(),
                     const SizedBox(height: AppSpacing.sm),
                     _buildStaffWardFilter(),
                   ],
