@@ -23,7 +23,7 @@ Kotlin activity to the matching package, and rebuild.
 
 - Android application ID and namespace are `com.osperb.palliative`.
 - The app explicitly targets Android 16 / API 36 and has minimum API 24.
-- Version is `1.0.12+12` (`versionName` 1.0.12, `versionCode` 12).
+- Version is `1.0.14+14` (`versionName` 1.0.14, `versionCode` 14).
 - Release builds use an upload keystore, R8 code shrinking, resource shrinking,
   Dart obfuscation, and native debug symbols.
 - Clear-text HTTP and Android backups/device transfers are disabled.

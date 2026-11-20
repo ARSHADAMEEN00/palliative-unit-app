@@ -294,17 +294,29 @@ class _ReportsPageState extends State<ReportsPage> {
               textAlignVertical: TextAlignVertical.center,
               decoration: InputDecoration(
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 0,
+                ),
                 hintText: 'Search ${_type.label.toLowerCase()} records',
-                hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                hintStyle: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
                 prefixIcon: const Icon(Icons.search, size: 18),
-                prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 36,
+                  minHeight: 36,
+                ),
                 suffixIcon: _searchController.text.isEmpty
                     ? null
                     : IconButton(
                         padding: EdgeInsets.zero,
                         iconSize: 18,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         tooltip: 'Clear search',
                         onPressed: () {
                           _searchController.clear();
@@ -424,11 +436,7 @@ class _ReportsPageState extends State<ReportsPage> {
                     child: Wrap(
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
-                      children: [
-                        periodChip,
-                        filtersChip,
-                        sortChip,
-                      ],
+                      children: [periodChip, filtersChip, sortChip],
                     ),
                   ),
                   if (showReset) resetButton,
@@ -490,7 +498,8 @@ class _ReportsPageState extends State<ReportsPage> {
                               child: _ReportMessage(
                                 icon: Icons.query_stats_outlined,
                                 title: 'No matching records',
-                                message: 'Try changing the date range or filters.',
+                                message:
+                                    'Try changing the date range or filters.',
                               ),
                             )
                           else
@@ -606,8 +615,7 @@ class _ReportsPageState extends State<ReportsPage> {
               )
               .toList(),
           rows: result.rows.map((row) {
-            final isPatient =
-                _type == ReportType.patients && row['id'] != null;
+            final isPatient = _type == ReportType.patients && row['id'] != null;
             return DataRow(
               onSelectChanged: isPatient
                   ? (_) => _openPatientDetails(row['id']?.toString())
@@ -642,8 +650,7 @@ class _ReportsPageState extends State<ReportsPage> {
         .toList(growable: false);
     return Column(
       children: result.rows.map((row) {
-        final isPatient =
-            _type == ReportType.patients && row['id'] != null;
+        final isPatient = _type == ReportType.patients && row['id'] != null;
         return Material(
           color: Colors.transparent,
           child: InkWell(
@@ -684,10 +691,8 @@ class _ReportsPageState extends State<ReportsPage> {
                             primaryColumn.key,
                             row[primaryColumn.key],
                           ),
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                       if (isPatient)
@@ -698,57 +703,60 @@ class _ReportsPageState extends State<ReportsPage> {
                         ),
                     ],
                   ),
-              const SizedBox(height: AppSpacing.xs),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columnCount = constraints.maxWidth >= 520 ? 3 : 2;
-                  final spacing = AppSpacing.sm * (columnCount - 1);
-                  final itemWidth =
-                      (constraints.maxWidth - spacing) / columnCount;
-                  return Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.xs,
-                    children: detailColumns.map((column) {
-                      return SizedBox(
-                        width: itemWidth,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              column.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w400,
-                              ),
+                  const SizedBox(height: AppSpacing.xs),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columnCount = constraints.maxWidth >= 520 ? 3 : 2;
+                      final spacing = AppSpacing.sm * (columnCount - 1);
+                      final itemWidth =
+                          (constraints.maxWidth - spacing) / columnCount;
+                      return Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xs,
+                        children: detailColumns.map((column) {
+                          return SizedBox(
+                            width: itemWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  column.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  formatReportValue(
+                                    column.key,
+                                    row[column.key],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.2,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 1),
-                            Text(
-                              formatReportValue(column.key, row[column.key]),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                height: 1.2,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
-                  );
-                },
+                    },
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      }).toList(),
     );
-  }).toList(),
-);
   }
 
   Widget _buildPagination(ReportPagination pagination) {
@@ -795,6 +803,15 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
+  Widget _compactDropdownLabel(String label) {
+    return Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: _compactDropdownTextStyle(),
+    );
+  }
+
   InputDecoration _compactDropdownDecoration(String label) {
     return InputDecoration(
       labelText: label,
@@ -836,6 +853,7 @@ class _ReportsPageState extends State<ReportsPage> {
                   const SizedBox(height: AppSpacing.sm),
                   DropdownButtonFormField<String>(
                     initialValue: field,
+                    isExpanded: true,
                     isDense: true,
                     itemHeight: 48,
                     menuMaxHeight: 320,
@@ -845,10 +863,7 @@ class _ReportsPageState extends State<ReportsPage> {
                         .map(
                           (sort) => DropdownMenuItem(
                             value: sort.field,
-                            child: Text(
-                              sort.label,
-                              style: _compactDropdownTextStyle(),
-                            ),
+                            child: _compactDropdownLabel(sort.label),
                           ),
                         )
                         .toList(),
@@ -918,12 +933,13 @@ class _ReportsPageState extends State<ReportsPage> {
     );
     var selectedLocalBody =
         extra['localBody'] ?? initialWard?.localBody?.trim() ?? '';
-    final localBodies = _wardChoices
-        .map((w) => w.localBody?.trim() ?? '')
-        .where((b) => b.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort(compareNaturally);
+    final localBodies =
+        _wardChoices
+            .map((w) => w.localBody?.trim() ?? '')
+            .where((b) => b.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort(compareNaturally);
     final lowStockController = TextEditingController(
       text: extra['lowStockThreshold'] ?? '10',
     );
@@ -1059,6 +1075,7 @@ class _ReportsPageState extends State<ReportsPage> {
                               )
                               ? current
                               : '',
+                          isExpanded: true,
                           isDense: true,
                           itemHeight: 48,
                           menuMaxHeight: 320,
@@ -1068,10 +1085,7 @@ class _ReportsPageState extends State<ReportsPage> {
                               .map(
                                 (choice) => DropdownMenuItem(
                                   value: choice.value,
-                                  child: Text(
-                                    choice.label,
-                                    style: _compactDropdownTextStyle(),
-                                  ),
+                                  child: _compactDropdownLabel(choice.label),
                                 ),
                               )
                               .toList(),
@@ -1088,6 +1102,7 @@ class _ReportsPageState extends State<ReportsPage> {
                         child: DropdownButtonFormField<String>(
                           key: ValueKey('filter_lb_$selectedLocalBody'),
                           initialValue: selectedLocalBody,
+                          isExpanded: true,
                           isDense: true,
                           itemHeight: 48,
                           menuMaxHeight: 320,
@@ -1096,18 +1111,12 @@ class _ReportsPageState extends State<ReportsPage> {
                           items: [
                             DropdownMenuItem(
                               value: '',
-                              child: Text(
-                                'All local bodies',
-                                style: _compactDropdownTextStyle(),
-                              ),
+                              child: _compactDropdownLabel('All local bodies'),
                             ),
                             ...localBodies.map(
                               (lb) => DropdownMenuItem(
                                 value: lb,
-                                child: Text(
-                                  lb,
-                                  style: _compactDropdownTextStyle(),
-                                ),
+                                child: _compactDropdownLabel(lb),
                               ),
                             ),
                           ],
@@ -1143,6 +1152,7 @@ class _ReportsPageState extends State<ReportsPage> {
                             'filter_ward_${selectedLocalBody}_${extra['ward'] ?? ''}',
                           ),
                           initialValue: extra['ward'] ?? '',
+                          isExpanded: true,
                           isDense: true,
                           itemHeight: 48,
                           menuMaxHeight: 320,
@@ -1151,20 +1161,16 @@ class _ReportsPageState extends State<ReportsPage> {
                           items: [
                             DropdownMenuItem(
                               value: '',
-                              child: Text(
+                              child: _compactDropdownLabel(
                                 selectedLocalBody.isEmpty
                                     ? 'All wards'
                                     : 'All in $selectedLocalBody',
-                                style: _compactDropdownTextStyle(),
                               ),
                             ),
                             if (selectedLocalBody.isEmpty)
                               DropdownMenuItem(
                                 value: 'unassigned',
-                                child: Text(
-                                  'Unassigned',
-                                  style: _compactDropdownTextStyle(),
-                                ),
+                                child: _compactDropdownLabel('Unassigned'),
                               ),
                             ..._wardChoices
                                 .where(
@@ -1176,11 +1182,10 @@ class _ReportsPageState extends State<ReportsPage> {
                                 .map(
                                   (ward) => DropdownMenuItem(
                                     value: ward.id,
-                                    child: Text(
+                                    child: _compactDropdownLabel(
                                       selectedLocalBody.isEmpty
                                           ? ward.fullLabel
                                           : ward.label,
-                                      style: _compactDropdownTextStyle(),
                                     ),
                                   ),
                                 ),
@@ -1291,15 +1296,13 @@ class _ReportsPageState extends State<ReportsPage> {
       final patient = await PatientService.getPatientById(id);
       if (!mounted) return;
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PatientDetailsPage(patient: patient),
-        ),
+        MaterialPageRoute(builder: (_) => PatientDetailsPage(patient: patient)),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to open patient: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to open patient: $e')));
     }
   }
 
