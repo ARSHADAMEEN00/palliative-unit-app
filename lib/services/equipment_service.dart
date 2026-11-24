@@ -93,7 +93,13 @@ class EquipmentService {
   }
 
   /// Get only available equipment.
-  static Future<List<Equipment>> getAvailableEquipment({String? search}) async {
+  static Future<List<Equipment>> getAvailableEquipment({
+    String? search,
+    bool forceRefresh = false,
+  }) async {
+    if (forceRefresh) {
+      return _fetchEquipment(status: 'available', search: search);
+    }
     return getAllEquipment(status: 'available', search: search);
   }
 

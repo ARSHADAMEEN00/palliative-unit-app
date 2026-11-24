@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
+import 'package:oruma_app/models/equipment.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
+import 'package:oruma_app/services/equipment_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 
 const _equipmentSupplyStrong = Color(0xFFB45309);
 const _equipmentSupplyIconSurface = Color(0xFFFEF3C7);
@@ -29,6 +32,8 @@ class _EqSupplyEditState extends State<EqSupplyEdit> {
   bool _submitting = false;
   bool _loading = true;
   late EquipmentSupply _supply;
+  List<_EquipmentOption> _equipmentOptions = [];
+  _EquipmentOption? _selectedEquipment;
 
   @override
   void initState() {
@@ -46,10 +51,29 @@ class _EqSupplyEditState extends State<EqSupplyEdit> {
 
   Future<void> _loadSupplyData() async {
     try {
-      final supply = await EquipmentSupplyService.getById(widget.supply.id!);
+      final results = await Future.wait<Object>([
+        EquipmentSupplyService.getById(widget.supply.id!),
+        EquipmentService.getAvailableEquipment(forceRefresh: true),
+      ]);
+      final supply = results[0] as EquipmentSupply;
+      final availableEquipment = results[1] as List<Equipment>;
+      final currentEquipment = _EquipmentOption(
+        id: supply.equipmentId,
+        uniqueId: supply.equipmentUniqueId,
+        name: supply.equipmentName,
+      );
+      final equipmentOptions = [
+        currentEquipment,
+        ...availableEquipment
+            .where((equipment) => equipment.id != supply.equipmentId)
+            .where((equipment) => equipment.id?.isNotEmpty == true)
+            .map(_EquipmentOption.fromEquipment),
+      ];
       if (mounted) {
         setState(() {
           _supply = supply;
+          _equipmentOptions = equipmentOptions;
+          _selectedEquipment = currentEquipment;
           _notesController.text = supply.notes ?? '';
           _careOfController.text = supply.careOf ?? '';
           _receiverNameController.text = supply.receiverName ?? '';
@@ -85,11 +109,21 @@ class _EqSupplyEditState extends State<EqSupplyEdit> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedEquipment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select equipment'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
 
     setState(() => _submitting = true);
 
     try {
       final updates = {
+        'equipmentId': _selectedEquipment!.id,
         'careOf': _careOfController.text.trim(),
         'receiverName': _receiverNameController.text.trim(),
         'receiverPhone': _receiverPhoneController.text.trim(),
@@ -176,39 +210,42 @@ class _EqSupplyEditState extends State<EqSupplyEdit> {
                               title: 'Equipment Details',
                               icon: Icons.inventory_2_outlined,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: _equipmentSupplyIconSurface,
-                                    borderRadius: AppRadius.sm,
-                                    border: Border.all(
-                                      color: _equipmentSupplyStrong.withValues(
-                                        alpha: 0.16,
-                                      ),
-                                    ),
+                                if (_supply.status == 'active') ...[
+                                  SearchableDropdownField<_EquipmentOption>(
+                                    value: _selectedEquipment,
+                                    items: _equipmentOptions,
+                                    itemLabel: (equipment) =>
+                                        '${equipment.uniqueId} - ${equipment.name.toUpperCase()}',
+                                    itemSearchText: (equipment) =>
+                                        '${equipment.uniqueId} ${equipment.name}',
+                                    dialogTitle: 'Change equipment',
+                                    searchHintText:
+                                        'Search by equipment name or ID',
+                                    emptyText: 'No available equipment found',
+                                    hintText: 'Select equipment',
+                                    decoration: _equipmentInputDecoration(),
+                                    onChanged: (equipment) {
+                                      setState(() {
+                                        _selectedEquipment = equipment;
+                                      });
+                                    },
+                                    validator: (equipment) => equipment == null
+                                        ? 'Please select equipment'
+                                        : null,
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _supply.equipmentName.toUpperCase(),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Text(
+                                    _selectedEquipment?.id ==
+                                            _supply.equipmentId
+                                        ? 'Select another available item to replace this equipment.'
+                                        : 'When saved, the old item returns to stock and this item becomes supplied.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'ID: ${_supply.equipmentUniqueId}',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
                                   ),
-                                ),
+                                ] else
+                                  _buildEquipmentSummary(),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -410,6 +447,62 @@ class _EqSupplyEditState extends State<EqSupplyEdit> {
     );
   }
 
+  Widget _buildEquipmentSummary() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _equipmentSupplyIconSurface,
+        borderRadius: AppRadius.sm,
+        border: Border.all(
+          color: _equipmentSupplyStrong.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _supply.equipmentName.toUpperCase(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'ID: ${_supply.equipmentUniqueId}',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _equipmentInputDecoration() {
+    return InputDecoration(
+      isDense: true,
+      prefixIcon: _compactPrefixIcon(Icons.swap_horiz_rounded),
+      prefixIconConstraints: const BoxConstraints(minWidth: 50, minHeight: 50),
+      filled: true,
+      fillColor: AppColors.surface1,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: _equipmentSupplyStrong, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: AppRadius.input,
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+    );
+  }
+
   Widget _compactPrefixIcon(IconData icon) {
     return Container(
       width: 36,
@@ -422,4 +515,24 @@ class _EqSupplyEditState extends State<EqSupplyEdit> {
       child: Icon(icon, color: _equipmentSupplyStrong, size: AppIcons.normal),
     );
   }
+}
+
+class _EquipmentOption {
+  const _EquipmentOption({
+    required this.id,
+    required this.uniqueId,
+    required this.name,
+  });
+
+  factory _EquipmentOption.fromEquipment(Equipment equipment) {
+    return _EquipmentOption(
+      id: equipment.id!,
+      uniqueId: equipment.uniqueId,
+      name: equipment.name,
+    );
+  }
+
+  final String id;
+  final String uniqueId;
+  final String name;
 }

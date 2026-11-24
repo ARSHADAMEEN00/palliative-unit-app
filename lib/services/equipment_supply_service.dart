@@ -7,6 +7,7 @@ class EquipmentSupplyService {
   EquipmentSupplyService._();
 
   static const _prefix = 'eq_supplies:';
+  static const _equipmentPrefix = 'equipment:';
   static const _keyAll = 'eq_supplies:all';
   static const _keyActive = 'eq_supplies:active';
   static const _ttlActive = Duration(minutes: 5);
@@ -135,6 +136,7 @@ class EquipmentSupplyService {
     );
     if (result.isSuccess && result.data != null) {
       AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidatePrefix(_equipmentPrefix);
       return EquipmentSupply.fromJson(result.data!);
     }
     throw Exception(result.error ?? 'Failed to create supply');
@@ -151,6 +153,7 @@ class EquipmentSupplyService {
     );
     if (result.isSuccess && result.data != null) {
       AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidatePrefix(_equipmentPrefix);
       return EquipmentSupply.fromJson(result.data!);
     }
     throw Exception(result.error ?? 'Failed to update supply');
@@ -172,6 +175,7 @@ class EquipmentSupplyService {
     );
     if (result.isSuccess && result.data != null) {
       AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidatePrefix(_equipmentPrefix);
       return EquipmentSupply.fromJson(result.data!);
     }
     throw Exception(result.error ?? 'Failed to mark supply as returned');
@@ -184,6 +188,7 @@ class EquipmentSupplyService {
     );
     if (result.isSuccess) {
       AppCache.invalidatePrefix(_prefix);
+      AppCache.invalidatePrefix(_equipmentPrefix);
       return true;
     }
     throw Exception(result.error ?? 'Failed to delete supply');

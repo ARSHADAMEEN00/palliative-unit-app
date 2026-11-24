@@ -30,7 +30,7 @@ class _EqSupplyState extends State<EqSupply> {
   final _formKey = GlobalKey<FormState>();
 
   // Form fields
-  Equipment? _selectedEquipment;
+  final List<Equipment> _selectedEquipment = [];
   Patient? _selectedPatient;
   List<Ward> _wards = [];
   String? _selectedLocalBody;
@@ -45,6 +45,9 @@ class _EqSupplyState extends State<EqSupply> {
       TextEditingController();
   final TextEditingController _receiverPlaceController =
       TextEditingController();
+  final TextEditingController _equipmentSearchController =
+      TextEditingController();
+  final FocusNode _equipmentSearchFocusNode = FocusNode();
 
   // Data
   List<Equipment> _availableEquipment = [];
@@ -70,12 +73,30 @@ class _EqSupplyState extends State<EqSupply> {
   }
 
   DateTime _minimumSupplyDate() {
-    final purchaseDate = _selectedEquipment?.purchaseDate;
-    if (purchaseDate != null) {
-      return _normalizeDate(purchaseDate);
+    DateTime? latestPurchaseDate;
+    for (final equipment in _selectedEquipment) {
+      final purchaseDate = equipment.purchaseDate;
+      if (purchaseDate != null &&
+          (latestPurchaseDate == null ||
+              purchaseDate.isAfter(latestPurchaseDate))) {
+        latestPurchaseDate = purchaseDate;
+      }
+    }
+
+    if (latestPurchaseDate != null) {
+      return _normalizeDate(latestPurchaseDate);
     }
 
     return DateTime(2000);
+  }
+
+  bool _isEquipmentSelected(Equipment equipment) {
+    return _selectedEquipment.any((selected) {
+      if (equipment.id?.isNotEmpty == true) {
+        return selected.id == equipment.id;
+      }
+      return selected.uniqueId == equipment.uniqueId;
+    });
   }
 
   void _setSupplyDate(DateTime date) {
@@ -191,6 +212,8 @@ class _EqSupplyState extends State<EqSupply> {
     _receiverPhoneController.dispose();
     _receiverAddressController.dispose();
     _receiverPlaceController.dispose();
+    _equipmentSearchController.dispose();
+    _equipmentSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -214,7 +237,8 @@ class _EqSupplyState extends State<EqSupply> {
   }
 
   Future<void> _submit() async {
-    if (_selectedEquipment == null || _selectedEquipment!.isDamaged) {
+    if (_selectedEquipment.isEmpty ||
+        _selectedEquipment.any((equipment) => equipment.isDamaged)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -222,9 +246,9 @@ class _EqSupplyState extends State<EqSupply> {
               const Icon(Icons.warning_amber_rounded, color: Colors.white),
               const SizedBox(width: 8),
               Text(
-                _selectedEquipment == null
-                    ? 'Please select a equipment'
-                    : 'Selected equipment is damaged and cannot be distributed',
+                _selectedEquipment.isEmpty
+                    ? 'Please select at least one equipment item'
+                    : 'Damaged equipment cannot be distributed',
               ),
             ],
           ),
@@ -233,6 +257,18 @@ class _EqSupplyState extends State<EqSupply> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedEquipment.any(
+      (equipment) => equipment.id == null || equipment.id!.isEmpty,
+    )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select the equipment again'),
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -288,39 +324,54 @@ class _EqSupplyState extends State<EqSupply> {
 
     if (!_formKey.currentState!.validate()) return;
 
+    final equipmentToDistribute = List<Equipment>.of(_selectedEquipment);
+    final distributedEquipment = <Equipment>[];
+
     setState(() => _submitting = true);
 
     try {
-      final supply = EquipmentSupply(
-        equipmentId: _selectedEquipment!.id!,
-        equipmentUniqueId: _selectedEquipment!.uniqueId,
-        equipmentName: _selectedEquipment!.name,
-        patientId: _selectedPatient?.id,
-        wardId: _selectedPatient == null ? _selectedWard?.id : null,
-        localBody: _selectedPatient == null ? _selectedLocalBody : null,
-        patientName: _selectedPatient?.name,
-        patientPhone: _selectedPatient?.phone,
-        patientAddress: _selectedPatient?.address,
-        patientPlace: _selectedPatient?.place,
-        careOf: _careOfController.text.trim(),
-        receiverName: _receiverNameController.text.trim(),
-        receiverPhone: _receiverPhoneController.text.trim(),
-        receiverAddress: _receiverAddressController.text.trim(),
-        receiverPlace: _receiverPlaceController.text.trim(),
-        supplyDate: _selectedSupplyDate,
-        notes: _notesController.text.trim(),
-      );
+      // Keep the existing API contract: submit one request at a time so every
+      // selected item becomes its own equipment-supply record.
+      for (final equipment in equipmentToDistribute) {
+        final supply = EquipmentSupply(
+          equipmentId: equipment.id!,
+          equipmentUniqueId: equipment.uniqueId,
+          equipmentName: equipment.name,
+          patientId: _selectedPatient?.id,
+          wardId: _selectedPatient == null ? _selectedWard?.id : null,
+          localBody: _selectedPatient == null ? _selectedLocalBody : null,
+          patientName: _selectedPatient?.name,
+          patientPhone: _selectedPatient?.phone,
+          patientAddress: _selectedPatient?.address,
+          patientPlace: _selectedPatient?.place,
+          careOf: _careOfController.text.trim(),
+          receiverName: _receiverNameController.text.trim(),
+          receiverPhone: _receiverPhoneController.text.trim(),
+          receiverAddress: _receiverAddressController.text.trim(),
+          receiverPlace: _receiverPlaceController.text.trim(),
+          supplyDate: _selectedSupplyDate,
+          notes: _notesController.text.trim(),
+        );
 
-      await EquipmentSupplyService.createSupply(supply);
+        await EquipmentSupplyService.createSupply(supply);
+        distributedEquipment.add(equipment);
+      }
 
       if (mounted) {
+        final itemCount = distributedEquipment.length;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Equipment distributed successfully!'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    itemCount == 1
+                        ? 'Equipment distributed successfully!'
+                        : '$itemCount equipment items distributed successfully!',
+                  ),
+                ),
               ],
             ),
             backgroundColor: AppColors.success,
@@ -334,9 +385,29 @@ class _EqSupplyState extends State<EqSupply> {
       }
     } catch (e) {
       if (mounted) {
+        if (distributedEquipment.isNotEmpty) {
+          setState(() {
+            _selectedEquipment.removeWhere(
+              (equipment) => distributedEquipment.any(
+                (distributed) => distributed.id == equipment.id,
+              ),
+            );
+            _availableEquipment.removeWhere(
+              (equipment) => distributedEquipment.any(
+                (distributed) => distributed.id == equipment.id,
+              ),
+            );
+          });
+        }
+
+        final completedCount = distributedEquipment.length;
+        final errorMessage = completedCount == 0
+            ? 'Error: $e'
+            : '$completedCount of ${equipmentToDistribute.length} items were distributed. '
+                  'The remaining items were not submitted: $e';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text(errorMessage),
             backgroundColor: AppColors.danger,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -390,25 +461,32 @@ class _EqSupplyState extends State<EqSupply> {
                               children: [
                                 // Equipment Autocomplete Search
                                 Autocomplete<Equipment>(
-                                  initialValue: _selectedEquipment != null
-                                      ? TextEditingValue(
-                                          text:
-                                              '${_selectedEquipment!.uniqueId} - ${_selectedEquipment!.name}',
-                                        )
-                                      : null,
+                                  textEditingController:
+                                      _equipmentSearchController,
+                                  focusNode: _equipmentSearchFocusNode,
                                   optionsBuilder:
                                       (
                                         TextEditingValue textEditingValue,
                                       ) async {
                                         if (textEditingValue.text.isEmpty) {
-                                          return _availableEquipment;
+                                          return _availableEquipment.where(
+                                            (equipment) =>
+                                                !_isEquipmentSelected(
+                                                  equipment,
+                                                ),
+                                          );
                                         }
                                         try {
                                           final searchResults =
                                               await EquipmentService.getInventoryEquipment(
                                                 search: textEditingValue.text,
                                               );
-                                          return searchResults;
+                                          return searchResults.where(
+                                            (equipment) =>
+                                                !_isEquipmentSelected(
+                                                  equipment,
+                                                ),
+                                          );
                                         } catch (e) {
                                           return _availableEquipment.where((
                                             equipment,
@@ -416,10 +494,13 @@ class _EqSupplyState extends State<EqSupply> {
                                             final searchText =
                                                 '${equipment.uniqueId} ${equipment.name}'
                                                     .toLowerCase();
-                                            return searchText.contains(
-                                              textEditingValue.text
-                                                  .toLowerCase(),
-                                            );
+                                            return !_isEquipmentSelected(
+                                                  equipment,
+                                                ) &&
+                                                searchText.contains(
+                                                  textEditingValue.text
+                                                      .toLowerCase(),
+                                                );
                                           });
                                         }
                                       },
@@ -439,8 +520,11 @@ class _EqSupplyState extends State<EqSupply> {
                                       );
                                       return;
                                     }
+                                    if (_isEquipmentSelected(equipment)) {
+                                      return;
+                                    }
                                     setState(() {
-                                      _selectedEquipment = equipment;
+                                      _selectedEquipment.add(equipment);
                                       final minimumSupplyDate =
                                           _minimumSupplyDate();
                                       if (_selectedSupplyDate.isBefore(
@@ -449,6 +533,8 @@ class _EqSupplyState extends State<EqSupply> {
                                         _setSupplyDate(minimumSupplyDate);
                                       }
                                     });
+                                    _equipmentSearchController.clear();
+                                    _equipmentSearchFocusNode.requestFocus();
                                   },
                                   fieldViewBuilder:
                                       (
@@ -686,107 +772,115 @@ class _EqSupplyState extends State<EqSupply> {
                                         );
                                       },
                                 ),
-                                if (_selectedEquipment != null) ...[
+                                if (_selectedEquipment.isNotEmpty) ...[
                                   const SizedBox(height: 12),
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: _selectedEquipment!.isDamaged
-                                          ? AppColors.danger.withValues(
-                                              alpha: 0.06,
-                                            )
-                                          : _equipmentSupplyIconSurface,
+                                      color: _equipmentSupplyIconSurface,
                                       borderRadius: AppRadius.sm,
                                       border: Border.all(
-                                        color: _selectedEquipment!.isDamaged
-                                            ? AppColors.danger.withValues(
-                                                alpha: 0.22,
-                                              )
-                                            : _equipmentSupplyStrong.withValues(
-                                                alpha: 0.16,
-                                              ),
+                                        color: _equipmentSupplyStrong
+                                            .withValues(alpha: 0.16),
                                       ),
                                     ),
-                                    child: Row(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Icon(
-                                          _selectedEquipment!.isDamaged
-                                              ? Icons.build_circle_outlined
-                                              : Icons.check_circle,
-                                          color: _selectedEquipment!.isDamaged
-                                              ? AppColors.danger
-                                              : _equipmentSupplyStrong,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '${_selectedEquipment!.name.toUpperCase()} (${_selectedEquipment!.place})',
-                                                style: TextStyle(
-                                                  color:
-                                                      _selectedEquipment!
-                                                          .isDamaged
-                                                      ? AppColors.danger
-                                                      : _equipmentSupplyStrong,
-                                                  fontWeight: FontWeight.w500,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              if (_selectedEquipment!
-                                                  .isDamaged) ...[
-                                                const SizedBox(height: 4),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 3,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.danger
-                                                        .withValues(alpha: 0.1),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          999,
-                                                        ),
-                                                    border: Border.all(
-                                                      color: AppColors.danger
-                                                          .withValues(
-                                                            alpha: 0.2,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  child: const Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        Icons.cancel_outlined,
-                                                        size: 11,
-                                                        color: AppColors.danger,
-                                                      ),
-                                                      SizedBox(width: 4),
-                                                      Text(
-                                                        'DAMAGED — Cannot be distributed',
-                                                        style: TextStyle(
-                                                          color:
-                                                              AppColors.danger,
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          letterSpacing: 0.2,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
+                                        Text(
+                                          'Selected equipment (${_selectedEquipment.length})',
+                                          style: const TextStyle(
+                                            color: _equipmentSupplyStrong,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
+                                        const SizedBox(height: 6),
+                                        ..._selectedEquipment.asMap().entries.map((
+                                          entry,
+                                        ) {
+                                          final index = entry.key;
+                                          final equipment = entry.value;
+                                          return Column(
+                                            children: [
+                                              if (index > 0)
+                                                Divider(
+                                                  height: 1,
+                                                  color: _equipmentSupplyStrong
+                                                      .withValues(alpha: 0.12),
+                                                ),
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.check_circle,
+                                                    color:
+                                                        _equipmentSupplyStrong,
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            vertical: 8,
+                                                          ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            '${equipment.uniqueId} - ${equipment.name.toUpperCase()}',
+                                                            style: const TextStyle(
+                                                              color:
+                                                                  _equipmentSupplyStrong,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              fontSize: 13,
+                                                            ),
+                                                          ),
+                                                          if (equipment
+                                                              .place
+                                                              .isNotEmpty)
+                                                            Text(
+                                                              equipment.place,
+                                                              style:
+                                                                  Theme.of(
+                                                                        context,
+                                                                      )
+                                                                      .textTheme
+                                                                      .bodySmall,
+                                                            ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    tooltip: 'Remove equipment',
+                                                    onPressed: _submitting
+                                                        ? null
+                                                        : () {
+                                                            setState(() {
+                                                              _selectedEquipment
+                                                                  .removeAt(
+                                                                    index,
+                                                                  );
+                                                            });
+                                                          },
+                                                    icon: const Icon(
+                                                      Icons.close,
+                                                      size: 18,
+                                                    ),
+                                                    color:
+                                                        _equipmentSupplyStrong,
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          );
+                                        }),
                                       ],
                                     ),
                                   ),
@@ -1161,16 +1255,45 @@ class _EqSupplyState extends State<EqSupply> {
                                         )
                                         ? _selectedLocalBody
                                         : null,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.normal,
+                                          color: AppColors.text,
+                                        ),
                                     decoration: _inputDecoration(
                                       'Local Body',
                                       Icons.location_city_outlined,
                                     ),
-                                    hint: const Text('Select local body'),
+                                    hint: Text(
+                                      'Select local body',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.normal,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                    ),
                                     items: _localBodies
                                         .map(
                                           (value) => DropdownMenuItem(
                                             value: value,
-                                            child: Text(value),
+                                            child: Text(
+                                              value,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    fontSize: 14,
+                                                    fontWeight:
+                                                        FontWeight.normal,
+                                                    color: AppColors.text,
+                                                  ),
+                                            ),
                                           ),
                                         )
                                         .toList(),
@@ -1189,20 +1312,31 @@ class _EqSupplyState extends State<EqSupply> {
                                     key: ValueKey(
                                       'equipment-ward-${_selectedLocalBody ?? ''}',
                                     ),
-                                    value: _wardsForLocalBody.any(
-                                      (ward) => ward.id == _selectedWard?.id,
-                                    )
+                                    value:
+                                        _wardsForLocalBody.any(
+                                          (ward) =>
+                                              ward.id == _selectedWard?.id,
+                                        )
                                         ? _selectedWard
                                         : null,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.normal,
+                                          color: AppColors.text,
+                                        ),
                                     decoration: _inputDecoration(
                                       'Ward',
                                       Icons.map_outlined,
-                                    ),
+                                    ).copyWith(hintText: null),
                                     hintText: _selectedLocalBody == null
                                         ? 'Select local body first'
                                         : 'Select ward',
                                     dialogTitle: 'Select ward',
-                                    searchHintText: 'Search ward name or number',
+                                    searchHintText:
+                                        'Search ward name or number',
                                     enabled: _selectedLocalBody != null,
                                     items: _wardsForLocalBody,
                                     itemLabel: (ward) => ward.label,
@@ -1305,7 +1439,9 @@ class _EqSupplyState extends State<EqSupply> {
                           Expanded(
                             flex: 2,
                             child: AppPrimaryButton(
-                              label: 'Confirm Distribution',
+                              label: _selectedEquipment.length > 1
+                                  ? 'Distribute ${_selectedEquipment.length} Items'
+                                  : 'Confirm Distribution',
                               icon: Icons.check_circle_outline,
                               fullWidth: true,
                               loading: _submitting,
