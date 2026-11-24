@@ -3,9 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:oruma_app/billing_plan_screen.dart';
 import 'package:oruma_app/invoices_screen.dart';
-import 'package:oruma_app/manual_payment_screen.dart';
+
 import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/equipment_list_page.dart';
 import 'package:oruma_app/equipment_supply_list_page.dart';
@@ -884,10 +883,8 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   Future<void> _handleNotificationTap(AppNotification notification) async {
     if (_isBillingNotification(notification)) {
       if (!context.read<AuthService>().isAdmin) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const BillingPlanScreen()),
-      );
+      final uri = Uri.parse('https://palliativecareapp.ziyaq.in/upgrade-plan');
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
       return;
     }
 
@@ -1456,18 +1453,16 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                                 },
                               ),
                               _buildProfileMenuItem(
-                                icon: Icons.receipt_long_outlined,
-                                title: 'Billing & Plan',
-                                subtitle: _billingProfileSubtitle(),
-                                onTap: () {
-                                  Navigator.of(
-                                    pageContext,
-                                    rootNavigator: true,
-                                  ).push(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const BillingPlanScreen(),
-                                    ),
+                                icon: Icons.upgrade_rounded,
+                                title: 'Upgrade your plan',
+                                subtitle: 'Explore plans and billings',
+                                onTap: () async {
+                                  final uri = Uri.parse(
+                                    'https://palliativecareapp.ziyaq.in/upgrade-plan',
+                                  );
+                                  await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
                                   );
                                 },
                               ),
@@ -6112,20 +6107,6 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     return null;
   }
 
-  String _billingProfileSubtitle() {
-    final notification = _billingIndicatorNotification();
-    if (notification == null) {
-      return _notificationsLoading
-          ? 'Checking payment status…'
-          : 'No due payments • Fully paid';
-    }
-    return switch (notification.type) {
-      'payment_rejected' => 'Payment proof rejected • Action required',
-      'payment_proof_submitted' => 'Payment verification pending',
-      _ => notification.message,
-    };
-  }
-
   String _maintenanceNotificationKey(AppNotification notification) {
     return notification.id ??
         notification.entityId ??
@@ -6203,7 +6184,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     if (notification.type == 'payment_proof_submitted') {
                       Navigator.push(
                         context,
@@ -6212,26 +6193,27 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         ),
                       );
                     } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ManualPaymentScreen(),
-                        ),
+                      final uri = Uri.parse(
+                        'https://palliativecareapp.ziyaq.in/upgrade-plan',
+                      );
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
                       );
                     }
                   },
                   icon: Icon(
                     notification.type == 'payment_proof_submitted'
                         ? Icons.receipt_long_outlined
-                        : Icons.payments_outlined,
+                        : Icons.open_in_browser_rounded,
                     size: 14,
                   ),
                   label: Text(
                     notification.type == 'payment_rejected'
-                        ? 'Submit new proof'
+                        ? 'View upgrade options'
                         : notification.type == 'payment_proof_submitted'
                         ? 'View invoices & status'
-                        : 'View payment instructions',
+                        : 'View plan & upgrade options',
                   ),
                 ),
               ],
@@ -6324,7 +6306,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                       ? Icons.hourglass_top_rounded
                       : Icons.payments_outlined,
                   badgeLabel: '!',
-                  onTap: () {
+                  onTap: () async {
                     if (billingIndicator.type == 'payment_proof_submitted') {
                       Navigator.push(
                         context,
@@ -6333,11 +6315,12 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
                         ),
                       );
                     } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ManualPaymentScreen(),
-                        ),
+                      final uri = Uri.parse(
+                        'https://palliativecareapp.ziyaq.in/upgrade-plan',
+                      );
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
                       );
                     }
                   },

@@ -86,7 +86,9 @@ class _PatientListPageState extends State<PatientListPage> {
       ]);
       final config = results[0] as Config;
       final careWards = results[1] as List<Ward>;
-      final localBodies = auth.isStaff || auth.isMember
+      final isStaffOrMemberRestricted =
+          (auth.isStaff || auth.isMember) && auth.wardRestrictionEnabled;
+      final localBodies = isStaffOrMemberRestricted
           ? (careWards
                 .map((ward) => ward.localBody?.trim() ?? '')
                 .where((value) => value.isNotEmpty)
@@ -105,7 +107,7 @@ class _PatientListPageState extends State<PatientListPage> {
           final visibleWardIds = careWards.map((ward) => ward.id).toSet();
           _selectedCareWardIds.retainWhere(
             (id) =>
-                (!(auth.isStaff || auth.isMember) && id == 'unassigned') ||
+                (!isStaffOrMemberRestricted && id == 'unassigned') ||
                 visibleWardIds.contains(id),
           );
           _updateFilteredWardsList();
@@ -710,9 +712,7 @@ class _PatientListPageState extends State<PatientListPage> {
   Widget _buildSecondaryFilters() {
     final auth = context.watch<AuthService>();
     final isWardRestricted =
-        auth.isStaff ||
-        auth.isMember ||
-        auth.wardRestrictionEnabled ||
+        ((auth.isStaff || auth.isMember) && auth.wardRestrictionEnabled) ||
         _careWards.isNotEmpty;
 
     return Padding(
@@ -886,7 +886,9 @@ class _PatientListPageState extends State<PatientListPage> {
   Future<void> _showCareWardFilter() async {
     var selected = <String>{..._selectedCareWardIds};
     final auth = context.read<AuthService>();
-    final canFilterUnassigned = !auth.isStaff && !auth.isMember;
+    final isStaffOrMemberRestricted =
+        (auth.isStaff || auth.isMember) && auth.wardRestrictionEnabled;
+    final canFilterUnassigned = !isStaffOrMemberRestricted;
     if (!canFilterUnassigned) selected.remove('unassigned');
     var searchQuery = '';
     final searchController = TextEditingController();

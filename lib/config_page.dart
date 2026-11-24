@@ -1210,6 +1210,10 @@ class _ConfigPageState extends State<ConfigPage>
                     )
                     .toList()
                   ..sort((a, b) => compareNaturally(a.label, b.label));
+            final allActiveWards = _careWards.where((w) => w.isActive).toList();
+            final allWardsAcrossAllLocalBodiesSelected =
+                allActiveWards.isNotEmpty &&
+                allActiveWards.every((w) => selectedWardIds.contains(w.id));
             final visibleWards = localBodyWards.where((ward) {
               final query = searchQuery.trim().toLowerCase();
               return query.isEmpty ||
@@ -1372,13 +1376,25 @@ class _ConfigPageState extends State<ConfigPage>
                               '${localBodyWards.length} wards in $activeLocalBody',
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 12.5,
+                                fontSize: 11.5,
                                 color: AppColors.textSecondary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
                           TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              textStyle: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             onPressed: localBodyWards.isEmpty
                                 ? null
                                 : () {
@@ -1397,12 +1413,65 @@ class _ConfigPageState extends State<ConfigPage>
                                   },
                             child: Text(
                               allLocalBodySelected
-                                  ? 'Deselect local body'
-                                  : 'Select all',
+                                  ? 'Deselect zone'
+                                  : 'Select zone',
                             ),
                           ),
-                          if (selectedWardIds.isNotEmpty)
+                          if (localBodies.length > 1) ...[
+                            const SizedBox(width: 4),
                             TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              onPressed: allActiveWards.isEmpty
+                                  ? null
+                                  : () {
+                                      if (allWardsAcrossAllLocalBodiesSelected) {
+                                        for (final ward in allActiveWards) {
+                                          if (selectedWardIds.contains(ward.id)) {
+                                            onWardToggled(ward.id);
+                                          }
+                                        }
+                                      } else {
+                                        for (final ward in allActiveWards) {
+                                          if (!selectedWardIds.contains(ward.id)) {
+                                            onWardToggled(ward.id);
+                                          }
+                                        }
+                                      }
+                                      setPickerState(() {});
+                                    },
+                              child: Text(
+                                allWardsAcrossAllLocalBodiesSelected
+                                    ? 'Deselect all'
+                                    : 'All local bodies',
+                              ),
+                            ),
+                          ],
+                          if (selectedWardIds.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               onPressed: () {
                                 for (final id in selectedWardIds.toList()) {
                                   onWardToggled(id);
@@ -1410,10 +1479,11 @@ class _ConfigPageState extends State<ConfigPage>
                                 setPickerState(() {});
                               },
                               child: const Text(
-                                'Clear all',
+                                'Clear',
                                 style: TextStyle(color: AppColors.danger),
                               ),
                             ),
+                          ],
                         ],
                       ),
                     ),
@@ -1621,7 +1691,7 @@ class _ConfigPageState extends State<ConfigPage>
                       children: [
                         Text(
                           selectedWardIds.isEmpty
-                              ? 'Choose wards'
+                              ? (required ? 'Choose wards' : 'All wards / No restriction (optional)')
                               : '${selectedWardIds.length} ward${selectedWardIds.length == 1 ? '' : 's'} selected',
                           style: const TextStyle(
                             fontSize: 14,
@@ -1632,7 +1702,9 @@ class _ConfigPageState extends State<ConfigPage>
                         const SizedBox(height: 2),
                         Text(
                           selectedWardIds.isEmpty
-                              ? 'Tap to search by ward name or number'
+                              ? (required
+                                  ? 'Tap to search by ward name or number'
+                                  : 'Tap to assign specific wards')
                               : selectedLocalBodies.isEmpty
                               ? 'Tap to review the selection'
                               : selectedLocalBodies.join(' • '),
@@ -1704,6 +1776,7 @@ class _ConfigPageState extends State<ConfigPage>
       } catch (_) {}
     }
     if (!mounted) return;
+    final auth = context.read<AuthService>();
     final staffLimit = _staffLimit;
     final currentStaffCount = _currentStaffCount;
     final isStaffLimitComplete = currentStaffCount >= staffLimit;
@@ -1713,6 +1786,9 @@ class _ConfigPageState extends State<ConfigPage>
     );
 
     final assignableRoles = _assignableRoles.where((role) {
+      if (role == 'admin') {
+        return false;
+      }
       if (role == 'staff' && isStaffLimitComplete) {
         return false;
       }
@@ -1727,7 +1803,7 @@ class _ConfigPageState extends State<ConfigPage>
         ? initialRole
         : (assignableRoles.contains('staff')
               ? 'staff'
-              : (assignableRoles.isNotEmpty ? assignableRoles.first : 'admin'));
+              : (assignableRoles.isNotEmpty ? assignableRoles.first : 'member'));
     var selectedRole = defaultRole;
     var selectedModules = <String>{..._modulesForRole(defaultRole)};
     var selectedWardIds = <String>{};
@@ -1753,7 +1829,8 @@ class _ConfigPageState extends State<ConfigPage>
                   return;
                 }
 
-                if (const ['staff', 'member'].contains(selectedRole) &&
+                if (auth.wardRestrictionEnabled &&
+                    const ['staff', 'member'].contains(selectedRole) &&
                     selectedWardIds.isEmpty) {
                   setSheetState(() {
                     formError = 'Select at least one ward for this user';
@@ -1943,47 +2020,73 @@ class _ConfigPageState extends State<ConfigPage>
                               onFieldSubmitted: (_) => submit(),
                             ),
                             const SizedBox(height: AppSpacing.sm),
-                            DropdownButtonFormField<String>(
-                              key: ValueKey(selectedRole),
-                              initialValue: selectedRole,
-                              style: const TextStyle(
-                                color: _inkColor,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                              ),
-                              decoration: _fieldDecoration(
-                                labelText: 'Role',
-                                prefixIcon: Icons.admin_panel_settings,
-                              ),
-                              items: assignableRoles
-                                  .map(
-                                    (role) => DropdownMenuItem(
-                                      value: role,
-                                      child: Text(
-                                        _roleLabel(role),
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.normal,
-                                          color: _inkColor,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Role *',
+                                      style: Theme.of(context).textTheme.labelLarge,
+                                    ),
+                                    if (selectedRole.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '(${_roleLabel(selectedRole)})',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: _roleColor(selectedRole),
                                         ),
                                       ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: isSubmitting
-                                  ? null
-                                  : (value) => setSheetState(() {
-                                      selectedRole =
-                                          value ??
-                                          (assignableRoles.contains('staff')
-                                              ? 'staff'
-                                              : (assignableRoles.isNotEmpty
-                                                    ? assignableRoles.first
-                                                    : 'admin'));
-                                      selectedModules = <String>{
-                                        ..._modulesForRole(selectedRole),
-                                      };
-                                    }),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Wrap(
+                                  spacing: AppSpacing.xs,
+                                  runSpacing: AppSpacing.xs,
+                                  children: assignableRoles.map((role) {
+                                    final selected = selectedRole == role;
+                                    final color = _roleColor(role);
+                                    return ChoiceChip(
+                                      selected: selected,
+                                      avatar: Icon(
+                                        _roleIcon(role),
+                                        size: 17,
+                                        color: selected ? Colors.white : color,
+                                      ),
+                                      label: Text(_roleLabel(role)),
+                                      labelStyle: TextStyle(
+                                        color: selected ? Colors.white : AppColors.text,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      selectedColor: color,
+                                      backgroundColor: AppColors.surface1,
+                                      disabledColor: AppColors.surface2,
+                                      side: BorderSide(
+                                        color: selected ? color : AppColors.border,
+                                        width: selected ? 1.5 : 1,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 7,
+                                      ),
+                                      showCheckmark: false,
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      onSelected: isSubmitting
+                                          ? null
+                                          : (_) => setSheetState(() {
+                                              selectedRole = role;
+                                              selectedModules = <String>{
+                                                ..._modulesForRole(selectedRole),
+                                              };
+                                            }),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
                             ),
                             if (selectedRole == 'staff' &&
                                 remainingCapacity > 0) ...[
@@ -2014,10 +2117,11 @@ class _ConfigPageState extends State<ConfigPage>
                             _buildStaffWardPicker(
                               selectedLocalBody: selectedWardLocalBody,
                               selectedWardIds: selectedWardIds,
-                              required: const [
-                                'staff',
-                                'member',
-                              ].contains(selectedRole),
+                              required: auth.wardRestrictionEnabled &&
+                                  const [
+                                    'staff',
+                                    'member',
+                                  ].contains(selectedRole),
                               disabled: isSubmitting,
                               onLocalBodyChanged: (value) => setSheetState(
                                 () => selectedWardLocalBody = value,
@@ -2215,8 +2319,12 @@ class _ConfigPageState extends State<ConfigPage>
       } catch (_) {}
     }
     if (!mounted) return;
+    final auth = context.read<AuthService>();
     final isStaffLimitComplete = _isStaffLimitReached;
     final assignableRoles = _assignableRoles.where((role) {
+      if (role == 'admin' && staff.role != 'admin') {
+        return false;
+      }
       if (role == 'staff' && staff.role != 'staff' && isStaffLimitComplete) {
         return false;
       }
@@ -2250,7 +2358,8 @@ class _ConfigPageState extends State<ConfigPage>
               if (saving || !(formKey.currentState?.validate() ?? false)) {
                 return;
               }
-              if (const ['staff', 'member'].contains(selectedRole) &&
+              if (auth.wardRestrictionEnabled &&
+                  const ['staff', 'member'].contains(selectedRole) &&
                   selectedWardIds.isEmpty) {
                 setDialogState(() {
                   errorMessage = 'Select at least one ward for this user';
@@ -2406,48 +2515,73 @@ class _ConfigPageState extends State<ConfigPage>
                           },
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedRole.isEmpty
-                              ? null
-                              : selectedRole,
-                          hint: const Text('Select an available role'),
-                          style: const TextStyle(
-                            color: _inkColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          decoration: _fieldDecoration(
-                            labelText: 'Role',
-                            prefixIcon: Icons.admin_panel_settings_outlined,
-                          ),
-                          items: assignableRoles
-                              .map(
-                                (role) => DropdownMenuItem(
-                                  value: role,
-                                  child: Text(
-                                    _roleLabel(role),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.normal,
-                                      color: _inkColor,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Role *',
+                                  style: Theme.of(context).textTheme.labelLarge,
+                                ),
+                                if (selectedRole.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '(${_roleLabel(selectedRole)})',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: _roleColor(selectedRole),
                                     ),
                                   ),
-                                ),
-                              )
-                              .toList(),
-                          validator: (value) =>
-                              value == null ? 'Select an available role' : null,
-                          onChanged: saving
-                              ? null
-                              : (value) {
-                                  if (value == null) return;
-                                  setDialogState(() {
-                                    selectedRole = value;
-                                    selectedModules = {
-                                      ..._modulesForRole(selectedRole),
-                                    };
-                                  });
-                                },
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Wrap(
+                              spacing: AppSpacing.xs,
+                              runSpacing: AppSpacing.xs,
+                              children: assignableRoles.map((role) {
+                                final selected = selectedRole == role;
+                                final color = _roleColor(role);
+                                return ChoiceChip(
+                                  selected: selected,
+                                  avatar: Icon(
+                                    _roleIcon(role),
+                                    size: 17,
+                                    color: selected ? Colors.white : color,
+                                  ),
+                                  label: Text(_roleLabel(role)),
+                                  labelStyle: TextStyle(
+                                    color: selected ? Colors.white : AppColors.text,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  selectedColor: color,
+                                  backgroundColor: AppColors.surface1,
+                                  disabledColor: AppColors.surface2,
+                                  side: BorderSide(
+                                    color: selected ? color : AppColors.border,
+                                    width: selected ? 1.5 : 1,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  showCheckmark: false,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  onSelected: saving
+                                      ? null
+                                      : (_) => setDialogState(() {
+                                          selectedRole = role;
+                                          selectedModules = {
+                                            ..._modulesForRole(selectedRole),
+                                          };
+                                        }),
+                                );
+                              }).toList(),
+                            ),
+                          ],
                         ),
                         if (selectedRole == 'staff' &&
                             staff.role != 'staff' &&
@@ -2479,10 +2613,11 @@ class _ConfigPageState extends State<ConfigPage>
                         _buildStaffWardPicker(
                           selectedLocalBody: selectedWardLocalBody,
                           selectedWardIds: selectedWardIds,
-                          required: const [
-                            'staff',
-                            'member',
-                          ].contains(selectedRole),
+                          required: auth.wardRestrictionEnabled &&
+                              const [
+                                'staff',
+                                'member',
+                              ].contains(selectedRole),
                           disabled: saving,
                           onLocalBodyChanged: (value) => setDialogState(
                             () => selectedWardLocalBody = value,
@@ -2493,7 +2628,8 @@ class _ConfigPageState extends State<ConfigPage>
                                 : selectedWardIds.add(wardId);
                           }),
                         ),
-                        if (const ['staff', 'member'].contains(selectedRole) &&
+                        if (auth.wardRestrictionEnabled &&
+                            const ['staff', 'member'].contains(selectedRole) &&
                             selectedWardIds.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: AppSpacing.xs),
@@ -5211,6 +5347,7 @@ class _ConfigPageState extends State<ConfigPage>
             tooltip: 'Change role',
             onSelected: (role) => _updateStaffRole(staff, role),
             itemBuilder: (context) => assignableRoles
+                .where((role) => role != 'admin' || staff.role == 'admin')
                 .map(
                   (role) => PopupMenuItem(
                     value: role,
@@ -5962,6 +6099,7 @@ class _ConfigPageState extends State<ConfigPage>
                     : null,
               ),
               items: assignableRoles
+                  .where((role) => role != 'admin' || staff.role == 'admin')
                   .map(
                     (role) => DropdownMenuItem(
                       value: role,

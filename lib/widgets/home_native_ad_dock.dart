@@ -44,7 +44,7 @@ class HomeNativeAdDock extends StatelessWidget {
       return 'This free account is supported by ads.';
     }
     if (auth.isAdmin) {
-      return 'Subscribe from Profile → Billing & Plan to remove ads from staff and administration accounts.';
+      return 'Upgrade from Profile → Upgrade your plan to remove ads from staff and administration accounts.';
     }
     return 'Your unit is using the ad-supported plan. Ask the unit administrator to subscribe and remove ads from staff accounts.';
   }

@@ -390,7 +390,7 @@ void main() {
     expect(find.text('Community palliative care unit'), findsOneWidget);
     expect(find.text('Administration'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Billing & Plan'), findsOneWidget);
+    expect(find.text('Upgrade your plan'), findsOneWidget);
     expect(find.text('Create username'), findsOneWidget);
     expect(find.text('Set a unique username for sign in'), findsOneWidget);
     expect(find.text('Reset password'), findsOneWidget);

@@ -134,8 +134,10 @@ class _patientrigisterState extends State<patientrigister> {
               .toList()
             ..sort(compareNaturally);
       final initialVolunteer = _findInitialVolunteer(loadedVolunteers);
+      final isStaffOrMemberRestricted =
+          (auth.isStaff || auth.isMember) && auth.wardRestrictionEnabled;
       setState(() {
-        villages = auth.isStaff || auth.isMember
+        villages = isStaffOrMemberRestricted
             ? permittedLocalBodies
             : config.villages;
         diseases = config.diseases;
@@ -527,8 +529,7 @@ class _patientrigisterState extends State<patientrigister> {
     final isEditing = widget.patient != null;
     final auth = context.watch<AuthService>();
     final canManageConfig = auth.isAdmin;
-    final wardRequired =
-        auth.isStaff || auth.isMember || auth.wardRestrictionEnabled;
+    final wardRequired = auth.wardRestrictionEnabled;
 
     // Show loading indicator while config is loading
     if (_isLoadingConfig) {
