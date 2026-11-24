@@ -16,6 +16,7 @@ import 'package:oruma_app/patient_details_page.dart';
 import 'package:oruma_app/services/patient_service.dart';
 import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
@@ -53,6 +54,8 @@ class _ReportsPageState extends State<ReportsPage> {
   late ReportType _type;
   late ReportFilters _filters;
   late final TextEditingController _searchController;
+  late final ScrollController _tableVerticalScrollController;
+  late final ScrollController _tableHorizontalScrollController;
   ReportResult? _result;
   bool _loading = false;
   bool _exporting = false;
@@ -65,6 +68,8 @@ class _ReportsPageState extends State<ReportsPage> {
   @override
   void initState() {
     super.initState();
+    _tableVerticalScrollController = ScrollController();
+    _tableHorizontalScrollController = ScrollController();
     final auth = context.read<AuthService>();
     _type = ReportAccessPolicy.resolveInitialForFeatures(
       auth.hasFeature,
@@ -95,6 +100,8 @@ class _ReportsPageState extends State<ReportsPage> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _tableVerticalScrollController.dispose();
+    _tableHorizontalScrollController.dispose();
     super.dispose();
   }
 
@@ -112,6 +119,9 @@ class _ReportsPageState extends State<ReportsPage> {
       final result = await ReportService.fetch(_type, _filters);
       if (!mounted) return;
       setState(() => _result = result);
+      if (_tableVerticalScrollController.hasClients) {
+        _tableVerticalScrollController.jumpTo(0);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = _friendlyError(error));
@@ -130,6 +140,12 @@ class _ReportsPageState extends State<ReportsPage> {
       _result = null;
       _error = null;
     });
+    if (_tableVerticalScrollController.hasClients) {
+      _tableVerticalScrollController.jumpTo(0);
+    }
+    if (_tableHorizontalScrollController.hasClients) {
+      _tableHorizontalScrollController.jumpTo(0);
+    }
     _load();
   }
 
@@ -470,59 +486,113 @@ class _ReportsPageState extends State<ReportsPage> {
     if (result == null) return const SizedBox.shrink();
     return Stack(
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppInsets.screenHorizontal(context),
-                AppSpacing.sm,
-                AppInsets.screenHorizontal(context),
-                AppSpacing.xs,
-              ),
-              child: _buildSummary(result),
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _load,
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverPadding(
-                      padding: AppInsets.screen(context, top: AppSpacing.xs),
-                      sliver: SliverList.list(
-                        children: [
-                          if (result.rows.isEmpty)
-                            const SizedBox(
-                              height: 280,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 760;
+            if (!isWide) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppInsets.screenHorizontal(context),
+                      AppSpacing.xs,
+                      AppInsets.screenHorizontal(context),
+                      AppSpacing.xs,
+                    ),
+                    child: _buildSummary(result),
+                  ),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _load,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPadding(
+                            padding: AppInsets.screen(
+                              context,
+                              top: AppSpacing.xs,
+                            ),
+                            sliver: SliverList.list(
+                              children: [
+                                if (result.rows.isEmpty)
+                                  const SizedBox(
+                                    height: 280,
+                                    child: _ReportMessage(
+                                      icon: Icons.query_stats_outlined,
+                                      title: 'No matching records',
+                                      message:
+                                          'Try changing the date range or filters.',
+                                    ),
+                                  )
+                                else
+                                  _buildCards(result),
+                                if (result.pagination.totalPages > 1) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  _buildPagination(result.pagination),
+                                ],
+                                const SizedBox(height: AppSpacing.xl),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            // Tablet / Tab View (isWide >= 760): Fixed/static table header at top
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppInsets.screenHorizontal(context),
+                    AppSpacing.xs,
+                    AppInsets.screenHorizontal(context),
+                    AppSpacing.xs,
+                  ),
+                  child: _buildSummary(result),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppInsets.screenHorizontal(context),
+                      AppSpacing.xs,
+                      AppInsets.screenHorizontal(context),
+                      result.pagination.totalPages > 1 ? 0 : AppSpacing.md,
+                    ),
+                    child: result.rows.isEmpty
+                        ? Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: AppRadius.card,
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: const Center(
                               child: _ReportMessage(
                                 icon: Icons.query_stats_outlined,
                                 title: 'No matching records',
                                 message:
                                     'Try changing the date range or filters.',
                               ),
-                            )
-                          else
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                return constraints.maxWidth >= 760
-                                    ? _buildTable(result)
-                                    : _buildCards(result);
-                              },
                             ),
-                          if (result.pagination.totalPages > 1) ...[
-                            const SizedBox(height: AppSpacing.md),
-                            _buildPagination(result.pagination),
-                          ],
-                          const SizedBox(height: AppSpacing.xl),
-                        ],
-                      ),
-                    ),
-                  ],
+                          )
+                        : _buildTable(result),
+                  ),
                 ),
-              ),
-            ),
-          ],
+                if (result.pagination.totalPages > 1)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: _buildPagination(result.pagination),
+                  ),
+              ],
+            );
+          },
         ),
         if (_loading)
           const Positioned(
@@ -556,31 +626,39 @@ class _ReportsPageState extends State<ReportsPage> {
               ? AppColors.warning
               : _definition.color;
           return Container(
-            width: 142,
-            margin: const EdgeInsets.only(right: AppSpacing.sm),
-            padding: const EdgeInsets.all(AppSpacing.md),
+            constraints: const BoxConstraints(minWidth: 96),
+            margin: const EdgeInsets.only(right: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: AppRadius.card,
+              borderRadius: AppRadius.sm,
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   entry.value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: 2),
                 Text(
                   formatReportValue(entry.key, value),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: color,
+                  style: TextStyle(
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
+                    color: color,
+                    height: 1.15,
                   ),
                 ),
               ],
@@ -591,51 +669,301 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
+  double _columnWidth(ReportColumn column) {
+    switch (column.key) {
+      case 'registerId':
+        return 90;
+      case 'patientName':
+        return 200;
+      case 'age':
+        return 65;
+      case 'gender':
+        return 90;
+      case 'phone':
+        return 125;
+      case 'currentWard':
+        return 130;
+      case 'wardCode':
+        return 100;
+      case 'place':
+      case 'patientPlace':
+      case 'storagePlace':
+        return 140;
+      case 'disease':
+        return 180;
+      case 'plan':
+        return 110;
+      case 'status':
+      case 'stockStatus':
+      case 'expiryStatus':
+      case 'repairStatus':
+      case 'reportStatus':
+        return 120;
+      case 'volunteerName':
+      case 'volunteerContact':
+        return 140;
+      case 'registrationDate':
+      case 'expiryDate':
+      case 'givenAt':
+      case 'damagedAt':
+      case 'repairedAt':
+      case 'supplyDate':
+      case 'returnDate':
+      case 'actualReturnDate':
+      case 'purchaseDate':
+        return 120;
+      case 'medicineCode':
+        return 110;
+      case 'medicineName':
+        return 190;
+      case 'category':
+        return 130;
+      case 'batchNumber':
+        return 110;
+      case 'batchQuantity':
+      case 'totalQuantity':
+      case 'qtyGiven':
+      case 'qtyReturned':
+      case 'netQuantity':
+      case 'total':
+      case 'active':
+      case 'deceased':
+        return 95;
+      case 'qtyUnit':
+        return 75;
+      case 'daysToExpiry':
+      case 'downtimeDays':
+      case 'durationDays':
+        return 80;
+      case 'uniqueId':
+      case 'equipmentUniqueId':
+        return 120;
+      case 'equipmentName':
+        return 180;
+      case 'damageReason':
+      case 'note':
+        return 180;
+      case 'purchasedFrom':
+        return 150;
+      case 'createdBy':
+      case 'damagedBy':
+      case 'repairedBy':
+      case 'givenBy':
+      case 'prescribedBy':
+        return 140;
+      case 'supportTypesLabel':
+        return 150;
+      default:
+        return column.numeric ? 85 : 130;
+    }
+  }
+
   Widget _buildTable(ReportResult result) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadius.card,
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: const WidgetStatePropertyAll(AppColors.surface2),
-          columns: _definition.columns
-              .map(
-                (column) => DataColumn(
-                  numeric: column.numeric,
-                  label: Text(
-                    column.label,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+    final hasCheckbox = _type == ReportType.patients;
+    final columns = _definition.columns;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final baseWidths = <double>[
+          if (hasCheckbox) 48.0,
+          ...columns.map(_columnWidth),
+        ];
+        final totalBaseWidth = baseWidths.fold<double>(
+          0.0,
+          (sum, w) => sum + w,
+        );
+        final availableWidth = constraints.maxWidth;
+        final scale = availableWidth > totalBaseWidth
+            ? availableWidth / totalBaseWidth
+            : 1.0;
+        final widths = baseWidths.map((w) => w * scale).toList();
+        final totalTableWidth = widths.fold<double>(0.0, (sum, w) => sum + w);
+
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: AppRadius.card,
+            border: Border.all(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            height: constraints.maxHeight,
+            child: Scrollbar(
+              controller: _tableHorizontalScrollController,
+              thumbVisibility: true,
+              notificationPredicate: (notif) =>
+                  notif.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _tableHorizontalScrollController,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: totalTableWidth,
+                  height: constraints.maxHeight,
+                  child: Column(
+                    children: [
+                      // Static Header pinned at top
+                      _buildTableHeader(hasCheckbox, columns, widths),
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: AppColors.border,
+                      ),
+                      // Vertically scrollable rows
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: _load,
+                          child: Scrollbar(
+                            controller: _tableVerticalScrollController,
+                            thumbVisibility: true,
+                            notificationPredicate: (notif) =>
+                                notif.metrics.axis == Axis.vertical,
+                            child: ListView.separated(
+                              controller: _tableVerticalScrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: result.rows.length,
+                              separatorBuilder: (_, _) => Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: AppColors.border.withValues(alpha: 0.6),
+                              ),
+                              itemBuilder: (context, index) {
+                                final row = result.rows[index];
+                                return _buildTableRow(
+                                  row,
+                                  hasCheckbox,
+                                  columns,
+                                  widths,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              )
-              .toList(),
-          rows: result.rows.map((row) {
-            final isPatient = _type == ReportType.patients && row['id'] != null;
-            return DataRow(
-              onSelectChanged: isPatient
-                  ? (_) => _openPatientDetails(row['id']?.toString())
-                  : null,
-              cells: _definition.columns
-                  .map(
-                    (column) => DataCell(
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 210),
-                        child: Text(
-                          formatReportValue(column.key, row[column.key]),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTableHeader(
+    bool hasCheckbox,
+    List<ReportColumn> columns,
+    List<double> widths,
+  ) {
+    int colIndex = 0;
+    return Container(
+      color: AppColors.surface2,
+      height: 48,
+      child: Row(
+        children: [
+          if (hasCheckbox)
+            SizedBox(
+              width: widths[colIndex++],
+              child: const Center(
+                child: Icon(
+                  Icons.check_box_outline_blank,
+                  size: 20,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ...columns.map((column) {
+            final w = widths[colIndex++];
+            return SizedBox(
+              width: w,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Align(
+                  alignment: column.numeric
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Text(
+                    column.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableRow(
+    Map<String, dynamic> row,
+    bool hasCheckbox,
+    List<ReportColumn> columns,
+    List<double> widths,
+  ) {
+    final isPatient = _type == ReportType.patients && row['id'] != null;
+    int colIndex = 0;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isPatient
+            ? () => _openPatientDetails(row['id']?.toString())
+            : null,
+        hoverColor: isPatient ? AppColors.surface1 : null,
+        child: SizedBox(
+          height: 48,
+          child: Row(
+            children: [
+              if (hasCheckbox)
+                SizedBox(
+                  width: widths[colIndex++],
+                  child: const Center(
+                    child: Icon(
+                      Icons.check_box_outline_blank,
+                      size: 20,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ...columns.map((column) {
+                final w = widths[colIndex++];
+                return SizedBox(
+                  width: w,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Align(
+                      alignment: column.numeric
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Text(
+                        formatReportValue(column.key, row[column.key]),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.text,
                         ),
                       ),
                     ),
-                  )
-                  .toList(),
-            );
-          }).toList(),
+                  ),
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );
@@ -1096,7 +1424,9 @@ class _ReportsPageState extends State<ReportsPage> {
                       );
                     }),
                     if (_type == ReportType.patientWards ||
-                        _type == ReportType.patients) ...[
+                        _type == ReportType.patients ||
+                        _type == ReportType.medicineSupplies ||
+                        _type == ReportType.equipmentSupplies) ...[
                       Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.sm),
                         child: DropdownButtonFormField<String>(
@@ -1147,31 +1477,18 @@ class _ReportsPageState extends State<ReportsPage> {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.sm),
-                        child: DropdownButtonFormField<String>(
+                        child: SearchableDropdownField<String>(
                           key: ValueKey(
                             'filter_ward_${selectedLocalBody}_${extra['ward'] ?? ''}',
                           ),
-                          initialValue: extra['ward'] ?? '',
-                          isExpanded: true,
-                          isDense: true,
-                          itemHeight: 48,
-                          menuMaxHeight: 320,
+                          value: extra['ward'] ?? '',
                           style: _compactDropdownTextStyle(),
                           decoration: _compactDropdownDecoration('Care ward'),
+                          dialogTitle: 'Select care ward',
+                          searchHintText: 'Search ward name or number',
                           items: [
-                            DropdownMenuItem(
-                              value: '',
-                              child: _compactDropdownLabel(
-                                selectedLocalBody.isEmpty
-                                    ? 'All wards'
-                                    : 'All in $selectedLocalBody',
-                              ),
-                            ),
-                            if (selectedLocalBody.isEmpty)
-                              DropdownMenuItem(
-                                value: 'unassigned',
-                                child: _compactDropdownLabel('Unassigned'),
-                              ),
+                            '',
+                            if (selectedLocalBody.isEmpty) 'unassigned',
                             ..._wardChoices
                                 .where(
                                   (ward) =>
@@ -1179,17 +1496,38 @@ class _ReportsPageState extends State<ReportsPage> {
                                       (ward.localBody?.trim() ?? '') ==
                                           selectedLocalBody,
                                 )
-                                .map(
-                                  (ward) => DropdownMenuItem(
-                                    value: ward.id,
-                                    child: _compactDropdownLabel(
-                                      selectedLocalBody.isEmpty
-                                          ? ward.fullLabel
-                                          : ward.label,
-                                    ),
-                                  ),
-                                ),
+                                .map((ward) => ward.id),
                           ],
+                          itemLabel: (value) {
+                            if (value.isEmpty) {
+                              return selectedLocalBody.isEmpty
+                                  ? 'All wards'
+                                  : 'All in $selectedLocalBody';
+                            }
+                            if (value == 'unassigned') return 'Unassigned';
+                            final ward = _wardChoices.cast<Ward?>().firstWhere(
+                              (w) => w?.id == value,
+                              orElse: () => null,
+                            );
+                            if (ward == null) return value;
+                            return selectedLocalBody.isEmpty
+                                ? ward.fullLabel
+                                : ward.label;
+                          },
+                          itemSearchText: (value) {
+                            if (value.isEmpty) {
+                              return selectedLocalBody.isEmpty
+                                  ? 'All wards'
+                                  : 'All in $selectedLocalBody';
+                            }
+                            if (value == 'unassigned') return 'Unassigned';
+                            final ward = _wardChoices.cast<Ward?>().firstWhere(
+                              (w) => w?.id == value,
+                              orElse: () => null,
+                            );
+                            if (ward == null) return value;
+                            return '${ward.fullLabel} ${ward.label} ${ward.localBody ?? ''} ${ward.code ?? ''}';
+                          },
                           onChanged: (value) =>
                               setModalState(() => extra['ward'] = value ?? ''),
                         ),
@@ -1232,11 +1570,15 @@ class _ReportsPageState extends State<ReportsPage> {
                             extra['expiryDays'] = expiryController.text.trim();
                           }
                           if (_type == ReportType.patientWards ||
-                              _type == ReportType.patients) {
+                              _type == ReportType.patients ||
+                              _type == ReportType.medicineSupplies ||
+                              _type == ReportType.equipmentSupplies) {
                             if (selectedLocalBody.isEmpty) {
                               extra.remove('localBody');
                             }
-                            if (selectedLocalBody.isNotEmpty &&
+                            if ((_type == ReportType.patientWards ||
+                                    _type == ReportType.patients) &&
+                                selectedLocalBody.isNotEmpty &&
                                 (extra['ward'] ?? '').isEmpty) {
                               final localWardIds = _wardChoices
                                   .where(
@@ -1251,7 +1593,8 @@ class _ReportsPageState extends State<ReportsPage> {
                               } else {
                                 extra.remove('wardIds');
                               }
-                            } else {
+                            } else if (_type == ReportType.patientWards ||
+                                _type == ReportType.patients) {
                               extra.remove('wardIds');
                             }
                           }

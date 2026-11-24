@@ -694,6 +694,18 @@ class _MedicineSupplyPageState extends State<MedicineSupplyPage> {
                     fontSize: 12,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_selectedPatient!.currentWard?.localBody?.trim().isNotEmpty == true
+                      ? _selectedPatient!.currentWard!.localBody
+                      : _selectedPatient!.village.isNotEmpty
+                      ? _selectedPatient!.village
+                      : 'Unassigned local body'} • ${_selectedPatient!.currentWard?.label ?? 'Unassigned ward'}',
+                  style: const TextStyle(
+                    color: _medicineDarkGreen,
+                    fontSize: 12,
+                  ),
+                ),
                 if (_selectedPatient!.address.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(

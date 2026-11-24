@@ -14,9 +14,15 @@ class MedicineSupplyService {
   /// Get all medicine supplies from the API. Cached for [_ttl].
   static Future<List<MedicineSupply>> getAllMedicineSupplies({
     bool forceRefresh = false,
+    String? localBody,
+    String? wardId,
   }) async {
     if (forceRefresh) {
       AppCache.invalidate(_keyAll);
+    }
+    if (localBody?.trim().isNotEmpty == true ||
+        wardId?.trim().isNotEmpty == true) {
+      return _fetchAllMedicineSupplies(localBody: localBody, wardId: wardId);
     }
     return AppCache.get<List<MedicineSupply>>(
       _keyAll,
@@ -25,10 +31,18 @@ class MedicineSupplyService {
     );
   }
 
-  static Future<List<MedicineSupply>> _fetchAllMedicineSupplies() async {
-    final result = await ApiService.get<List<dynamic>>(
+  static Future<List<MedicineSupply>> _fetchAllMedicineSupplies({
+    String? localBody,
+    String? wardId,
+  }) async {
+    final query = <String, String>{
+      if (localBody?.trim().isNotEmpty == true) 'localBody': localBody!.trim(),
+      if (wardId?.trim().isNotEmpty == true) 'wardId': wardId!.trim(),
+    };
+    final url = Uri.parse(
       ApiConfig.v2MedicineSuppliesEndpoint,
-    );
+    ).replace(queryParameters: query.isEmpty ? null : query).toString();
+    final result = await ApiService.get<List<dynamic>>(url);
 
     if (result.isSuccess && result.data != null) {
       return result.data!

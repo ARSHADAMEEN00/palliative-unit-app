@@ -7,17 +7,20 @@ import 'package:oruma_app/medicine_supply_page.dart';
 import 'package:oruma_app/medicine_list_page.dart';
 import 'package:oruma_app/models/medicine_supply_activity.dart';
 import 'package:oruma_app/models/medicine_supply.dart';
+import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/services/medicine_supply_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/compact_app_bottom_bar.dart';
 import 'package:oruma_app/widgets/app_bottom_nav_router.dart';
 import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/module_switch_tabs.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 
 const _medicineGreen = Color(0xFF0F766E);
 const _successGreen = Color(0xFF16A34A);
@@ -47,12 +50,16 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _searchDebounce;
+  List<Ward> _wards = const [];
+  String? _selectedLocalBody;
+  String? _selectedWardId;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_handleSearchChanged);
     _loadData();
+    _loadWards();
   }
 
   @override
@@ -66,6 +73,29 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     final query = _searchController.text.trim();
     setState(() => _searchQuery = query);
   }
+
+  Future<void> _loadWards() async {
+    try {
+      final wards = await WardService.getWards();
+      if (mounted) setState(() => _wards = wards);
+    } catch (_) {}
+  }
+
+  List<String> get _localBodies =>
+      _wards
+          .map((ward) => ward.localBody?.trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+
+  List<Ward> get _filterWards => _wards
+      .where(
+        (ward) =>
+            _selectedLocalBody == null ||
+            ward.localBody?.trim() == _selectedLocalBody,
+      )
+      .toList();
 
   Future<void> _loadData({
     bool showLoading = true,
@@ -81,6 +111,8 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     try {
       final list = await MedicineSupplyService.getAllMedicineSupplies(
         forceRefresh: forceRefresh,
+        localBody: _selectedLocalBody,
+        wardId: _selectedWardId,
       );
       if (!mounted) return;
       list.sort((a, b) {
@@ -218,43 +250,141 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: TextField(
-        controller: _searchController,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Search by patient or medicine',
-          prefixIcon: const Icon(Icons.search, size: 20),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () {
-                    _searchController.clear();
-                    FocusScope.of(context).unfocus();
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Search by patient or medicine',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () {
+                        _searchController.clear();
+                        FocusScope.of(context).unfocus();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: _medicineGreen, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedLocalBody,
+                  isExpanded: true,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.normal,
+                    color: _primaryText,
+                  ),
+                  decoration: _filterDecoration('Local body'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('All local bodies'),
+                    ),
+                    ..._localBodies.map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(value, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedLocalBody = value?.isEmpty == true
+                          ? null
+                          : value;
+                      if (!_filterWards.any(
+                        (ward) => ward.id == _selectedWardId,
+                      )) {
+                        _selectedWardId = null;
+                      }
+                    });
+                    _loadData();
                   },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.grey.shade50,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SearchableDropdownField<String>(
+                  key: ValueKey('medicine-filter-${_selectedLocalBody ?? ''}'),
+                  value: _filterWards.any((w) => w.id == _selectedWardId)
+                      ? _selectedWardId
+                      : '',
+                  decoration: _filterDecoration('Ward'),
+                  items: [
+                    '',
+                    ..._filterWards.map((w) => w.id),
+                  ],
+                  itemLabel: (id) {
+                    if (id.isEmpty) return 'All wards';
+                    final match = _filterWards.cast<Ward?>().firstWhere(
+                      (w) => w?.id == id,
+                      orElse: () => null,
+                    );
+                    return match?.label ?? id;
+                  },
+                  itemSearchText: (id) {
+                    if (id.isEmpty) return 'All wards';
+                    final match = _filterWards.cast<Ward?>().firstWhere(
+                      (w) => w?.id == id,
+                      orElse: () => null,
+                    );
+                    return match != null
+                        ? '${match.label} ${match.localBody ?? ''} ${match.code ?? ''}'
+                        : id;
+                  },
+                  dialogTitle: 'Select ward',
+                  searchHintText: 'Search ward name or number',
+                  onChanged: (value) {
+                    setState(
+                      () => _selectedWardId = value?.isEmpty == true
+                          ? null
+                          : value,
+                    );
+                    _loadData();
+                  },
+                ),
+              ),
+            ],
           ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade200),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: _medicineGreen, width: 1.5),
-          ),
-        ),
+        ],
       ),
     );
   }
+
+  InputDecoration _filterDecoration(String hint) => InputDecoration(
+    hintText: hint,
+    isDense: true,
+    filled: true,
+    fillColor: Colors.grey.shade50,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.shade200),
+    ),
+  );
 
   Widget _buildList() {
     if (_loading) {
@@ -583,7 +713,9 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       _removeSupply(supply);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Deleted medicine supplies for ${supply.patientName} (Patient kept)'),
+          content: Text(
+            'Deleted medicine supplies for ${supply.patientName} (Patient kept)',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -691,7 +823,10 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     final seenItemKeys = <String>{};
 
     for (final supply in supplies) {
-      final key = _supplyPatientIdentityKey(supply) ?? supply.id;
+      final patientKey = _supplyPatientIdentityKey(supply) ?? supply.id;
+      final key = patientKey == null
+          ? null
+          : '$patientKey|ward:${supply.wardId ?? 'unassigned'}';
       if (key == null) continue;
 
       final currentBase = baseByKey[key];
@@ -943,8 +1078,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                     ..._buildGroupedMedicineSections(
                       currentSupply,
                       auth,
-                      (updated) =>
-                          setModalState(() => currentSupply = updated),
+                      (updated) => setModalState(() => currentSupply = updated),
                     ),
                   if (returnActivities.isNotEmpty) ...[
                     const SizedBox(height: 14),
@@ -1040,6 +1174,13 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
             ].where((value) => value.trim().isNotEmpty).join(', '),
           ),
           _buildDetailRow('Diagnosis', supply.patientDiseases.join(', ')),
+          _buildDetailRow(
+            'Local Body',
+            supply.localBody?.trim().isNotEmpty == true
+                ? supply.localBody!
+                : 'Unassigned',
+          ),
+          _buildDetailRow('Ward', supply.ward?.label ?? 'Unassigned'),
         ],
       ),
     );
@@ -1090,8 +1231,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
     ValueChanged<MedicineSupply> onUpdated,
   ) {
     final grouped = _groupItemsBySupplyDate(currentSupply);
-    final sortedDates = grouped.keys.toList()
-      ..sort((a, b) => b.compareTo(a));
+    final sortedDates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
 
     final widgets = <Widget>[];
     for (var i = 0; i < sortedDates.length; i++) {
@@ -1102,14 +1242,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       }
       widgets.add(_buildSupplyDateSectionHeading(date, items.length));
       for (final item in items) {
-        widgets.add(
-          _buildSupplyItemRow(
-            currentSupply,
-            item,
-            auth,
-            onUpdated,
-          ),
-        );
+        widgets.add(_buildSupplyItemRow(currentSupply, item, auth, onUpdated));
       }
     }
     return widgets;
@@ -1123,9 +1256,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
       decoration: BoxDecoration(
         color: _iconBg.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: _medicineGreen.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: _medicineGreen.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
@@ -1158,9 +1289,7 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
             decoration: BoxDecoration(
               color: _cardBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _medicineGreen.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: _medicineGreen.withValues(alpha: 0.2)),
             ),
             child: Text(
               '$count ${count == 1 ? 'item' : 'items'}',
@@ -1924,6 +2053,16 @@ class _MedicineSupplyListPageState extends State<MedicineSupplyListPage> {
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${supply.localBody?.trim().isNotEmpty == true ? supply.localBody : 'Unassigned'} • ${supply.ward?.label ?? 'Unassigned'}',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 14),

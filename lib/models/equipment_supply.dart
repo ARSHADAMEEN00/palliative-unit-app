@@ -1,9 +1,14 @@
+import 'package:oruma_app/models/ward.dart';
+
 class EquipmentSupply {
   final String? id;
   final String equipmentId;
   final String equipmentUniqueId;
   final String equipmentName;
   final String? patientId;
+  final String? wardId;
+  final Ward? ward;
+  final String? localBody;
   final String? patientName;
   final String? patientPhone;
   final String? patientAddress;
@@ -35,6 +40,9 @@ class EquipmentSupply {
     required this.equipmentUniqueId,
     required this.equipmentName,
     this.patientId,
+    this.wardId,
+    this.ward,
+    this.localBody,
     this.patientName,
     this.patientPhone,
     this.patientAddress,
@@ -68,6 +76,13 @@ class EquipmentSupply {
       equipmentUniqueId: json['equipmentUniqueId']?.toString() ?? '',
       equipmentName: json['equipmentName']?.toString() ?? '',
       patientId: _idFromJson(json['patientId']),
+      wardId: _idFromJson(json['wardId']),
+      ward: json['ward'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['ward']))
+          : json['wardId'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['wardId']))
+          : null,
+      localBody: json['localBody']?.toString(),
       patientName: json['patientName']?.toString(),
       patientPhone: json['patientPhone']?.toString(),
       patientAddress: json['patientAddress']?.toString(),
@@ -111,6 +126,8 @@ class EquipmentSupply {
       'equipmentUniqueId': equipmentUniqueId,
       'equipmentName': equipmentName,
       'patientId': patientId,
+      'wardId': wardId,
+      'localBody': localBody,
       'patientName': patientName,
       'patientPhone': patientPhone,
       'patientAddress': patientAddress,

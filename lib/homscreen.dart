@@ -4758,18 +4758,20 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     if (auth.canAccessPatients) {
       actions.add(patients);
     }
-    actions.add(
-      _HomeMetricAction(
-        title: 'Visit\nAssessment',
-        value: '',
-        subtitle: 'Clinical records',
-        icon: Icons.assignment_outlined,
-        iconBackground: ModulePalettes.patients.iconBackground,
-        iconColor: ModulePalettes.patients.primary,
-        onTap: () => _openVisitAssessment(auth),
-        customContent: _buildVisitAssessmentIllustrationContent(),
-      ),
-    );
+    if (auth.canAccessNHC) {
+      actions.add(
+        _HomeMetricAction(
+          title: 'Visit\nAssessment',
+          value: '',
+          subtitle: 'Clinical records',
+          icon: Icons.assignment_outlined,
+          iconBackground: ModulePalettes.patients.iconBackground,
+          iconColor: ModulePalettes.patients.primary,
+          onTap: () => _openVisitAssessment(auth),
+          customContent: _buildVisitAssessmentIllustrationContent(),
+        ),
+      );
+    }
     return actions;
   }
 
@@ -4904,8 +4906,7 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
           ),
         )
         .toList();
-    final usesTwoRows =
-        auth.isAdmin || auth.isStaff || auth.isMember || chips.length > 3;
+    final usesTwoRows = chips.length > 3;
 
     if (usesTwoRows) {
       final row1 = <Widget>[];
@@ -4986,27 +4987,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
     }
 
     add(
-      auth.isAdmin || auth.isStaff || auth.canAccessHomeVisits,
+      auth.canAccessHomeVisits,
       'Home visit',
       Icons.home_outlined,
       ModulePalettes.homeVisits,
       () => _openHomeVisits(auth),
     );
     add(
-      auth.isAdmin ||
-          auth.isStaff ||
-          auth.canAccessEquipmentDistribution ||
-          auth.canAccessEquipment,
+      auth.canAccessEquipmentDistribution || auth.canAccessEquipment,
       'Equipment',
       Icons.inventory_2_outlined,
       ModulePalettes.equipmentSupply,
       _openEquipmentSupply,
     );
     add(
-      auth.isAdmin ||
-          auth.isStaff ||
-          auth.canAccessMedicineSupply ||
-          auth.canAccessMedicine,
+      auth.canAccessMedicineSupply || auth.canAccessMedicine,
       'Medicine',
       Icons.medication_outlined,
       ModulePalettes.medicineSupply,
@@ -5020,21 +5015,21 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
       _openVolunteers,
     );
     add(
-      auth.isAdmin || auth.isStaff || auth.canAccessSocialSupport,
+      auth.canAccessSocialSupport,
       'Social support',
       Icons.favorite_border_rounded,
       ModulePalettes.socialSupport,
       _openSocialSupport,
     );
     add(
-      auth.isAdmin || auth.isStaff || auth.canAccessPatients,
+      _canViewPatientEnquiries(auth),
       'Patient enquiries',
       Icons.mark_email_unread_outlined,
       ModulePalettes.patients,
       _openPatientEnquiries,
     );
     add(
-      auth.isAdmin || auth.isStaff || auth.canAccessReports,
+      auth.canAccessReports,
       'Reports',
       Icons.bar_chart_rounded,
       ModulePalettes.reports,
@@ -5602,6 +5597,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _openSocialSupport() {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.socialSupport,
+      moduleName: 'Social Support',
+    )) {
+      return;
+    }
     _openPage(
       const ModuleTheme(
         palette: ModulePalettes.socialSupport,
@@ -5611,6 +5613,23 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _openEquipmentSupply() {
+    final auth = context.read<AuthService>();
+    if (!auth.canAccessEquipmentDistribution && auth.canAccessEquipment) {
+      _openPage(
+        const ModuleTheme(
+          palette: ModulePalettes.equipmentSupply,
+          child: EquipmentListPage(),
+        ),
+      );
+      return;
+    }
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.equipmentDistribution,
+      moduleName: 'Equipment Supply',
+    )) {
+      return;
+    }
     _openPage(
       const ModuleTheme(
         palette: ModulePalettes.equipmentSupply,
@@ -5621,6 +5640,24 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _openMedicineSupply() {
+    final auth = context.read<AuthService>();
+    if (!auth.canAccessMedicineSupply &&
+        (auth.canAccessMedicineMaster || auth.canAccessMedicineStock)) {
+      _openPage(
+        const ModuleTheme(
+          palette: ModulePalettes.medicineSupply,
+          child: MedicineListPage(),
+        ),
+      );
+      return;
+    }
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.medicineSupply,
+      moduleName: 'Medicine Supply',
+    )) {
+      return;
+    }
     _openPage(
       const ModuleTheme(
         palette: ModulePalettes.medicineSupply,
@@ -5630,6 +5667,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _openVolunteers() {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.volunteers,
+      moduleName: 'Volunteers',
+    )) {
+      return;
+    }
     _openPage(
       const ModuleTheme(
         palette: ModulePalettes.volunteers,
@@ -5639,6 +5683,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _openReports() {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.advancedReports,
+      moduleName: 'Reports',
+    )) {
+      return;
+    }
     _openPage(
       const ModuleTheme(palette: ModulePalettes.reports, child: ReportsPage()),
     );
@@ -5649,6 +5700,13 @@ class _HomescreenState extends State<Homescreen> with WidgetsBindingObserver {
   }
 
   void _openPatientEnquiries() {
+    if (!FeaturePermissionMiddleware.ensure(
+      context,
+      AppFeature.patients,
+      moduleName: 'Patient Enquiries',
+    )) {
+      return;
+    }
     _openPage(const PatientEnquiryListPage(), after: _loadPatientEnquiryCount);
   }
 

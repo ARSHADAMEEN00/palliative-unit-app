@@ -13,11 +13,26 @@ class EquipmentSupplyService {
   static const _ttlAll = Duration(minutes: 10);
 
   /// Get all supplies. Cached when no search query is provided.
-  static Future<List<EquipmentSupply>> getAllSupplies({String? search}) async {
+  static Future<List<EquipmentSupply>> getAllSupplies({
+    String? search,
+    String? localBody,
+    String? wardId,
+  }) async {
     final hasSearch = search != null && search.trim().isNotEmpty;
 
     if (hasSearch) {
-      return _fetchAllSupplies(search: search);
+      return _fetchAllSupplies(
+        search: search,
+        localBody: localBody,
+        wardId: wardId,
+      );
+    }
+
+    final hasLocationFilter =
+        localBody?.trim().isNotEmpty == true ||
+        wardId?.trim().isNotEmpty == true;
+    if (hasLocationFilter) {
+      return _fetchAllSupplies(localBody: localBody, wardId: wardId);
     }
 
     return AppCache.get<List<EquipmentSupply>>(
@@ -29,12 +44,17 @@ class EquipmentSupplyService {
 
   static Future<List<EquipmentSupply>> _fetchAllSupplies({
     String? search,
+    String? localBody,
+    String? wardId,
   }) async {
-    String url = ApiConfig.equipmentSuppliesEndpoint;
-    if (search != null && search.trim().isNotEmpty) {
-      final encodedSearch = Uri.encodeQueryComponent(search.trim());
-      url += '?search=$encodedSearch';
-    }
+    final query = <String, String>{
+      if (search?.trim().isNotEmpty == true) 'search': search!.trim(),
+      if (localBody?.trim().isNotEmpty == true) 'localBody': localBody!.trim(),
+      if (wardId?.trim().isNotEmpty == true) 'wardId': wardId!.trim(),
+    };
+    final url = Uri.parse(
+      ApiConfig.equipmentSuppliesEndpoint,
+    ).replace(queryParameters: query.isEmpty ? null : query).toString();
     final result = await ApiService.get<List<dynamic>>(url);
     if (result.isSuccess && result.data != null) {
       return result.data!
@@ -47,11 +67,24 @@ class EquipmentSupplyService {
   /// Get active supplies. Cached when no search query is provided.
   static Future<List<EquipmentSupply>> getActiveSupplies({
     String? search,
+    String? localBody,
+    String? wardId,
   }) async {
     final hasSearch = search != null && search.trim().isNotEmpty;
 
     if (hasSearch) {
-      return _fetchActiveSupplies(search: search);
+      return _fetchActiveSupplies(
+        search: search,
+        localBody: localBody,
+        wardId: wardId,
+      );
+    }
+
+    final hasLocationFilter =
+        localBody?.trim().isNotEmpty == true ||
+        wardId?.trim().isNotEmpty == true;
+    if (hasLocationFilter) {
+      return _fetchActiveSupplies(localBody: localBody, wardId: wardId);
     }
 
     return AppCache.get<List<EquipmentSupply>>(
@@ -63,12 +96,17 @@ class EquipmentSupplyService {
 
   static Future<List<EquipmentSupply>> _fetchActiveSupplies({
     String? search,
+    String? localBody,
+    String? wardId,
   }) async {
-    String url = '${ApiConfig.equipmentSuppliesEndpoint}/active';
-    if (search != null && search.trim().isNotEmpty) {
-      final encodedSearch = Uri.encodeQueryComponent(search.trim());
-      url += '?search=$encodedSearch';
-    }
+    final query = <String, String>{
+      if (search?.trim().isNotEmpty == true) 'search': search!.trim(),
+      if (localBody?.trim().isNotEmpty == true) 'localBody': localBody!.trim(),
+      if (wardId?.trim().isNotEmpty == true) 'wardId': wardId!.trim(),
+    };
+    final url = Uri.parse(
+      '${ApiConfig.equipmentSuppliesEndpoint}/active',
+    ).replace(queryParameters: query.isEmpty ? null : query).toString();
     final result = await ApiService.get<List<dynamic>>(url);
     if (result.isSuccess && result.data != null) {
       return result.data!

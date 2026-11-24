@@ -12,6 +12,7 @@ import 'package:oruma_app/services/volunteer_service.dart';
 import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -116,6 +117,7 @@ class _patientrigisterState extends State<patientrigister> {
 
   Future<void> _loadConfig() async {
     try {
+      final auth = context.read<AuthService>();
       final results = await Future.wait([
         ConfigService.getConfig(),
         _loadVolunteersSafely(),
@@ -124,9 +126,18 @@ class _patientrigisterState extends State<patientrigister> {
       final config = results[0] as Config;
       final loadedVolunteers = results[1] as List<Volunteer>;
       final loadedCareWards = results[2] as List<Ward>;
+      final permittedLocalBodies =
+          loadedCareWards
+              .map((ward) => ward.localBody?.trim() ?? '')
+              .where((value) => value.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort(compareNaturally);
       final initialVolunteer = _findInitialVolunteer(loadedVolunteers);
       setState(() {
-        villages = config.villages;
+        villages = auth.isStaff || auth.isMember
+            ? permittedLocalBodies
+            : config.villages;
         diseases = config.diseases;
         plans = config.plans;
         volunteers = loadedVolunteers;
@@ -516,7 +527,8 @@ class _patientrigisterState extends State<patientrigister> {
     final isEditing = widget.patient != null;
     final auth = context.watch<AuthService>();
     final canManageConfig = auth.isAdmin;
-    final wardRequired = auth.wardRestrictionEnabled;
+    final wardRequired =
+        auth.isStaff || auth.isMember || auth.wardRestrictionEnabled;
 
     // Show loading indicator while config is loading
     if (_isLoadingConfig) {
@@ -843,7 +855,7 @@ class _patientrigisterState extends State<patientrigister> {
                     validator: (val) => val == null ? "Required" : null,
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdownField<String>(
                     decoration: _buildInputDecoration(
                       wardRequired ? "Ward *" : "Ward (optional)",
                       Icons.apartment,
@@ -851,46 +863,37 @@ class _patientrigisterState extends State<patientrigister> {
                     key: ValueKey(
                       '${_selectedVillage ?? ''}:${_selectedCurrentWardId ?? ''}:${_wardsForSelectedLocalBody.length}',
                     ),
-                    initialValue:
+                    value:
                         _wardsForSelectedLocalBody.any(
                           (ward) => ward.id == _selectedCurrentWardId,
                         )
                         ? _selectedCurrentWardId
                         : null,
-                    isExpanded: true,
+                    items: _wardsForSelectedLocalBody
+                        .map((ward) => ward.id)
+                        .toList(),
+                    itemLabel: (id) => _wardById(id)?.label ?? id,
+                    itemSearchText: (id) {
+                      final ward = _wardById(id);
+                      return [
+                        ward?.label,
+                        ward?.localBody,
+                        ward?.lsgWardValue,
+                        ward?.code,
+                      ].whereType<String>().join(' ');
+                    },
+                    dialogTitle: 'Select ward',
+                    searchHintText: 'Search ward name or number',
+                    hintText: _selectedVillage == null
+                        ? 'Select a local body / zone first'
+                        : _wardsForSelectedLocalBody.isEmpty
+                        ? 'No wards configured for this local body / zone'
+                        : 'Select ward',
                     style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.normal,
                       color: AppColors.text,
                     ),
-                    hint: Text(
-                      _selectedVillage == null
-                          ? 'Select a local body / zone first'
-                          : _wardsForSelectedLocalBody.isEmpty
-                          ? 'No wards configured for this local body / zone'
-                          : 'Select ward',
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.normal,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    items: _wardsForSelectedLocalBody
-                        .map(
-                          (ward) => DropdownMenuItem(
-                            value: ward.id,
-                            child: Text(
-                              ward.label,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.normal,
-                                color: AppColors.text,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
                     onChanged: _wardsForSelectedLocalBody.isEmpty
                         ? null
                         : (value) {

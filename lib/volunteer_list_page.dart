@@ -9,6 +9,7 @@ import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -433,12 +434,27 @@ class _VolunteerListPageState extends State<VolunteerListPage>
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: _filterDropdown(
-                  icon: Icons.apartment_outlined,
-                  value: _selectedWard,
+                child: SearchableDropdownField<String>(
+                  key: ValueKey(
+                    'filter-ward-$_selectedWard-${_filteredWards.join('|')}',
+                  ),
+                  value: _filteredWards.contains(_selectedWard)
+                      ? _selectedWard
+                      : 'All',
+                  style: AppTypography.dropdownTextStyle(context),
+                  decoration: _compactInputDecoration(
+                    _selectedWard == 'All'
+                        ? 'All wards'
+                        : 'Ward $_selectedWard',
+                    Icons.apartment_outlined,
+                  ),
+                  dialogTitle: 'Select ward',
+                  searchHintText: 'Search ward number',
                   items: _filteredWards,
-                  labelFor: (value) =>
+                  itemLabel: (value) =>
                       value == 'All' ? 'All wards' : 'Ward $value',
+                  itemSearchText: (value) =>
+                      value == 'All' ? 'All wards' : 'Ward $value $value',
                   onChanged: (value) {
                     if (value == null) return;
                     setState(() => _selectedWard = value);
@@ -1520,28 +1536,24 @@ class _VolunteerFormPageState extends State<VolunteerFormPage> {
                     validator: (value) =>
                         value == null ? 'Village is required' : null,
                   ),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdownField<String>(
                     key: ValueKey(
                       'ward-${_selectedWard ?? ''}-${_wardOptions.join('|')}',
                     ),
-                    initialValue: _wardOptions.contains(_selectedWard)
+                    value: _wardOptions.contains(_selectedWard)
                         ? _selectedWard
                         : null,
-                    isExpanded: true,
                     style: AppTypography.dropdownTextStyle(context),
                     decoration: _inputDecoration(
                       'Ward',
                       Icons.apartment_outlined,
                     ),
-                    hint: const Text('Select Ward'),
-                    items: _wardOptions
-                        .map(
-                          (ward) => DropdownMenuItem(
-                            value: ward,
-                            child: Text('Ward $ward'),
-                          ),
-                        )
-                        .toList(),
+                    hintText: 'Select Ward',
+                    dialogTitle: 'Select Ward',
+                    searchHintText: 'Search ward number',
+                    items: _wardOptions,
+                    itemLabel: (ward) => 'Ward $ward',
+                    itemSearchText: (ward) => 'Ward $ward $ward',
                     onChanged: (value) => setState(() => _selectedWard = value),
                     validator: (value) =>
                         value == null ? 'Ward is required' : null,

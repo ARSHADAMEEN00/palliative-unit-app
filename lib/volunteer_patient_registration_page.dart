@@ -13,6 +13,7 @@ import 'package:oruma_app/services/volunteer_application_service.dart';
 import 'package:oruma_app/email_verification_page.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:provider/provider.dart';
 
 class VolunteerPatientRegistrationPage extends StatefulWidget {
@@ -2012,25 +2013,22 @@ class _VolunteerPatientRegistrationPageState
         const SizedBox(height: 4),
 
         if (!_isCustomWard && _filteredWards.isNotEmpty) ...[
-          DropdownButtonFormField<String>(
+          SearchableDropdownField<String>(
             key: ValueKey('ward_${_selectedVillage}_$_selectedWardDropdown'),
-            initialValue: _selectedWardDropdown,
-            isExpanded: true,
-            dropdownColor: AppColors.surface,
+            value: _filteredWards.contains(_selectedWardDropdown)
+                ? _selectedWardDropdown
+                : null,
             style: AppTypography.dropdownTextStyle(context),
             decoration: _buildDecoration(
               label: 'Select Ward Number',
               icon: Icons.apartment_rounded,
               hint: 'Choose ward',
             ),
-            items: [
-              ..._filteredWards.map((w) {
-                return DropdownMenuItem<String>(
-                  value: w,
-                  child: Text('Ward $w'),
-                );
-              }),
-            ],
+            dialogTitle: 'Select Ward Number',
+            searchHintText: 'Search ward number',
+            items: _filteredWards,
+            itemLabel: (w) => 'Ward $w',
+            itemSearchText: (w) => 'Ward $w $w',
             onChanged: (val) {
               setState(() {
                 _selectedWardDropdown = val;

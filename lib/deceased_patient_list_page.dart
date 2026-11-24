@@ -215,6 +215,14 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
     );
   }
 
+  double _patientNameFontSize(String name) {
+    final len = name.trim().length;
+    if (len >= 28) return 11.5;
+    if (len >= 22) return 12.5;
+    if (len >= 16) return 13.5;
+    return 14.5;
+  }
+
   Widget _buildPatientCard(BuildContext context, Patient patient) {
     final canViewDetails =
         Provider.of<AuthService>(context, listen: false).canViewPatientDetails;
@@ -260,7 +268,9 @@ class _DeceasedPatientListPageState extends State<DeceasedPatientListPage> {
               children: [
                 Text(
                   patient.name,
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: _patientNameFontSize(patient.name),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

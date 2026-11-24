@@ -21,6 +21,9 @@ class _HomePreviewAuthService extends AuthService {
     this.canAccessNHCOverride,
     this.canAccessVolunteersOverride,
     this.canAccessPatientsOverride,
+    this.canAccessHomeVisitsOverride,
+    this.canAccessSocialSupportOverride,
+    this.canAccessReportsOverride,
     this.previewUsername,
     this.emailVerified = true,
   });
@@ -35,6 +38,9 @@ class _HomePreviewAuthService extends AuthService {
   final bool? canAccessNHCOverride;
   final bool? canAccessVolunteersOverride;
   final bool? canAccessPatientsOverride;
+  final bool? canAccessHomeVisitsOverride;
+  final bool? canAccessSocialSupportOverride;
+  final bool? canAccessReportsOverride;
   final String? previewUsername;
   final bool emailVerified;
 
@@ -73,9 +79,9 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get canAccessPatients => canAccessPatientsOverride ?? true;
   @override
-  bool get canAccessHomeVisits => true;
+  bool get canAccessHomeVisits => canAccessHomeVisitsOverride ?? true;
   @override
-  bool get canAccessSocialSupport => true;
+  bool get canAccessSocialSupport => canAccessSocialSupportOverride ?? true;
   @override
   bool get canAccessVolunteers => canAccessVolunteersOverride ?? true;
   @override
@@ -101,7 +107,7 @@ class _HomePreviewAuthService extends AuthService {
   @override
   bool get canAccessNHC => canAccessNHCOverride ?? (isAdmin || isStaff);
   @override
-  bool get canAccessReports => true;
+  bool get canAccessReports => canAccessReportsOverride ?? true;
   @override
   String? get username => previewUsername;
   @override
@@ -162,6 +168,9 @@ Future<void> _pumpHome(
   bool? canAccessNHC,
   bool? canAccessVolunteers,
   bool? canAccessPatients,
+  bool? canAccessHomeVisits,
+  bool? canAccessSocialSupport,
+  bool? canAccessReports,
   String? username,
   bool emailVerified = true,
   int? pendingVolunteerRegistrationCount,
@@ -187,6 +196,9 @@ Future<void> _pumpHome(
         canAccessNHCOverride: canAccessNHC,
         canAccessVolunteersOverride: canAccessVolunteers,
         canAccessPatientsOverride: canAccessPatients,
+        canAccessHomeVisitsOverride: canAccessHomeVisits,
+        canAccessSocialSupportOverride: canAccessSocialSupport,
+        canAccessReportsOverride: canAccessReports,
         previewUsername: username,
         emailVerified: emailVerified,
       ),
@@ -942,6 +954,67 @@ void main() {
       expect(find.text(expectedDateLabel), findsOneWidget);
       expect(find.text('Today'), findsNothing);
       expect(find.textContaining('Next:'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'staff without permission hides unpermitted modules from quick actions and priority cards',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'staff',
+        canAccessEquipment: false,
+        canAccessEquipmentDistribution: false,
+        canAccessMedicineSupply: false,
+        canAccessMedicineMaster: false,
+        canAccessReports: false,
+        canAccessHomeVisits: false,
+        canAccessSocialSupport: false,
+        canAccessPatients: false,
+        canAccessNHC: false,
+        pendingPatientEnquiryCount: 0,
+      );
+
+      await tester.pumpAndSettle();
+
+      // Quick actions should hide unpermitted items
+      expect(find.text('Equipment'), findsNothing);
+      expect(find.text('Medicine'), findsNothing);
+      expect(find.text('Reports'), findsNothing);
+      expect(find.text('Home visit'), findsNothing);
+      expect(find.text('Social support'), findsNothing);
+      expect(find.text('Patient enquiries'), findsNothing);
+
+      // Priority cards should hide unpermitted items
+      expect(find.text('Patients'), findsNothing);
+      expect(find.text('Visit\nAssessment'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'staff with selective permissions shows only permitted quick actions',
+    (tester) async {
+      await _pumpHome(
+        tester,
+        'staff',
+        canAccessEquipment: false,
+        canAccessEquipmentDistribution: false,
+        canAccessMedicineSupply: true,
+        canAccessReports: false,
+        canAccessHomeVisits: true,
+        canAccessSocialSupport: false,
+        canAccessPatients: false,
+        pendingPatientEnquiryCount: 0,
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home visit'), findsOneWidget);
+      expect(find.text('Medicine'), findsWidgets); // quick action and bottom bar
+      expect(find.text('Equipment'), findsNothing);
+      expect(find.text('Reports'), findsNothing);
+      expect(find.text('Social support'), findsNothing);
+      expect(find.text('Patient enquiries'), findsNothing);
     },
   );
 }

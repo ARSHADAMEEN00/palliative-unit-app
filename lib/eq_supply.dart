@@ -3,14 +3,17 @@ import 'package:provider/provider.dart';
 import 'package:oruma_app/core/theme/app_design_system.dart';
 import 'package:oruma_app/models/patient.dart';
 import 'package:oruma_app/models/equipment.dart';
+import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
 import 'package:oruma_app/services/equipment_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
 import 'package:oruma_app/services/patient_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:intl/intl.dart';
 
 const _equipmentSupplyStrong = Color(0xFFB45309);
@@ -29,6 +32,9 @@ class _EqSupplyState extends State<EqSupply> {
   // Form fields
   Equipment? _selectedEquipment;
   Patient? _selectedPatient;
+  List<Ward> _wards = [];
+  String? _selectedLocalBody;
+  Ward? _selectedWard;
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _careOfController = TextEditingController();
   final TextEditingController _supplyDateController = TextEditingController();
@@ -114,7 +120,11 @@ class _EqSupplyState extends State<EqSupply> {
 
   Future<void> _loadInitialData() async {
     setState(() => _loading = true);
-    await Future.wait([_fetchAvailableEquipment(), _fetchPatients()]);
+    await Future.wait([
+      _fetchAvailableEquipment(),
+      _fetchPatients(),
+      _fetchWards(),
+    ]);
     setState(() => _loading = false);
   }
 
@@ -127,6 +137,49 @@ class _EqSupplyState extends State<EqSupply> {
     } catch (e) {
       debugPrint('Error fetching patients: $e');
     }
+  }
+
+  Future<void> _fetchWards() async {
+    try {
+      final wards = await WardService.getWards();
+      if (mounted) setState(() => _wards = wards);
+    } catch (e) {
+      debugPrint('Error fetching wards: $e');
+    }
+  }
+
+  List<String> get _localBodies =>
+      _wards
+          .map((ward) => ward.localBody?.trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+
+  List<Ward> get _wardsForLocalBody => _wards
+      .where(
+        (ward) =>
+            (ward.localBody?.trim() ?? '') ==
+            (_selectedLocalBody?.trim() ?? ''),
+      )
+      .toList();
+
+  void _selectPatient(Patient? patient) {
+    final ward =
+        patient?.currentWard ??
+        _wards.cast<Ward?>().firstWhere(
+          (item) => item?.id == patient?.currentWardId,
+          orElse: () => null,
+        );
+    setState(() {
+      _selectedPatient = patient;
+      _selectedWard = ward;
+      _selectedLocalBody = ward?.localBody?.trim().isNotEmpty == true
+          ? ward!.localBody!.trim()
+          : patient?.village.trim().isNotEmpty == true
+          ? patient!.village.trim()
+          : null;
+    });
   }
 
   @override
@@ -211,6 +264,17 @@ class _EqSupplyState extends State<EqSupply> {
       return;
     }
 
+    if (_selectedPatient == null &&
+        (_selectedWard == null || _selectedLocalBody?.isNotEmpty != true)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select the local body and ward for this handover'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     if (_selectedPatient != null &&
         (_selectedPatient!.id == null || _selectedPatient!.id!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -232,6 +296,8 @@ class _EqSupplyState extends State<EqSupply> {
         equipmentUniqueId: _selectedEquipment!.uniqueId,
         equipmentName: _selectedEquipment!.name,
         patientId: _selectedPatient?.id,
+        wardId: _selectedPatient == null ? _selectedWard?.id : null,
+        localBody: _selectedPatient == null ? _selectedLocalBody : null,
         patientName: _selectedPatient?.name,
         patientPhone: _selectedPatient?.phone,
         patientAddress: _selectedPatient?.address,
@@ -794,9 +860,7 @@ class _EqSupplyState extends State<EqSupply> {
                                             (Patient patient) =>
                                                 patient.name.toUpperCase(),
                                         onSelected: (Patient patient) {
-                                          setState(() {
-                                            _selectedPatient = patient;
-                                          });
+                                          _selectPatient(patient);
                                         },
                                         fieldViewBuilder:
                                             (
@@ -830,10 +894,9 @@ class _EqSupplyState extends State<EqSupply> {
                                                               onPressed: () {
                                                                 textEditingController
                                                                     .clear();
-                                                                setState(() {
-                                                                  _selectedPatient =
-                                                                      null;
-                                                                });
+                                                                _selectPatient(
+                                                                  null,
+                                                                );
                                                               },
                                                               icon: const Icon(
                                                                 Icons.clear,
@@ -850,9 +913,7 @@ class _EqSupplyState extends State<EqSupply> {
                                                           selected.name
                                                               .trim()
                                                               .toLowerCase()) {
-                                                    setState(() {
-                                                      _selectedPatient = null;
-                                                    });
+                                                    _selectPatient(null);
                                                   }
                                                 },
                                                 onFieldSubmitted:
@@ -1041,13 +1102,26 @@ class _EqSupplyState extends State<EqSupply> {
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          child: Text(
-                                            '${_selectedPatient!.name.toUpperCase()}, ${_selectedPatient!.address}',
-                                            style: const TextStyle(
-                                              color: _equipmentSupplyStrong,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 13,
-                                            ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${_selectedPatient!.name.toUpperCase()}, ${_selectedPatient!.address}',
+                                                style: const TextStyle(
+                                                  color: _equipmentSupplyStrong,
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                '${_selectedLocalBody ?? 'Unassigned local body'} • ${_selectedWard?.label ?? 'Unassigned ward'}',
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodySmall,
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -1079,6 +1153,71 @@ class _EqSupplyState extends State<EqSupply> {
                               title: 'Handover & Notes',
                               icon: Icons.handshake_outlined,
                               children: [
+                                if (_selectedPatient == null) ...[
+                                  DropdownButtonFormField<String>(
+                                    initialValue:
+                                        _localBodies.contains(
+                                          _selectedLocalBody,
+                                        )
+                                        ? _selectedLocalBody
+                                        : null,
+                                    decoration: _inputDecoration(
+                                      'Local Body',
+                                      Icons.location_city_outlined,
+                                    ),
+                                    hint: const Text('Select local body'),
+                                    items: _localBodies
+                                        .map(
+                                          (value) => DropdownMenuItem(
+                                            value: value,
+                                            child: Text(value),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (value) => setState(() {
+                                      _selectedLocalBody = value;
+                                      if (_selectedWard?.localBody != value) {
+                                        _selectedWard = null;
+                                      }
+                                    }),
+                                    validator: (value) => value == null
+                                        ? 'Select a local body'
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SearchableDropdownField<Ward>(
+                                    key: ValueKey(
+                                      'equipment-ward-${_selectedLocalBody ?? ''}',
+                                    ),
+                                    value: _wardsForLocalBody.any(
+                                      (ward) => ward.id == _selectedWard?.id,
+                                    )
+                                        ? _selectedWard
+                                        : null,
+                                    decoration: _inputDecoration(
+                                      'Ward',
+                                      Icons.map_outlined,
+                                    ),
+                                    hintText: _selectedLocalBody == null
+                                        ? 'Select local body first'
+                                        : 'Select ward',
+                                    dialogTitle: 'Select ward',
+                                    searchHintText: 'Search ward name or number',
+                                    enabled: _selectedLocalBody != null,
+                                    items: _wardsForLocalBody,
+                                    itemLabel: (ward) => ward.label,
+                                    itemSearchText: (ward) =>
+                                        '${ward.label} ${ward.localBody ?? ''} ${ward.code ?? ''}',
+                                    onChanged: _selectedLocalBody == null
+                                        ? null
+                                        : (value) => setState(
+                                            () => _selectedWard = value,
+                                          ),
+                                    validator: (value) =>
+                                        value == null ? 'Select a ward' : null,
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
                                 Row(
                                   children: [
                                     Expanded(

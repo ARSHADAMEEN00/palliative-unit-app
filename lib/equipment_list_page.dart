@@ -517,9 +517,7 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                             const SizedBox(height: AppSpacing.xxs),
                             Text(
                               eq.uniqueId,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: _equipmentStrong,
                                     fontWeight: FontWeight.w700,
@@ -875,6 +873,26 @@ class _EquipmentListPageState extends State<EquipmentListPage>
                       supply.patientAddress!,
                     ),
                 ],
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Supply Location',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: AppColors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _buildDetailRow(
+                  Icons.location_city_outlined,
+                  'Local Body',
+                  supply.localBody?.trim().isNotEmpty == true
+                      ? supply.localBody!
+                      : 'Unassigned',
+                ),
+                _buildDetailRow(
+                  Icons.map_outlined,
+                  'Ward',
+                  supply.ward?.label ?? 'Unassigned',
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 _buildDetailRow(
                   Icons.calendar_today_outlined,

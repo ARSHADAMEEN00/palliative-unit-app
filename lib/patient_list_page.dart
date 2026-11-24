@@ -25,6 +25,7 @@ import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/core/utils/format_utils.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 
 class PatientListPage extends StatefulWidget {
   const PatientListPage({super.key});
@@ -78,17 +79,35 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Future<void> _loadConfig() async {
     try {
+      final auth = context.read<AuthService>();
       final results = await Future.wait([
         ConfigService.getConfig(),
         WardService.getWards(),
       ]);
       final config = results[0] as Config;
       final careWards = results[1] as List<Ward>;
+      final localBodies = auth.isStaff || auth.isMember
+          ? (careWards
+                .map((ward) => ward.localBody?.trim() ?? '')
+                .where((value) => value.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort(compareNaturally))
+          : config.villages;
       if (mounted) {
         setState(() {
-          _villagesList = ['All', ...config.villages];
+          _villagesList = ['All', ...localBodies];
+          if (!_villagesList.contains(_selectedVillage)) {
+            _selectedVillage = 'All';
+          }
           _allWards = sortWardConfigs(config.wards);
           _careWards = careWards;
+          final visibleWardIds = careWards.map((ward) => ward.id).toSet();
+          _selectedCareWardIds.retainWhere(
+            (id) =>
+                (!(auth.isStaff || auth.isMember) && id == 'unassigned') ||
+                visibleWardIds.contains(id),
+          );
           _updateFilteredWardsList();
         });
       }
@@ -691,7 +710,10 @@ class _PatientListPageState extends State<PatientListPage> {
   Widget _buildSecondaryFilters() {
     final auth = context.watch<AuthService>();
     final isWardRestricted =
-        auth.wardRestrictionEnabled || _careWards.isNotEmpty;
+        auth.isStaff ||
+        auth.isMember ||
+        auth.wardRestrictionEnabled ||
+        _careWards.isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -707,7 +729,8 @@ class _PatientListPageState extends State<PatientListPage> {
               value: _selectedVillage,
               icon: Icons.location_on_outlined,
               items: _villagesList,
-              labelBuilder: (value) => value == 'All' ? 'All villages' : value,
+              labelBuilder: (value) =>
+                  value == 'All' ? 'Local body / Zone' : value,
               onChanged: (newValue) {
                 if (newValue != null && newValue != _selectedVillage) {
                   setState(() {
@@ -724,11 +747,44 @@ class _PatientListPageState extends State<PatientListPage> {
             Expanded(child: _buildCareWardFilterField())
           else
             Expanded(
-              child: _PatientDropdown(
-                value: _selectedWard,
-                icon: Icons.map_outlined,
+              child: SearchableDropdownField<String>(
+                key: ValueKey(
+                  'patient-ward-$_selectedWard-${_filteredWardsList.join('|')}',
+                ),
+                value: _filteredWardsList.contains(_selectedWard)
+                    ? _selectedWard
+                    : 'All',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.normal,
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  prefixIcon: const Icon(
+                    Icons.map_outlined,
+                    color: AppColors.primary,
+                    size: AppIcons.normal,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: AppRadius.md,
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppRadius.md,
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                ),
+                dialogTitle: 'Filter by ward',
+                searchHintText: 'Search ward',
                 items: _filteredWardsList,
-                labelBuilder: _wardFilterLabel,
+                itemLabel: _wardFilterLabel,
+                itemSearchText: (item) => '${_wardFilterLabel(item)} $item',
                 onChanged: (newValue) {
                   if (newValue != null && newValue != _selectedWard) {
                     setState(() {
@@ -748,7 +804,7 @@ class _PatientListPageState extends State<PatientListPage> {
     final hasFilter = _selectedCareWardIds.isNotEmpty;
     String label;
     if (_selectedCareWardIds.isEmpty) {
-      label = 'Filter by care ward';
+      label = 'Filter by ward';
     } else if (_selectedCareWardIds.length == 1) {
       final id = _selectedCareWardIds.first;
       if (id == 'unassigned') {
@@ -761,7 +817,7 @@ class _PatientListPageState extends State<PatientListPage> {
         label = match != null ? match.label : '1 ward';
       }
     } else {
-      label = '${_selectedCareWardIds.length} care wards';
+      label = '${_selectedCareWardIds.length} wards';
     }
 
     return InkWell(
@@ -829,6 +885,9 @@ class _PatientListPageState extends State<PatientListPage> {
 
   Future<void> _showCareWardFilter() async {
     var selected = <String>{..._selectedCareWardIds};
+    final auth = context.read<AuthService>();
+    final canFilterUnassigned = !auth.isStaff && !auth.isMember;
+    if (!canFilterUnassigned) selected.remove('unassigned');
     var searchQuery = '';
     final searchController = TextEditingController();
 
@@ -849,9 +908,10 @@ class _PatientListPageState extends State<PatientListPage> {
           builder: (context, setDialogState) {
             final query = searchQuery.trim().toLowerCase();
             final unassignedMatches =
-                query.isEmpty ||
-                'unassigned'.contains(query) ||
-                'no ward'.contains(query);
+                canFilterUnassigned &&
+                (query.isEmpty ||
+                    'unassigned'.contains(query) ||
+                    'no ward'.contains(query));
 
             final visibleWards = allWardsSorted.where((ward) {
               if (query.isEmpty) return true;
@@ -912,7 +972,7 @@ class _PatientListPageState extends State<PatientListPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Text(
-                                  'Filter by care ward',
+                                  'Filter by ward',
                                   style: TextStyle(
                                     fontSize: 16.5,
                                     fontWeight: FontWeight.w700,
@@ -922,7 +982,7 @@ class _PatientListPageState extends State<PatientListPage> {
                                 Text(
                                   selected.isEmpty
                                       ? 'All wards showing'
-                                      : '${selected.length} of ${allWardsSorted.length} selected',
+                                      : '${selected.length} of ${allWardsSorted.length + (canFilterUnassigned ? 1 : 0)} selected',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: selected.isEmpty
@@ -1066,7 +1126,7 @@ class _PatientListPageState extends State<PatientListPage> {
                               child: Padding(
                                 padding: const EdgeInsets.all(AppSpacing.lg),
                                 child: Text(
-                                  'No care wards match "$searchQuery"',
+                                  'No wards match "$searchQuery"',
                                   style: const TextStyle(
                                     color: AppColors.textSecondary,
                                     fontSize: 13,
@@ -1114,7 +1174,7 @@ class _PatientListPageState extends State<PatientListPage> {
                                           )
                                         : null,
                                     title: Text(
-                                      'Unassigned (no care ward)',
+                                      'Unassigned (legacy patient without ward)',
                                       style: TextStyle(
                                         fontSize: 13.5,
                                         fontWeight:
@@ -1363,6 +1423,14 @@ class _PatientListPageState extends State<PatientListPage> {
     }
   }
 
+  double _patientNameFontSize(String name) {
+    final len = name.trim().length;
+    if (len >= 28) return 11.5;
+    if (len >= 22) return 12.5;
+    if (len >= 16) return 13.5;
+    return 14.5;
+  }
+
   Widget _buildPatientCard(BuildContext context, Patient patient) {
     final authService = Provider.of<AuthService>(context, listen: false);
     final canViewContacts = authService.canViewContactNumbers;
@@ -1425,7 +1493,7 @@ class _PatientListPageState extends State<PatientListPage> {
                             style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 14.5,
+                                  fontSize: _patientNameFontSize(patient.name),
                                   color: AppColors.text,
                                 ),
                             maxLines: 1,

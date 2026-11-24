@@ -7,10 +7,12 @@ import 'package:oruma_app/eq_supply.dart';
 import 'package:oruma_app/eq_supply_edit.dart';
 import 'package:oruma_app/equipment_list_page.dart';
 import 'package:oruma_app/models/equipment_supply.dart';
+import 'package:oruma_app/models/ward.dart';
 import 'package:oruma_app/features/reports/models/report_models.dart';
 import 'package:oruma_app/features/reports/presentation/reports_page.dart';
 import 'package:oruma_app/services/auth_service.dart';
 import 'package:oruma_app/services/equipment_supply_service.dart';
+import 'package:oruma_app/services/ward_service.dart';
 import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
@@ -18,6 +20,7 @@ import 'package:oruma_app/widgets/feature_permission_gate.dart';
 import 'package:oruma_app/widgets/module_switch_tabs.dart';
 import 'package:oruma_app/widgets/module_theme.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:provider/provider.dart';
 
 const _equipmentSupplyStrong = Color(0xFFB45309);
@@ -50,6 +53,9 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _searchDebounce;
+  List<Ward> _wards = const [];
+  String? _selectedLocalBody;
+  String? _selectedWardId;
 
   @override
   void initState() {
@@ -58,6 +64,7 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     _tabController.addListener(_handleTabChange);
     _searchController.addListener(_handleSearchChanged);
     _loadData();
+    _loadWards();
   }
 
   @override
@@ -79,6 +86,29 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     _fetchActiveSupplies();
     _fetchAllSupplies();
   }
+
+  Future<void> _loadWards() async {
+    try {
+      final wards = await WardService.getWards();
+      if (mounted) setState(() => _wards = wards);
+    } catch (_) {}
+  }
+
+  List<String> get _localBodies =>
+      _wards
+          .map((ward) => ward.localBody?.trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+
+  List<Ward> get _filterWards => _wards
+      .where(
+        (ward) =>
+            _selectedLocalBody == null ||
+            ward.localBody?.trim() == _selectedLocalBody,
+      )
+      .toList();
 
   void _handleSearchChanged() {
     final query = _searchController.text.trim();
@@ -109,6 +139,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     try {
       final list = await EquipmentSupplyService.getActiveSupplies(
         search: search.isEmpty ? null : search,
+        localBody: _selectedLocalBody,
+        wardId: _selectedWardId,
       );
       if (!mounted || search != _searchQuery.trim()) return;
       setState(() {
@@ -138,6 +170,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     try {
       final list = await EquipmentSupplyService.getAllSupplies(
         search: search.isEmpty ? null : search,
+        localBody: _selectedLocalBody,
+        wardId: _selectedWardId,
       );
       if (!mounted || search != _searchQuery.trim()) return;
       setState(() {
@@ -500,22 +534,115 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
       ),
       padding: AppInsets.md,
       surfaceLevel: AppSurfaceLevel.elevated,
-      child: TextField(
-        controller: _searchController,
-        textInputAction: TextInputAction.search,
-        decoration: _compactInputDecoration(
-          'Search patient, care of, or equipment',
-          Icons.search,
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () {
-                    _searchController.clear();
-                    FocusScope.of(context).unfocus();
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            decoration: _compactInputDecoration(
+              'Search patient, care of, or equipment',
+              Icons.search,
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () {
+                        _searchController.clear();
+                        FocusScope.of(context).unfocus();
+                      },
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedLocalBody,
+                  isExpanded: true,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.normal,
+                    color: AppColors.text,
+                  ),
+                  decoration: _compactInputDecoration(
+                    'All local bodies',
+                    Icons.location_city_outlined,
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('All local bodies'),
+                    ),
+                    ..._localBodies.map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(value, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedLocalBody = value?.isEmpty == true
+                          ? null
+                          : value;
+                      if (!_filterWards.any(
+                        (ward) => ward.id == _selectedWardId,
+                      )) {
+                        _selectedWardId = null;
+                      }
+                    });
+                    _loadData();
                   },
-                )
-              : null,
-        ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: SearchableDropdownField<String>(
+                  key: ValueKey('equipment-filter-${_selectedLocalBody ?? ''}'),
+                  value: _filterWards.any((w) => w.id == _selectedWardId)
+                      ? _selectedWardId
+                      : '',
+                  decoration: _compactInputDecoration(
+                    'All wards',
+                    Icons.map_outlined,
+                  ),
+                  items: [
+                    '',
+                    ..._filterWards.map((w) => w.id),
+                  ],
+                  itemLabel: (id) {
+                    if (id.isEmpty) return 'All wards';
+                    final match = _filterWards.cast<Ward?>().firstWhere(
+                      (w) => w?.id == id,
+                      orElse: () => null,
+                    );
+                    return match?.label ?? id;
+                  },
+                  itemSearchText: (id) {
+                    if (id.isEmpty) return 'All wards';
+                    final match = _filterWards.cast<Ward?>().firstWhere(
+                      (w) => w?.id == id,
+                      orElse: () => null,
+                    );
+                    return match != null
+                        ? '${match.label} ${match.localBody ?? ''} ${match.code ?? ''}'
+                        : id;
+                  },
+                  dialogTitle: 'Select ward',
+                  searchHintText: 'Search ward name or number',
+                  onChanged: (value) {
+                    setState(
+                      () => _selectedWardId = value?.isEmpty == true
+                          ? null
+                          : value,
+                    );
+                    _loadData();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -790,6 +917,11 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                         const SizedBox(height: AppSpacing.xs),
                         _inlineDetail(Icons.place_outlined, placeLabel),
                       ],
+                      const SizedBox(height: AppSpacing.xs),
+                      _inlineDetail(
+                        Icons.map_outlined,
+                        '${supply.localBody?.trim().isNotEmpty == true ? supply.localBody : 'Unassigned'} • ${supply.ward?.label ?? 'Unassigned'}',
+                      ),
                       const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
@@ -1046,6 +1178,18 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                     ),
                 ],
                 const SizedBox(height: AppSpacing.lg),
+                _buildDetailRow(
+                  Icons.location_city_outlined,
+                  'Local Body',
+                  supply.localBody?.trim().isNotEmpty == true
+                      ? supply.localBody!
+                      : 'Unassigned',
+                ),
+                _buildDetailRow(
+                  Icons.map_outlined,
+                  'Ward',
+                  supply.ward?.label ?? 'Unassigned',
+                ),
                 _buildDetailRow(
                   Icons.calendar_today,
                   'Supply Date',

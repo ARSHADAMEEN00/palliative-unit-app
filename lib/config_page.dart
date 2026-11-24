@@ -12,6 +12,7 @@ import 'package:oruma_app/services/feature_permissions.dart';
 import 'package:oruma_app/shared/widgets/app_widgets.dart';
 import 'package:oruma_app/widgets/adaptive_app_scaffold.dart';
 import 'package:oruma_app/widgets/reveal_action_fab.dart';
+import 'package:oruma_app/widgets/searchable_dropdown_field.dart';
 import 'package:provider/provider.dart';
 
 enum ConfigPageMode { combined, settings, staff, lsg }
@@ -1306,7 +1307,7 @@ class _ConfigPageState extends State<ConfigPage>
                               color: AppColors.text,
                             ),
                             decoration: _fieldDecoration(
-                              labelText: 'Local body / Village',
+                              labelText: 'Local body / Zone',
                               prefixIcon: Icons.location_city_outlined,
                             ),
                             items: localBodies
@@ -1703,7 +1704,6 @@ class _ConfigPageState extends State<ConfigPage>
       } catch (_) {}
     }
     if (!mounted) return;
-    final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final staffLimit = _staffLimit;
     final currentStaffCount = _currentStaffCount;
     final isStaffLimitComplete = currentStaffCount >= staffLimit;
@@ -1753,11 +1753,10 @@ class _ConfigPageState extends State<ConfigPage>
                   return;
                 }
 
-                if (wardRequired &&
-                    selectedRole == 'staff' &&
+                if (const ['staff', 'member'].contains(selectedRole) &&
                     selectedWardIds.isEmpty) {
                   setSheetState(() {
-                    formError = 'Select at least one ward for a staff user';
+                    formError = 'Select at least one ward for this user';
                   });
                   return;
                 }
@@ -2015,7 +2014,10 @@ class _ConfigPageState extends State<ConfigPage>
                             _buildStaffWardPicker(
                               selectedLocalBody: selectedWardLocalBody,
                               selectedWardIds: selectedWardIds,
-                              required: wardRequired && selectedRole == 'staff',
+                              required: const [
+                                'staff',
+                                'member',
+                              ].contains(selectedRole),
                               disabled: isSubmitting,
                               onLocalBodyChanged: (value) => setSheetState(
                                 () => selectedWardLocalBody = value,
@@ -2213,7 +2215,6 @@ class _ConfigPageState extends State<ConfigPage>
       } catch (_) {}
     }
     if (!mounted) return;
-    final wardRequired = context.read<AuthService>().wardRestrictionEnabled;
     final isStaffLimitComplete = _isStaffLimitReached;
     final assignableRoles = _assignableRoles.where((role) {
       if (role == 'staff' && staff.role != 'staff' && isStaffLimitComplete) {
@@ -2249,11 +2250,10 @@ class _ConfigPageState extends State<ConfigPage>
               if (saving || !(formKey.currentState?.validate() ?? false)) {
                 return;
               }
-              if (wardRequired &&
-                  selectedRole == 'staff' &&
+              if (const ['staff', 'member'].contains(selectedRole) &&
                   selectedWardIds.isEmpty) {
                 setDialogState(() {
-                  errorMessage = 'Select at least one ward for a staff user';
+                  errorMessage = 'Select at least one ward for this user';
                 });
                 return;
               }
@@ -2479,7 +2479,10 @@ class _ConfigPageState extends State<ConfigPage>
                         _buildStaffWardPicker(
                           selectedLocalBody: selectedWardLocalBody,
                           selectedWardIds: selectedWardIds,
-                          required: wardRequired && selectedRole == 'staff',
+                          required: const [
+                            'staff',
+                            'member',
+                          ].contains(selectedRole),
                           disabled: saving,
                           onLocalBodyChanged: (value) => setDialogState(
                             () => selectedWardLocalBody = value,
@@ -2490,8 +2493,7 @@ class _ConfigPageState extends State<ConfigPage>
                                 : selectedWardIds.add(wardId);
                           }),
                         ),
-                        if (wardRequired &&
-                            selectedRole == 'staff' &&
+                        if (const ['staff', 'member'].contains(selectedRole) &&
                             selectedWardIds.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(top: AppSpacing.xs),
@@ -4896,11 +4898,11 @@ class _ConfigPageState extends State<ConfigPage>
       return true;
     }).toList();
 
-    return DropdownButtonFormField<String>(
-      initialValue: availableWards.any((w) => w.id == _staffWardFilter)
+    return SearchableDropdownField<String>(
+      key: ValueKey('staff-ward-filter-$_staffLocalBodyFilter'),
+      value: availableWards.any((w) => w.id == _staffWardFilter)
           ? _staffWardFilter
           : 'all',
-      isExpanded: true,
       style: const TextStyle(
         color: _inkColor,
         fontSize: 13,
@@ -4910,22 +4912,30 @@ class _ConfigPageState extends State<ConfigPage>
         labelText: 'Filter by ward',
         prefixIcon: Icons.local_hospital_outlined,
       ),
+      dialogTitle: 'Select ward filter',
+      searchHintText: 'Search ward name or number',
       items: [
-        const DropdownMenuItem(
-          value: 'all',
-          child: Text('All wards', style: TextStyle(fontSize: 13)),
-        ),
-        ...availableWards.map(
-          (ward) => DropdownMenuItem(
-            value: ward.id,
-            child: Text(
-              ward.fullLabel,
-              style: const TextStyle(fontSize: 13),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
+        'all',
+        ...availableWards.map((w) => w.id),
       ],
+      itemLabel: (id) {
+        if (id == 'all') return 'All wards';
+        final match = availableWards.cast<Ward?>().firstWhere(
+          (w) => w?.id == id,
+          orElse: () => null,
+        );
+        return match?.fullLabel ?? id;
+      },
+      itemSearchText: (id) {
+        if (id == 'all') return 'All wards';
+        final match = availableWards.cast<Ward?>().firstWhere(
+          (w) => w?.id == id,
+          orElse: () => null,
+        );
+        return match != null
+            ? '${match.fullLabel} ${match.label} ${match.localBody ?? ''} ${match.code ?? ''}'
+            : id;
+      },
       onChanged: (value) => setState(() => _staffWardFilter = value ?? 'all'),
     );
   }
@@ -5748,7 +5758,7 @@ class _ConfigPageState extends State<ConfigPage>
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Assigned wards',
+                        'Assigned local bodies & wards',
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
                               color: AppColors.textSecondary,
@@ -5819,7 +5829,7 @@ class _ConfigPageState extends State<ConfigPage>
                               Icons.local_hospital_outlined,
                               size: 15,
                             ),
-                            label: Text(ward.label),
+                            label: Text(ward.fullLabel),
                             visualDensity: VisualDensity.compact,
                           ),
                         )

@@ -1,3 +1,5 @@
+import 'package:oruma_app/models/ward.dart';
+
 class MedicineSupplyReturn {
   final String? id;
   final int qtyReturned;
@@ -251,6 +253,9 @@ class MedicineSupplyItem {
 class MedicineSupply {
   final String? id;
   final dynamic patientId; // Can be String ID or Map
+  final String? wardId;
+  final Ward? ward;
+  final String? localBody;
   final dynamic medicineId; // Can be String ID or Map
   final dynamic givenByStaff; // Can be String ID or Map
   final DateTime givenAt;
@@ -269,6 +274,9 @@ class MedicineSupply {
   const MedicineSupply({
     this.id,
     required this.patientId,
+    this.wardId,
+    this.ward,
+    this.localBody,
     required this.medicineId,
     required this.givenByStaff,
     required this.givenAt,
@@ -290,6 +298,13 @@ class MedicineSupply {
     return MedicineSupply(
       id: json['_id']?.toString() ?? json['id']?.toString(),
       patientId: json['patientId'],
+      wardId: _getId(json['wardId']),
+      ward: json['wardId'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['wardId']))
+          : json['ward'] is Map
+          ? Ward.fromJson(Map<String, dynamic>.from(json['ward']))
+          : null,
+      localBody: json['localBody']?.toString(),
       medicineId: json['medicineId'],
       givenByStaff: json['givenByStaff'],
       givenAt: json['givenAt'] != null
@@ -335,6 +350,8 @@ class MedicineSupply {
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{
       'patientId': _getId(patientId),
+      if (wardId != null) 'wardId': wardId,
+      if (localBody != null) 'localBody': localBody,
       'medicineId': _getId(medicineId),
       'givenByStaff': _getId(givenByStaff),
       'givenAt': givenAt.toIso8601String(),
@@ -469,6 +486,9 @@ class MedicineSupply {
   MedicineSupply copyWith({
     String? id,
     dynamic patientId,
+    String? wardId,
+    Ward? ward,
+    String? localBody,
     dynamic medicineId,
     dynamic givenByStaff,
     DateTime? givenAt,
@@ -485,6 +505,9 @@ class MedicineSupply {
     return MedicineSupply(
       id: id ?? this.id,
       patientId: patientId ?? this.patientId,
+      wardId: wardId ?? this.wardId,
+      ward: ward ?? this.ward,
+      localBody: localBody ?? this.localBody,
       medicineId: medicineId ?? this.medicineId,
       givenByStaff: givenByStaff ?? this.givenByStaff,
       givenAt: givenAt ?? this.givenAt,
