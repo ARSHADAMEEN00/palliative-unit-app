@@ -57,7 +57,7 @@
     },
     {
       "name": "clock",
-      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/clock-1.1.2",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/clock-1.1.3",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -143,7 +143,7 @@
       "name": "flutter",
       "rootUri": "file:///opt/homebrew/share/flutter/packages/flutter",
       "packageUri": "lib/",
-      "languageVersion": "3.11"
+      "languageVersion": "3.13"
     },
     {
       "name": "flutter_launcher_icons",
@@ -209,13 +209,13 @@
       "name": "flutter_test",
       "rootUri": "file:///opt/homebrew/share/flutter/packages/flutter_test",
       "packageUri": "lib/",
-      "languageVersion": "3.11"
+      "languageVersion": "3.13"
     },
     {
       "name": "flutter_web_plugins",
       "rootUri": "file:///opt/homebrew/share/flutter/packages/flutter_web_plugins",
       "packageUri": "lib/",
-      "languageVersion": "3.11"
+      "languageVersion": "3.13"
     },
     {
       "name": "google_fonts",
@@ -360,6 +360,12 @@
       "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/lints-6.0.0",
       "packageUri": "lib/",
       "languageVersion": "3.8"
+    },
+    {
+      "name": "listen",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/listen-1.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
     },
     {
       "name": "logging",
@@ -587,7 +593,7 @@
       "name": "sky_engine",
       "rootUri": "file:///opt/homebrew/share/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
-      "languageVersion": "3.11"
+      "languageVersion": "3.13"
     },
     {
       "name": "source_span",
@@ -615,7 +621,7 @@
     },
     {
       "name": "stack_trace",
-      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/stack_trace-1.12.1",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/stack_trace-1.12.2",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -639,9 +645,9 @@
     },
     {
       "name": "test_api",
-      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/test_api-0.7.12",
+      "rootUri": "file:///Users/ameenarshadnediya/.pub-cache/hosted/pub.dev/test_api-0.7.14",
       "packageUri": "lib/",
-      "languageVersion": "3.10"
+      "languageVersion": "3.11"
     },
     {
       "name": "typed_data",
@@ -783,8 +789,8 @@
     }
   ],
   "generator": "pub",
-  "generatorVersion": "3.13.5",
+  "generatorVersion": "3.14.0",
   "flutterRoot": "file:///opt/homebrew/share/flutter",
-  "flutterVersion": "3.47.7",
+  "flutterVersion": "3.50.1",
   "pubCache": "file:///Users/ameenarshadnediya/.pub-cache"
 }

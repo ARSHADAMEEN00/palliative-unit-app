@@ -237,6 +237,8 @@ class _EqSupplyState extends State<EqSupply> {
   }
 
   Future<void> _submit() async {
+    final showLocationInputs = _selectedPatient == null &&
+        context.read<AuthService>().wardRestrictionEnabled;
     if (_selectedEquipment.isEmpty ||
         _selectedEquipment.any((equipment) => equipment.isDamaged)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -300,7 +302,7 @@ class _EqSupplyState extends State<EqSupply> {
       return;
     }
 
-    if (_selectedPatient == null &&
+    if (showLocationInputs &&
         (_selectedWard == null || _selectedLocalBody?.isNotEmpty != true)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -338,8 +340,8 @@ class _EqSupplyState extends State<EqSupply> {
           equipmentUniqueId: equipment.uniqueId,
           equipmentName: equipment.name,
           patientId: _selectedPatient?.id,
-          wardId: _selectedPatient == null ? _selectedWard?.id : null,
-          localBody: _selectedPatient == null ? _selectedLocalBody : null,
+          wardId: showLocationInputs ? _selectedWard?.id : null,
+          localBody: showLocationInputs ? _selectedLocalBody : null,
           patientName: _selectedPatient?.name,
           patientPhone: _selectedPatient?.phone,
           patientAddress: _selectedPatient?.address,
@@ -423,6 +425,10 @@ class _EqSupplyState extends State<EqSupply> {
 
   @override
   Widget build(BuildContext context) {
+    final wardRestrictionEnabled =
+        context.watch<AuthService>().wardRestrictionEnabled;
+    final showLocationInputs =
+        _selectedPatient == null && wardRestrictionEnabled;
     return ModuleTheme(
       palette: ModulePalettes.equipmentSupply,
       child: AdaptiveAppScaffold(
@@ -1247,7 +1253,7 @@ class _EqSupplyState extends State<EqSupply> {
                               title: 'Handover & Notes',
                               icon: Icons.handshake_outlined,
                               children: [
-                                if (_selectedPatient == null) ...[
+                                if (showLocationInputs) ...[
                                   DropdownButtonFormField<String>(
                                     initialValue:
                                         _localBodies.contains(

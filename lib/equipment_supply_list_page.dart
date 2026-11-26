@@ -128,6 +128,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
 
   Future<void> _fetchActiveSupplies({bool showLoading = true}) async {
     final search = _searchQuery.trim();
+    final wardRestrictionEnabled =
+        context.read<AuthService>().wardRestrictionEnabled;
 
     if (showLoading) {
       setState(() {
@@ -139,8 +141,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     try {
       final list = await EquipmentSupplyService.getActiveSupplies(
         search: search.isEmpty ? null : search,
-        localBody: _selectedLocalBody,
-        wardId: _selectedWardId,
+        localBody: wardRestrictionEnabled ? _selectedLocalBody : null,
+        wardId: wardRestrictionEnabled ? _selectedWardId : null,
       );
       if (!mounted || search != _searchQuery.trim()) return;
       setState(() {
@@ -159,6 +161,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
 
   Future<void> _fetchAllSupplies({bool showLoading = true}) async {
     final search = _searchQuery.trim();
+    final wardRestrictionEnabled =
+        context.read<AuthService>().wardRestrictionEnabled;
 
     if (showLoading) {
       setState(() {
@@ -170,8 +174,8 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
     try {
       final list = await EquipmentSupplyService.getAllSupplies(
         search: search.isEmpty ? null : search,
-        localBody: _selectedLocalBody,
-        wardId: _selectedWardId,
+        localBody: wardRestrictionEnabled ? _selectedLocalBody : null,
+        wardId: wardRestrictionEnabled ? _selectedWardId : null,
       );
       if (!mounted || search != _searchQuery.trim()) return;
       setState(() {
@@ -553,95 +557,97 @@ class _EquipmentSupplyListPageState extends State<EquipmentSupplyListPage>
                   : null,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedLocalBody,
-                  isExpanded: true,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.normal,
-                    color: AppColors.text,
-                  ),
-                  decoration: _compactInputDecoration(
-                    'All local bodies',
-                    Icons.location_city_outlined,
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: '',
-                      child: Text('All local bodies'),
+          if (context.watch<AuthService>().wardRestrictionEnabled) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedLocalBody,
+                    isExpanded: true,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.normal,
+                      color: AppColors.text,
                     ),
-                    ..._localBodies.map(
-                      (value) => DropdownMenuItem(
-                        value: value,
-                        child: Text(value, overflow: TextOverflow.ellipsis),
+                    decoration: _compactInputDecoration(
+                      'All local bodies',
+                      Icons.location_city_outlined,
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('All local bodies'),
                       ),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedLocalBody = value?.isEmpty == true
-                          ? null
-                          : value;
-                      if (!_filterWards.any(
-                        (ward) => ward.id == _selectedWardId,
-                      )) {
-                        _selectedWardId = null;
-                      }
-                    });
-                    _loadData();
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: SearchableDropdownField<String>(
-                  key: ValueKey('equipment-filter-${_selectedLocalBody ?? ''}'),
-                  value: _filterWards.any((w) => w.id == _selectedWardId)
-                      ? _selectedWardId
-                      : '',
-                  decoration: _compactInputDecoration(
-                    'All wards',
-                    Icons.map_outlined,
+                      ..._localBodies.map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(value, overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedLocalBody = value?.isEmpty == true
+                            ? null
+                            : value;
+                        if (!_filterWards.any(
+                          (ward) => ward.id == _selectedWardId,
+                        )) {
+                          _selectedWardId = null;
+                        }
+                      });
+                      _loadData();
+                    },
                   ),
-                  items: [
-                    '',
-                    ..._filterWards.map((w) => w.id),
-                  ],
-                  itemLabel: (id) {
-                    if (id.isEmpty) return 'All wards';
-                    final match = _filterWards.cast<Ward?>().firstWhere(
-                      (w) => w?.id == id,
-                      orElse: () => null,
-                    );
-                    return match?.label ?? id;
-                  },
-                  itemSearchText: (id) {
-                    if (id.isEmpty) return 'All wards';
-                    final match = _filterWards.cast<Ward?>().firstWhere(
-                      (w) => w?.id == id,
-                      orElse: () => null,
-                    );
-                    return match != null
-                        ? '${match.label} ${match.localBody ?? ''} ${match.code ?? ''}'
-                        : id;
-                  },
-                  dialogTitle: 'Select ward',
-                  searchHintText: 'Search ward name or number',
-                  onChanged: (value) {
-                    setState(
-                      () => _selectedWardId = value?.isEmpty == true
-                          ? null
-                          : value,
-                    );
-                    _loadData();
-                  },
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: SearchableDropdownField<String>(
+                    key: ValueKey('equipment-filter-${_selectedLocalBody ?? ''}'),
+                    value: _filterWards.any((w) => w.id == _selectedWardId)
+                        ? _selectedWardId
+                        : '',
+                    decoration: _compactInputDecoration(
+                      'All wards',
+                      Icons.map_outlined,
+                    ),
+                    items: [
+                      '',
+                      ..._filterWards.map((w) => w.id),
+                    ],
+                    itemLabel: (id) {
+                      if (id.isEmpty) return 'All wards';
+                      final match = _filterWards.cast<Ward?>().firstWhere(
+                        (w) => w?.id == id,
+                        orElse: () => null,
+                      );
+                      return match?.label ?? id;
+                    },
+                    itemSearchText: (id) {
+                      if (id.isEmpty) return 'All wards';
+                      final match = _filterWards.cast<Ward?>().firstWhere(
+                        (w) => w?.id == id,
+                        orElse: () => null,
+                      );
+                      return match != null
+                          ? '${match.label} ${match.localBody ?? ''} ${match.code ?? ''}'
+                          : id;
+                    },
+                    dialogTitle: 'Select ward',
+                    searchHintText: 'Search ward name or number',
+                    onChanged: (value) {
+                      setState(
+                        () => _selectedWardId = value?.isEmpty == true
+                            ? null
+                            : value,
+                      );
+                      _loadData();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
